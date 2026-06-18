@@ -204,20 +204,26 @@ class Renderer {
      * 获取地形对应的素材键
      */
     getTerrainAssetKey(tile) {
-        const v = Math.floor(Date.now() / 1000) % 3; // 缓慢变化增加自然感
+        // 使用 64x64 Seamless RPG Tiles 高级无缝纹理
+        // 根据季节选择变体
+        const season = window.state ? window.state.season : 'spring';
         switch (tile) {
-            case T.GRASS:   return `tt${[0,1,2][v]}`;
-            case T.DIRT:    return `tt${[12,13,14][v]}`;
-            case T.TILLED:  return 'tt12';
-            case T.WATERED: return 'tt12';
-            case T.PATH:    return `tt${[48,49,50][v]}`;
-            case T.FENCE:   return 'tt0';
-            case T.WATER:   return `tt${[76,77,78][v]}`;
-            case T.FLOWER:  return 'tt0';
-            case T.HOUSE:   return `tt${[52,53][v % 2]}`;
-            case T.DOOR:    return 'tt56';
-            case T.STONE:   return 'tt0';
-            default:        return 'tt0';
+            case T.GRASS:
+                if (season === 'winter') return 'texGrassSnowy';
+                if (season === 'autumn') return 'texGrassNov';
+                if (season === 'summer') return 'texGrassDry';
+                return 'texGrass';
+            case T.DIRT:    return 'texDryland';
+            case T.TILLED:  return 'texFarmland';
+            case T.WATERED: return 'texMud';
+            case T.PATH:    return 'texPath';
+            case T.FENCE:   return 'texGrass';
+            case T.WATER:   return 'texWater';
+            case T.FLOWER:  return 'texGrass';
+            case T.HOUSE:   return 'texStoneTile';
+            case T.DOOR:    return 'texWoodTile';
+            case T.STONE:   return 'texPebbles';
+            default:        return 'texGrass';
         }
     }
 
