@@ -46,6 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 初始化输入
         input = new InputHandler(state);
+        // 暴露到全局，供触控事件处理器访问
+        window.input = input;
 
         // 预加载素材
         AssetsLoader.loadAll().then(() => {
@@ -55,6 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // 绑定触控事件（手机摇杆等）
         if (typeof window._touchInit === 'function') {
             window._touchInit();
+        }
+
+        // 检测触摸设备，确保触控控件可见
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+            document.getElementById('touch-controls').style.display = 'flex';
         }
 
         // 隐藏登录，显示游戏
