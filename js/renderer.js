@@ -95,7 +95,7 @@ class Renderer {
                 const px = x * TILE;
                 const py = y * TILE;
                 
-                this.renderTile(ctx, tile, px, py, x, y, sc);
+                this.renderTile(ctx, tile, px, py, x, y, sc, state);
             }
         }
     }
@@ -114,7 +114,7 @@ class Renderer {
      * Row 7:  84-87=屋顶变体, 88-91=水面/冰, 92-95=门/窗
      * Row 8-10: 城堡墙、装饰物、家具等
      */
-    renderTile(ctx, tile, px, py, x, y, sc) {
+    renderTile(ctx, tile, px, py, x, y, sc, state) {
         const a = AssetsLoader.assets;
         // 基于坐标选择变体
         const v = (x * 3 + y * 7) % 3;
