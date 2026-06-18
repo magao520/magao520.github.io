@@ -80,6 +80,7 @@
             position: relative;
             z-index: 1;
             animation: loginBoxIn 0.5s ease-out;
+            border-radius: 8px;
         }
 
         @keyframes loginBoxIn {
@@ -101,7 +102,7 @@
             letter-spacing: 2px;
         }
 
-        .login-box input {
+        .login-box input[type="text"] {
             width: 100%;
             padding: 12px 14px;
             border: 3px solid #5c3d1e;
@@ -112,11 +113,30 @@
             margin-bottom: 12px;
             outline: none;
             transition: box-shadow 0.2s, border-color 0.2s;
+            border-radius: 6px;
         }
 
-        .login-box input:focus {
+        .login-box input[type="text"]:focus {
             box-shadow: inset 0 0 0 2px #c4a96a, 0 0 8px rgba(255,217,61,0.3);
             border-color: #c4a96a;
+        }
+
+        .login-box .remember-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            color: #8b6d3f;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .login-box .remember-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #c0392b;
+            cursor: pointer;
         }
 
         .login-box button {
@@ -132,6 +152,7 @@
             transition: all 0.1s;
             margin-top: 8px;
             letter-spacing: 2px;
+            border-radius: 6px;
         }
 
         .login-box button:hover {
@@ -179,8 +200,8 @@
         #hud.active { display: flex; }
 
         .hud-box {
-            background: rgba(20, 15, 10, 0.85);
-            border: 2px solid #c4a96a;
+            background: rgba(20, 15, 10, 0.65);
+            border: 2px solid rgba(196, 169, 106, 0.6);
             padding: 6px 12px;
             color: #f4e8c1;
             font-size: 14px;
@@ -188,8 +209,10 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            border-radius: 2px;
-            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         .hud-box .icon { font-size: 18px; }
@@ -202,11 +225,13 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            background: rgba(20, 15, 10, 0.85);
-            border: 2px solid #c4a96a;
+            background: rgba(20, 15, 10, 0.65);
+            border: 2px solid rgba(196, 169, 106, 0.6);
             padding: 6px 12px;
-            border-radius: 2px;
-            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             pointer-events: auto;
         }
 
@@ -215,7 +240,7 @@
             height: 12px;
             background: #3d2b1f;
             border: 1px solid #5c3d1e;
-            border-radius: 1px;
+            border-radius: 6px;
             overflow: hidden;
         }
 
@@ -224,7 +249,7 @@
             width: 100%;
             background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
             transition: width 0.3s;
-            border-radius: 1px;
+            border-radius: 6px;
         }
 
         #stamina-bar-fill.low {
@@ -255,12 +280,14 @@
             transform: translateX(-50%);
             display: none;
             gap: 4px;
-            z-index: 50;
-            background: rgba(20, 15, 10, 0.88);
-            border: 2px solid #c4a96a;
+            z-index: 55;
+            background: rgba(20, 15, 10, 0.65);
+            border: 2px solid rgba(196, 169, 106, 0.6);
             padding: 6px 10px;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            border-radius: 14px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         #toolbar.active { display: flex; }
@@ -268,23 +295,29 @@
         .tool-item {
             width: 50px;
             height: 50px;
-            background: #3d2b1f;
-            border: 2px solid #5c3d1e;
+            background: rgba(61, 43, 31, 0.7);
+            border: 2px solid rgba(92, 61, 30, 0.8);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 24px;
             cursor: pointer;
-            transition: all 0.1s;
-            border-radius: 4px;
+            transition: all 0.2s ease;
+            border-radius: 10px;
             position: relative;
         }
 
-        .tool-item:hover { background: #5c3d1e; }
+        .tool-item:hover { background: rgba(92, 61, 30, 0.8); }
         .tool-item.active {
             border-color: #ffd93d;
-            background: #5c3d1e;
-            box-shadow: 0 0 10px rgba(255, 217, 61, 0.5);
+            background: rgba(92, 61, 30, 0.9);
+            box-shadow: 0 0 16px rgba(255, 217, 61, 0.6), inset 0 0 8px rgba(255, 217, 61, 0.2);
+            animation: toolPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes toolPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.06); }
         }
 
         .tool-item .tool-label {
@@ -297,8 +330,9 @@
 
         .tool-separator {
             width: 2px;
-            background: #5c3d1e;
+            background: rgba(92, 61, 30, 0.6);
             margin: 4px 2px;
+            border-radius: 1px;
         }
 
         /* ========================================
@@ -310,12 +344,14 @@
             left: calc(50% + 200px);
             display: none;
             gap: 3px;
-            z-index: 50;
-            background: rgba(20, 15, 10, 0.88);
-            border: 2px solid #c4a96a;
+            z-index: 55;
+            background: rgba(20, 15, 10, 0.65);
+            border: 2px solid rgba(196, 169, 106, 0.6);
             padding: 6px 8px;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         #hotbar.active { display: flex; }
@@ -323,40 +359,45 @@
         .hotbar-slot {
             width: 44px;
             height: 44px;
-            background: #3d2b1f;
-            border: 2px solid #5c3d1e;
+            background: rgba(61, 43, 31, 0.7);
+            border: 2px solid rgba(92, 61, 30, 0.8);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: 3px;
+            border-radius: 8px;
             position: relative;
         }
 
         .hotbar-emoji { font-size: 18px; line-height: 1; }
         .hotbar-count { font-size: 9px; color: #ffd93d; line-height: 1; }
-        .hotbar-empty { width: 8px; height: 8px; background: rgba(255,255,255,0.1); border-radius: 1px; }
+        .hotbar-empty { width: 8px; height: 8px; background: rgba(255,255,255,0.1); border-radius: 2px; }
 
         /* ========================================
            对话框 - 像素风 + 打字机效果
            ======================================== */
         #dialog-box {
             position: fixed;
-            bottom: 140px;
+            bottom: 180px;
             left: 50%;
             transform: translateX(-50%);
             width: 640px;
             max-width: 92vw;
-            background: rgba(20, 15, 10, 0.94);
-            border: 3px solid #c4a96a;
+            background: rgba(20, 15, 10, 0.82);
+            border: 3px solid rgba(196, 169, 106, 0.8);
             padding: 18px 22px;
             color: #f4e8c1;
             font-size: 16px;
-            z-index: 60;
+            z-index: 65;
             display: none;
             line-height: 1.7;
-            border-radius: 4px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            border-radius: 16px;
+            box-shadow:
+                0 8px 32px rgba(0,0,0,0.5),
+                0 0 0 1px rgba(196, 169, 106, 0.2),
+                inset 0 1px 0 rgba(255,255,255,0.06);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
         }
 
         #dialog-box.active { display: block; }
@@ -400,13 +441,18 @@
             transform: translate(-50%, -50%);
             width: 460px;
             max-width: 92vw;
-            background: rgba(20, 15, 10, 0.95);
-            border: 3px solid #c4a96a;
+            background: rgba(20, 15, 10, 0.85);
+            border: 3px solid rgba(196, 169, 106, 0.8);
             padding: 20px;
-            z-index: 70;
+            z-index: 75;
             display: none;
-            border-radius: 4px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            border-radius: 16px;
+            box-shadow:
+                0 12px 40px rgba(0,0,0,0.6),
+                0 0 0 1px rgba(196, 169, 106, 0.15),
+                inset 0 1px 0 rgba(255,255,255,0.06);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         #backpack-panel.active { display: block; }
@@ -429,13 +475,13 @@
         .backpack-cell {
             width: 48px;
             height: 48px;
-            background: #3d2b1f;
-            border: 2px solid #5c3d1e;
+            background: rgba(61, 43, 31, 0.7);
+            border: 2px solid rgba(92, 61, 30, 0.8);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 20px;
-            border-radius: 2px;
+            border-radius: 8px;
         }
 
         #backpack-cursor {
@@ -443,9 +489,10 @@
             width: 48px;
             height: 48px;
             border: 2px solid #ffd93d;
-            box-shadow: 0 0 8px rgba(255, 217, 61, 0.5);
+            box-shadow: 0 0 12px rgba(255, 217, 61, 0.5);
             pointer-events: none;
             transition: left 0.1s, top 0.1s;
+            border-radius: 8px;
         }
 
         /* ========================================
@@ -458,13 +505,18 @@
             transform: translate(-50%, -50%);
             width: 400px;
             max-width: 90vw;
-            background: rgba(20, 15, 10, 0.95);
-            border: 3px solid #c4a96a;
+            background: rgba(20, 15, 10, 0.85);
+            border: 3px solid rgba(196, 169, 106, 0.8);
             padding: 20px;
-            z-index: 70;
+            z-index: 75;
             display: none;
-            border-radius: 4px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            border-radius: 16px;
+            box-shadow:
+                0 12px 40px rgba(0,0,0,0.6),
+                0 0 0 1px rgba(196, 169, 106, 0.15),
+                inset 0 1px 0 rgba(255,255,255,0.06);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         #shop-panel.active { display: block; }
@@ -488,6 +540,7 @@
             border-bottom: 1px solid rgba(196, 169, 106, 0.2);
             cursor: pointer;
             transition: background 0.1s;
+            border-radius: 6px;
         }
 
         .shop-item:hover { background: rgba(255, 217, 61, 0.1); }
@@ -507,11 +560,14 @@
             right: 10px;
             width: 150px;
             height: 150px;
-            background: rgba(20, 15, 10, 0.85);
-            border: 2px solid #c4a96a;
+            background: rgba(20, 15, 10, 0.65);
+            border: 2px solid rgba(196, 169, 106, 0.6);
             z-index: 50;
             display: none;
-            border-radius: 4px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
 
         #minimap.active { display: block; }
@@ -524,8 +580,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(20, 15, 10, 0.92);
-            border: 2px solid #ffd93d;
+            background: rgba(20, 15, 10, 0.88);
+            border: 2px solid rgba(255, 217, 61, 0.7);
             color: #f4e8c1;
             padding: 12px 28px;
             font-size: 18px;
@@ -534,8 +590,10 @@
             transition: opacity 0.3s;
             pointer-events: none;
             text-align: center;
-            border-radius: 4px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
 
         #toast.show { opacity: 1; }
@@ -545,28 +603,31 @@
            ======================================== */
         #controls-hint {
             position: fixed;
-            bottom: 140px;
-            right: 10px;
-            background: rgba(20, 15, 10, 0.75);
-            border: 1px solid #5c3d1e;
+            top: 10px;
+            left: 10px;
+            background: rgba(20, 15, 10, 0.65);
+            border: 1px solid rgba(92, 61, 30, 0.6);
             padding: 10px 14px;
             color: #8b7355;
             font-size: 11px;
-            z-index: 50;
+            z-index: 45;
             display: none;
             line-height: 1.9;
-            border-radius: 3px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
 
         #controls-hint.active { display: block; }
 
         #controls-hint kbd {
-            background: #3d2b1f;
-            border: 1px solid #5c3d1e;
+            background: rgba(61, 43, 31, 0.7);
+            border: 1px solid rgba(92, 61, 30, 0.8);
             padding: 1px 6px;
             color: #c4a96a;
             font-family: monospace;
-            border-radius: 2px;
+            border-radius: 4px;
             font-size: 10px;
         }
 
@@ -581,11 +642,17 @@
                 display: none !important;
             }
             #toolbar {
-                bottom: 140px;
+                bottom: 160px;
             }
             #hotbar {
-                bottom: 140px;
+                bottom: 160px;
                 left: calc(50% + 180px);
+            }
+            #dialog-box {
+                bottom: 200px;
+            }
+            #minimap {
+                display: none !important;
             }
         }
 
@@ -604,34 +671,41 @@
             position: fixed;
             bottom: 20px;
             left: 20px;
-            width: 150px;
-            height: 150px;
+            width: 170px;
+            height: 170px;
             pointer-events: auto;
             touch-action: none;
         }
 
         #joystick-base {
             position: absolute;
-            width: 150px;
-            height: 150px;
+            width: 170px;
+            height: 170px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.12);
-            border: 3px solid rgba(255, 255, 255, 0.25);
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+            background: rgba(255, 255, 255, 0.1);
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            box-shadow: inset 0 0 24px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.2);
+            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+
+        #joystick-base.active {
+            background: rgba(255, 255, 255, 0.18);
+            border-color: rgba(255, 217, 61, 0.5);
+            box-shadow: inset 0 0 24px rgba(0,0,0,0.2), 0 4px 16px rgba(255, 217, 61, 0.15);
         }
 
         #joystick-thumb {
             position: absolute;
-            width: 60px;
-            height: 60px;
+            width: 68px;
+            height: 68px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.35);
-            border: 2px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.6);
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             transition: none;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
         /* 互动按钮 - 更大 */
@@ -639,13 +713,41 @@
             position: fixed;
             bottom: 40px;
             right: 20px;
-            width: 80px;
-            height: 80px;
+            width: 90px;
+            height: 90px;
             border-radius: 50%;
-            background: rgba(255, 217, 61, 0.35);
-            border: 3px solid rgba(255, 217, 61, 0.65);
+            background: rgba(255, 217, 61, 0.3);
+            border: 3px solid rgba(255, 217, 61, 0.6);
             color: #ffd93d;
-            font-size: 30px;
+            font-size: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+            transition: transform 0.1s, background 0.2s;
+        }
+
+        #touch-interact:active {
+            background: rgba(255, 217, 61, 0.6);
+            transform: scale(0.93);
+        }
+
+        /* 背包触控按钮 - 新增 */
+        #touch-backpack {
+            position: fixed;
+            bottom: 150px;
+            right: 20px;
+            width: 64px;
+            height: 64px;
+            border-radius: 14px;
+            background: rgba(20, 15, 10, 0.75);
+            border: 2px solid rgba(92, 61, 30, 0.8);
+            color: #f4e8c1;
+            font-size: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -654,72 +756,55 @@
             user-select: none;
             -webkit-user-select: none;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-
-        #touch-interact:active {
-            background: rgba(255, 217, 61, 0.65);
-            transform: scale(0.93);
-        }
-
-        /* 背包触控按钮 - 新增 */
-        #touch-backpack {
-            position: fixed;
-            bottom: 140px;
-            right: 20px;
-            width: 56px;
-            height: 56px;
-            border-radius: 12px;
-            background: rgba(20, 15, 10, 0.8);
-            border: 2px solid #5c3d1e;
-            color: #f4e8c1;
-            font-size: 26px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: auto;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: transform 0.1s;
         }
 
         #touch-backpack:active {
             background: rgba(255, 217, 61, 0.3);
             border-color: #ffd93d;
+            transform: scale(0.93);
         }
 
         /* 触控工具栏 - 按钮更大 */
         #touch-toolbar {
             position: fixed;
-            bottom: 160px;
+            bottom: 200px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 8px;
+            gap: 10px;
             pointer-events: auto;
             touch-action: none;
+            z-index: 70;
         }
 
         .touch-tool-btn {
-            width: 58px;
-            height: 58px;
-            border-radius: 14px;
-            background: rgba(20, 15, 10, 0.8);
-            border: 2px solid #5c3d1e;
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: rgba(20, 15, 10, 0.75);
+            border: 2px solid rgba(92, 61, 30, 0.8);
             color: #f4e8c1;
-            font-size: 26px;
+            font-size: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: all 0.15s ease;
         }
 
         .touch-tool-btn.active {
             border-color: #ffd93d;
-            background: rgba(255, 217, 61, 0.3);
-            box-shadow: 0 0 12px rgba(255, 217, 61, 0.5);
+            background: rgba(255, 217, 61, 0.25);
+            box-shadow: 0 0 16px rgba(255, 217, 61, 0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+            transform: scale(1.08);
         }
 
         .touch-tool-btn:active {
@@ -739,6 +824,10 @@
             <p class="subtitle">星露谷风格 · 大世界种菜冒险</p>
             <input type="text" id="player-name" placeholder="输入你的名字" maxlength="12">
             <input type="text" id="room-id" placeholder="房间号 (留空创建新房)">
+            <label class="remember-row">
+                <input type="checkbox" id="remember-me" checked>
+                <span>记住我</span>
+            </label>
             <details>
                 <summary>GitHub 配置</summary>
                 <input type="text" id="github-token" placeholder="Personal Access Token">
@@ -880,6 +969,27 @@
 
     <!-- ===== 触控控件初始化 ===== -->
     <script>
+    // 登录界面：读取 localStorage 记住的名字
+    (function() {
+        const savedName = localStorage.getItem('farm_player_name');
+        if (savedName) {
+            document.getElementById('player-name').value = savedName;
+        }
+        const rememberCheckbox = document.getElementById('remember-me');
+        // 绑定开始按钮保存逻辑
+        const startBtn = document.getElementById('start-btn');
+        const originalOnClick = startBtn.onclick;
+        startBtn.addEventListener('click', function() {
+            const nameInput = document.getElementById('player-name');
+            const name = nameInput.value.trim();
+            if (rememberCheckbox.checked && name) {
+                localStorage.setItem('farm_player_name', name);
+            } else {
+                localStorage.removeItem('farm_player_name');
+            }
+        });
+    })();
+
     // 触控事件处理器 - 在 main.js 的 startGame() 创建 input 后自动绑定
     window._touchInit = function() {
         if (window._touchInitialized) return;
@@ -898,6 +1008,7 @@
         function handleJoystickStart(e) {
             e.preventDefault();
             joystickActive = true;
+            joystickBase.classList.add('active');
             handleJoystickMove(e);
         }
 
@@ -935,6 +1046,7 @@
         function handleJoystickEnd(e) {
             e.preventDefault();
             joystickActive = false;
+            joystickBase.classList.remove('active');
             joystickThumb.style.transform = 'translate(-50%, -50%)';
             const inp = getInput();
             if (inp) {
