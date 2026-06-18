@@ -3,125 +3,262 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌱 联机种菜游戏</title>
+    <title>🌾 快乐农场 - 像素风联机种菜</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div id="app">
+        <!-- 加载画面 -->
+        <div id="loading-screen" class="screen active">
+            <div class="pixel-loading">
+                <div class="pixel-logo">🌾</div>
+                <div class="loading-text">加载中...</div>
+                <div class="pixel-progress">
+                    <div class="pixel-progress-bar"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- 登录界面 -->
-        <div id="login-screen" class="screen active">
-            <div class="login-box">
-                <h1>🌾 快乐农场</h1>
-                <p class="subtitle">多人联机种菜游戏</p>
-                <div class="input-group">
-                    <input type="text" id="player-name" placeholder="输入你的名字" maxlength="12">
+        <div id="login-screen" class="screen">
+            <div class="pixel-bg">
+                <div class="cloud cloud-1">☁️</div>
+                <div class="cloud cloud-2">☁️</div>
+                <div class="cloud cloud-3">☁️</div>
+                <div class="sun">☀️</div>
+            </div>
+            <div class="login-box pixel-box">
+                <div class="pixel-corner tl"></div>
+                <div class="pixel-corner tr"></div>
+                <div class="pixel-corner bl"></div>
+                <div class="pixel-corner br"></div>
+                
+                <div class="game-logo">
+                    <div class="logo-emoji">🌾</div>
+                    <h1>快乐农场</h1>
+                    <p class="pixel-subtitle">✨ 像素风多人联机 ✨</p>
                 </div>
-                <div class="input-group">
-                    <input type="text" id="room-id" placeholder="房间号 (留空创建新房)" maxlength="20">
+
+                <div class="pixel-field">
+                    <label class="pixel-label">👤 农场主名字</label>
+                    <input type="text" id="player-name" class="pixel-input" placeholder="输入你的名字" maxlength="12">
                 </div>
-                <div class="github-config">
-                    <details>
-                        <summary>⚙️ GitHub 配置 (可选)</summary>
-                        <input type="text" id="github-token" placeholder="GitHub Personal Access Token">
-                        <input type="text" id="github-repo" placeholder="仓库 (格式: 用户名/仓库名)">
-                        <p class="hint">用于数据持久化存储，不填则使用本地存储</p>
-                    </details>
+
+                <div class="pixel-field">
+                    <label class="pixel-label">🏠 房间号</label>
+                    <input type="text" id="room-id" class="pixel-input" placeholder="留空创建新房">
                 </div>
-                <button id="join-btn" class="btn-primary">🚀 进入农场</button>
-                <div class="features">
-                    <span>🌱 种菜</span>
-                    <span>💧 浇水</span>
-                    <span>🤝 互助</span>
-                    <span>🏆 排行</span>
+
+                <details class="pixel-details">
+                    <summary>⚙️ GitHub 配置</summary>
+                    <div class="pixel-field">
+                        <input type="text" id="github-token" class="pixel-input" placeholder="Personal Access Token">
+                    </div>
+                    <div class="pixel-field">
+                        <input type="text" id="github-repo" class="pixel-input" placeholder="用户名/仓库名">
+                    </div>
+                </details>
+
+                <button id="join-btn" class="pixel-btn primary">
+                    <span class="btn-icon">🚀</span>
+                    <span>进入农场</span>
+                </button>
+
+                <div class="pixel-features">
+                    <div class="feature-item">
+                        <span class="feature-icon">🌱</span>
+                        <span>种植</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">💧</span>
+                        <span>浇水</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">🤝</span>
+                        <span>联机</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">🏆</span>
+                        <span>排行</span>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- 游戏主界面 -->
         <div id="game-screen" class="screen">
-            <div class="game-header">
-                <div class="player-info">
-                    <span id="current-player">👤 玩家</span>
-                    <span id="player-coins">💰 100</span>
+            <!-- 顶部状态栏 -->
+            <header class="pixel-header">
+                <div class="header-left">
+                    <div class="pixel-avatar" id="player-avatar">👨‍🌾</div>
+                    <div class="player-info">
+                        <div class="player-name" id="current-player">农场主</div>
+                        <div class="player-level">Lv.<span id="player-level">1</span></div>
+                    </div>
                 </div>
-                <div class="room-info">
-                    <span id="room-display">🏠 房间: -</span>
-                    <span id="online-count">🟢 在线: 1</span>
-                </div>
-                <div class="actions">
-                    <button id="invite-btn" class="btn-small">📋 邀请</button>
-                    <button id="save-btn" class="btn-small">💾 保存</button>
-                    <button id="quit-btn" class="btn-small">🚪 退出</button>
-                </div>
-            </div>
-
-            <div class="game-main">
-                <!-- 左侧：农场网格 -->
-                <div class="farm-area">
-                    <div class="farm-title">🌾 我的农场</div>
-                    <div id="farm-grid" class="farm-grid"></div>
+                
+                <div class="header-center">
+                    <div class="pixel-coin">
+                        <span class="coin-icon">💰</span>
+                        <span class="coin-amount" id="player-coins">100</span>
+                    </div>
+                    <div class="pixel-time">
+                        <span id="game-time">☀️ 第1天</span>
+                    </div>
                 </div>
 
-                <!-- 右侧：侧边栏 -->
-                <div class="sidebar">
+                <div class="header-right">
+                    <div class="room-badge">
+                        <span>🏠</span>
+                        <span id="room-display">-</span>
+                    </div>
+                    <div class="online-badge">
+                        <span class="online-dot"></span>
+                        <span id="online-count">1</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 游戏主体 -->
+            <main class="game-container">
+                <!-- 左侧农场 -->
+                <section class="farm-section">
+                    <div class="section-title">
+                        <span class="title-icon">🌾</span>
+                        <span>我的农场</span>
+                    </div>
+                    <div class="farm-viewport">
+                        <div id="farm-grid" class="farm-grid"></div>
+                    </div>
+                    <div class="weather-bar">
+                        <span id="weather-icon">☀️</span>
+                        <span id="weather-text">晴朗</span>
+                    </div>
+                </section>
+
+                <!-- 右侧面板 -->
+                <aside class="side-panel">
                     <!-- 种子商店 -->
-                    <div class="panel">
-                        <h3>🛒 种子商店</h3>
-                        <div id="seed-shop" class="seed-list"></div>
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <span>🛒</span>
+                            <span>种子商店</span>
+                        </div>
+                        <div id="seed-shop" class="seed-grid"></div>
+                    </div>
+
+                    <!-- 背包 -->
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <span>🎒</span>
+                            <span>背包</span>
+                        </div>
+                        <div id="inventory" class="inventory-grid"></div>
                     </div>
 
                     <!-- 在线玩家 -->
-                    <div class="panel">
-                        <h3>👥 在线玩家</h3>
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <span>👥</span>
+                            <span>农场伙伴</span>
+                        </div>
                         <div id="player-list" class="player-list"></div>
                     </div>
 
                     <!-- 游戏日志 -->
-                    <div class="panel">
-                        <h3>📜 农场动态</h3>
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <span>📜</span>
+                            <span>农场日记</span>
+                        </div>
                         <div id="game-log" class="game-log"></div>
                     </div>
-                </div>
-            </div>
+                </aside>
+            </main>
 
             <!-- 底部工具栏 -->
-            <div class="toolbar">
-                <div class="tool" data-tool="cursor" title="选择">
-                    <span>👆</span>
-                    <small>选择</small>
+            <nav class="pixel-toolbar">
+                <div class="tool-slot" data-tool="cursor" title="选择工具">
+                    <div class="tool-icon">👆</div>
+                    <div class="tool-name">选择</div>
                 </div>
-                <div class="tool" data-tool="water" title="浇水">
-                    <span>💧</span>
-                    <small>浇水</small>
+                <div class="tool-slot" data-tool="water" title="浇水壶">
+                    <div class="tool-icon">💧</div>
+                    <div class="tool-name">浇水</div>
                 </div>
-                <div class="tool" data-tool="fertilize" title="施肥">
-                    <span>🧪</span>
-                    <small>施肥</small>
+                <div class="tool-slot" data-tool="fertilize" title="肥料">
+                    <div class="tool-icon">🧪</div>
+                    <div class="tool-name">施肥</div>
                 </div>
-                <div class="tool" data-tool="harvest" title="收获">
-                    <span>✂️</span>
-                    <small>收获</small>
+                <div class="tool-slot" data-tool="harvest" title="镰刀">
+                    <div class="tool-icon">✂️</div>
+                    <div class="tool-name">收获</div>
                 </div>
-                <div class="tool" data-tool="remove" title="铲除">
-                    <span>🗑️</span>
-                    <small>铲除</small>
+                <div class="tool-slot" data-tool="remove" title="铲子">
+                    <div class="tool-icon">🗑️</div>
+                    <div class="tool-name">铲除</div>
                 </div>
-            </div>
+                <div class="toolbar-divider"></div>
+                <button id="invite-btn" class="tool-btn" title="邀请好友">
+                    <span>📋</span>
+                </button>
+                <button id="save-btn" class="tool-btn" title="保存游戏">
+                    <span>💾</span>
+                </button>
+                <button id="settings-btn" class="tool-btn" title="设置">
+                    <span>⚙️</span>
+                </button>
+                <button id="quit-btn" class="tool-btn" title="退出">
+                    <span>🚪</span>
+                </button>
+            </nav>
         </div>
 
         <!-- 邀请弹窗 -->
-        <div id="invite-modal" class="modal">
-            <div class="modal-content">
-                <h3>📋 邀请好友</h3>
-                <p>分享以下链接给好友，一起种菜：</p>
-                <input type="text" id="invite-link" readonly>
-                <button id="copy-link-btn" class="btn-primary">复制链接</button>
-                <button class="btn-secondary close-modal">关闭</button>
+        <div id="invite-modal" class="pixel-modal">
+            <div class="pixel-modal-box">
+                <div class="modal-header">
+                    <span>📋 邀请好友</span>
+                    <button class="modal-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p>分享链接给好友，一起种菜！</p>
+                    <div class="pixel-input-group">
+                        <input type="text" id="invite-link" class="pixel-input" readonly>
+                        <button id="copy-link-btn" class="pixel-btn small">复制</button>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- 提示消息 -->
-        <div id="toast" class="toast"></div>
+        <!-- 收获弹窗 -->
+        <div id="harvest-modal" class="pixel-modal">
+            <div class="pixel-modal-box harvest-box">
+                <div class="harvest-animation">
+                    <div class="harvest-stars">✨✨✨</div>
+                    <div class="harvest-crop" id="harvest-crop-emoji">🥕</div>
+                    <div class="harvest-stars">✨✨✨</div>
+                </div>
+                <div class="harvest-text">收获成功！</div>
+                <div class="harvest-reward">
+                    <span>获得</span>
+                    <span class="reward-coins" id="harvest-coins">+25</span>
+                    <span>💰</span>
+                </div>
+                <button class="pixel-btn primary modal-close">太棒了！</button>
+            </div>
+        </div>
+
+        <!-- 像素风提示 -->
+        <div id="pixel-toast" class="pixel-toast">
+            <div class="toast-icon" id="toast-icon">ℹ️</div>
+            <div class="toast-message" id="toast-message">提示消息</div>
+        </div>
+
+        <!-- 浮动粒子容器 -->
+        <div id="particles" class="particles-container"></div>
     </div>
 
     <script src="js/config.js"></script>
@@ -129,6 +266,7 @@
     <script src="js/webrtc.js"></script>
     <script src="js/game.js"></script>
     <script src="js/ui.js"></script>
+    <script src="js/animations.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

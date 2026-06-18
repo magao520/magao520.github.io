@@ -1,9 +1,10 @@
 /**
- * UI 渲染和交互处理
+ * 像素风 UI 渲染和交互处理
  */
 class GameUI {
     constructor(game) {
         this.game = game;
+        this.animations = new PixelAnimations();
         this.elements = {};
         this.initElements();
         this.bindEvents();
@@ -15,6 +16,7 @@ class GameUI {
     initElements() {
         this.elements = {
             // 屏幕
+            loadingScreen: document.getElementById('loading-screen'),
             loginScreen: document.getElementById('login-screen'),
             gameScreen: document.getElementById('game-screen'),
 
@@ -26,31 +28,43 @@ class GameUI {
             joinBtn: document.getElementById('join-btn'),
 
             // 游戏头部
+            playerAvatar: document.getElementById('player-avatar'),
             currentPlayer: document.getElementById('current-player'),
+            playerLevel: document.getElementById('player-level'),
             playerCoins: document.getElementById('player-coins'),
+            gameTime: document.getElementById('game-time'),
             roomDisplay: document.getElementById('room-display'),
             onlineCount: document.getElementById('online-count'),
-            inviteBtn: document.getElementById('invite-btn'),
-            saveBtn: document.getElementById('save-btn'),
-            quitBtn: document.getElementById('quit-btn'),
 
             // 游戏区域
             farmGrid: document.getElementById('farm-grid'),
             seedShop: document.getElementById('seed-shop'),
+            inventory: document.getElementById('inventory'),
             playerList: document.getElementById('player-list'),
             gameLog: document.getElementById('game-log'),
+            weatherIcon: document.getElementById('weather-icon'),
+            weatherText: document.getElementById('weather-text'),
 
             // 工具栏
-            tools: document.querySelectorAll('.tool'),
+            tools: document.querySelectorAll('.tool-slot'),
 
             // 弹窗
             inviteModal: document.getElementById('invite-modal'),
+            harvestModal: document.getElementById('harvest-modal'),
             inviteLink: document.getElementById('invite-link'),
             copyLinkBtn: document.getElementById('copy-link-btn'),
-            closeModalBtns: document.querySelectorAll('.close-modal'),
+            closeModalBtns: document.querySelectorAll('.modal-close'),
 
             // 提示
-            toast: document.getElementById('toast')
+            toast: document.getElementById('pixel-toast'),
+            toastIcon: document.getElementById('toast-icon'),
+            toastMessage: document.getElementById('toast-message'),
+
+            // 按钮
+            inviteBtn: document.getElementById('invite-btn'),
+            saveBtn: document.getElementById('save-btn'),
+            settingsBtn: document.getElementById('settings-btn'),
+            quitBtn: document.getElementById('quit-btn')
         };
     }
 
@@ -71,11 +85,15 @@ class GameUI {
         this.elements.saveBtn.addEventListener('click', () => this.handleSave());
         this.elements.quitBtn.addEventListener('click', () => this.handleQuit());
 
-        // 弹窗
-        this.elements.copyLinkBtn.addEventListener('click', () => this.copyInviteLink());
+        // 弹窗关闭
         this.elements.closeModalBtns.forEach(btn => {
-            btn.addEventListener('click', () => this.hideModal());
+            btn.addEventListener('click', (e) => {
+                e.target.closest('.pixel-modal').classList.remove('active');
+            });
         });
+
+        // 复制链接
+        this.elements.copyLinkBtn.addEventListener('click', () => this.copyInviteLink());
 
         // 游戏事件
         this.game.addEventListener('init', (e) => this.onGameInit(e.detail));
@@ -86,7 +104,12 @@ class GameUI {
         this.game.addEventListener('playerLeave', (e) => this.onPlayerLeave(e.detail));
         this.game.addEventListener('log', (e) => this.addLog(e.detail));
         this.game.addEventListener('error', (e) => this.showToast(e.detail, 'error'));
-        this.game.addEventListener('saved', () => this.showToast('游戏已保存！'));
+        this.game.addEventListener('saved', () => this.showToast('游戏已保存！', 'success'));
+        this.game.addEventListener('levelUp', (e) => this.onLevelUp(e.detail));
+        this.game.addEventListener('weatherChange', (e) => this.onWeatherChange(e.detail));
+
+        // 加载动画
+        this.animations.animateLoading();
     }
 
     /**
@@ -104,22 +127,22 @@ class GameUI {
         const repo = this.elements.githubRepo.value.trim();
 
         this.elements.joinBtn.disabled = true;
-        this.elements.joinBtn.textContent = '正在进入...';
+        this.elements.joinBtn.innerHTML = '<span class="btn-icon">⏳</span><span>加载中...</span>';
 
         try {
             const finalRoomId = await this.game.init(name, roomId, token, repo);
 
             // 切换屏幕
-            this.elements.loginScreen.classList.remove('active');
-            this.elements.gameScreen.classList.add('active');
+            this.animations.transitionScreen(this.elements.loginScreen, this.elements.gameScreen);
 
             // 初始化 UI
             this.renderSeedShop();
             this.renderPlots(this.game.plots);
             this.updateCoins(this.game.coins);
-            this.elements.currentPlayer.textContent = `👤 ${name}`;
-            this.elements.roomDisplay.textContent = `🏠 房间: ${finalRoomId}`;
+            this.elements.currentPlayer.textContent = name;
+            this.elements.roomDisplay.textContent = finalRoomId;
             this.updateOnlineCount();
+            this.renderInventory();
 
             this.showToast(`欢迎来到 ${finalRoomId}！`);
         } catch (error) {
@@ -127,7 +150,7 @@ class GameUI {
             this.showToast('进入游戏失败，请重试', 'error');
         } finally {
             this.elements.joinBtn.disabled = false;
-            this.elements.joinBtn.textContent = '🚀 进入农场';
+            this.elements.joinBtn.innerHTML = '<span class="btn-icon">🚀</span><span>进入农场</span>';
         }
     }
 
@@ -151,11 +174,9 @@ class GameUI {
             item.dataset.cropId = crop.id;
             item.innerHTML = `
                 <span class="seed-emoji">${crop.emoji}</span>
-                <div class="seed-info">
-                    <div class="seed-name">${crop.name}</div>
-                    <div class="seed-price">💰 ${crop.price}</div>
-                    <div class="seed-time">⏱️ ${crop.growTime}秒</div>
-                </div>
+                <span class="seed-name">${crop.name}</span>
+                <span class="seed-price">💰 ${crop.price}</span>
+                <span class="seed-time">⏱️ ${crop.growTime}秒</span>
             `;
 
             item.addEventListener('click', () => this.selectSeed(crop.id, item));
@@ -200,21 +221,22 @@ class GameUI {
 
         plots.forEach((plot, index) => {
             const plotEl = document.createElement('div');
-            plotEl.className = `plot ${plot.crop ? 'planted' : 'empty'}`;
+            plotEl.className = `plot ${plot.crop ? 'planted' : ''} ${plot.water > 50 ? 'wet' : ''}`;
             plotEl.dataset.plotId = index;
 
             if (plot.crop) {
                 const display = this.game.getCropDisplay(plot);
-                if (display) {
+                const crop = CONFIG.CROPS.find(c => c.id === plot.crop);
+                if (display && crop) {
                     plotEl.innerHTML = `
-                        <div class="water-bar">
-                            <div class="water-fill" style="width: ${plot.water}%"></div>
-                        </div>
-                        <span class="crop-emoji" style="transform: scale(${display.scale})">${display.emoji}</span>
-                        <div class="growth-bar">
+                        <div class="growth-indicator">
                             <div class="growth-fill" style="width: ${plot.growth}%"></div>
                         </div>
-                        <div class="crop-info">${Math.floor(plot.growth)}%</div>
+                        <span class="crop-sprite" style="transform: scale(${display.scale})">${display.emoji}</span>
+                        <div class="water-indicator">
+                            <div class="water-fill" style="width: ${plot.water}%"></div>
+                        </div>
+                        <div class="plot-tooltip">${crop.name} ${Math.floor(plot.growth)}%</div>
                     `;
 
                     if (plot.growth >= 100) {
@@ -222,10 +244,10 @@ class GameUI {
                     }
                 }
             } else {
-                plotEl.innerHTML = '<span style="opacity: 0.3; font-size: 1.5em;">🌱</span>';
+                plotEl.innerHTML = '<span style="opacity: 0.2; font-size: 24px;">🌱</span>';
             }
 
-            plotEl.addEventListener('click', () => this.handlePlotClick(index));
+            plotEl.addEventListener('click', () => this.handlePlotClick(index, plotEl));
             container.appendChild(plotEl);
         });
     }
@@ -238,20 +260,21 @@ class GameUI {
         const plotEl = plotEls[plotId];
         if (!plotEl) return;
 
-        plotEl.className = `plot ${plot.crop ? 'planted' : 'empty'}`;
+        plotEl.className = `plot ${plot.crop ? 'planted' : ''} ${plot.water > 50 ? 'wet' : ''}`;
 
         if (plot.crop) {
             const display = this.game.getCropDisplay(plot);
-            if (display) {
+            const crop = CONFIG.CROPS.find(c => c.id === plot.crop);
+            if (display && crop) {
                 plotEl.innerHTML = `
-                    <div class="water-bar">
-                        <div class="water-fill" style="width: ${plot.water}%"></div>
-                    </div>
-                    <span class="crop-emoji" style="transform: scale(${display.scale})">${display.emoji}</span>
-                    <div class="growth-bar">
+                    <div class="growth-indicator">
                         <div class="growth-fill" style="width: ${plot.growth}%"></div>
                     </div>
-                    <div class="crop-info">${Math.floor(plot.growth)}%</div>
+                    <span class="crop-sprite" style="transform: scale(${display.scale})">${display.emoji}</span>
+                    <div class="water-indicator">
+                        <div class="water-fill" style="width: ${plot.water}%"></div>
+                    </div>
+                    <div class="plot-tooltip">${crop.name} ${Math.floor(plot.growth)}%</div>
                 `;
 
                 if (plot.growth >= 100) {
@@ -259,23 +282,45 @@ class GameUI {
                 }
             }
         } else {
-            plotEl.innerHTML = '<span style="opacity: 0.3; font-size: 1.5em;">🌱</span>';
+            plotEl.innerHTML = '<span style="opacity: 0.2; font-size: 24px;">🌱</span>';
         }
     }
 
     /**
      * 处理地块点击
      */
-    handlePlotClick(plotId) {
+    handlePlotClick(plotId, plotEl) {
+        const tool = this.game.currentTool;
+        const plot = this.game.plots[plotId];
+
+        // 点击反馈动画
+        this.animations.animateClick(plotEl);
+
         const result = this.game.clickPlot(plotId);
+        
         if (result) {
-            // 播放音效或动画效果
-            const plotEl = this.elements.farmGrid.querySelectorAll('.plot')[plotId];
-            if (plotEl) {
-                plotEl.style.transform = 'scale(0.95)';
-                setTimeout(() => {
-                    plotEl.style.transform = '';
-                }, 100);
+            switch (tool) {
+                case 'cursor':
+                    if (this.game.selectedSeed && !plot.crop) {
+                        this.animations.animatePlant(plotEl);
+                    }
+                    break;
+                case 'water':
+                    this.animations.animateWater(plotEl);
+                    break;
+                case 'fertilize':
+                    this.animations.animateFertilize(plotEl);
+                    break;
+                case 'harvest':
+                    if (plot.crop && plot.growth >= 100) {
+                        const crop = CONFIG.CROPS.find(c => c.id === plot.crop);
+                        const sellPrice = plot.fertilized ? Math.floor(crop.sellPrice * 1.2) : crop.sellPrice;
+                        this.animations.animateHarvest(plotEl, crop.emoji, sellPrice);
+                    }
+                    break;
+                case 'remove':
+                    this.animations.animateRemove(plotEl);
+                    break;
             }
         }
     }
@@ -284,7 +329,48 @@ class GameUI {
      * 更新金币显示
      */
     updateCoins(coins) {
-        this.elements.playerCoins.textContent = `💰 ${coins}`;
+        const coinEl = this.elements.playerCoins;
+        const oldCoins = parseInt(coinEl.textContent);
+        
+        if (coins > oldCoins) {
+            this.animations.animateCoinIncrease(coinEl, coins - oldCoins);
+        }
+        
+        coinEl.textContent = coins;
+    }
+
+    /**
+     * 渲染背包
+     */
+    renderInventory() {
+        const container = this.elements.inventory;
+        container.innerHTML = '';
+
+        // 示例背包物品
+        const items = [
+            { emoji: '🥕', count: 5 },
+            { emoji: '🍅', count: 3 },
+            { emoji: '🌽', count: 2 },
+            { emoji: '🎃', count: 1 }
+        ];
+
+        items.forEach(item => {
+            const slot = document.createElement('div');
+            slot.className = 'inventory-slot';
+            slot.innerHTML = `
+                <span>${item.emoji}</span>
+                <span class="slot-count">${item.count}</span>
+            `;
+            container.appendChild(slot);
+        });
+
+        // 填充空槽
+        for (let i = items.length; i < 8; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'inventory-slot';
+            slot.style.opacity = '0.3';
+            container.appendChild(slot);
+        }
     }
 
     /**
@@ -292,7 +378,7 @@ class GameUI {
      */
     updateOnlineCount() {
         const count = this.game.getOnlineCount();
-        this.elements.onlineCount.textContent = `🟢 在线: ${count}`;
+        this.elements.onlineCount.textContent = count;
     }
 
     /**
@@ -301,7 +387,11 @@ class GameUI {
     onPlayerJoin({ peerId, player }) {
         this.updateOnlineCount();
         this.renderPlayerList();
-        this.showToast(`${player.name || '新玩家'} 加入了农场！`);
+        this.showToast(`${player.name || '新玩家'} 加入了农场！`, 'success');
+        
+        // 欢迎粒子
+        const rect = this.elements.onlineCount.getBoundingClientRect();
+        this.animations.spawnParticles(rect.left, rect.top, '👋', 3);
     }
 
     /**
@@ -324,9 +414,9 @@ class GameUI {
             const item = document.createElement('div');
             item.className = 'player-item';
             item.innerHTML = `
-                <div class="player-avatar">${player.name ? player.name[0] : '?'}</div>
-                <span class="player-name">${player.name}${player.isSelf ? ' (你)' : ''}</span>
-                <span class="player-status"></span>
+                <div class="player-avatar-small">${player.name ? player.name[0] : '?'}</div>
+                <span class="player-name-text">${player.name}${player.isSelf ? ' (你)' : ''}</span>
+                <span class="player-status-dot"></span>
             `;
             container.appendChild(item);
         });
@@ -340,12 +430,11 @@ class GameUI {
         const item = document.createElement('div');
         item.className = 'log-item';
         item.innerHTML = `<span class="log-time">${log.time}</span>${log.message}`;
-        container.appendChild(item);
-        container.scrollTop = container.scrollHeight;
+        container.insertBefore(item, container.firstChild);
 
         // 限制日志数量
-        while (container.children.length > 50) {
-            container.removeChild(container.firstChild);
+        while (container.children.length > 30) {
+            container.removeChild(container.lastChild);
         }
     }
 
@@ -360,19 +449,12 @@ class GameUI {
     }
 
     /**
-     * 隐藏弹窗
-     */
-    hideModal() {
-        this.elements.inviteModal.classList.remove('active');
-    }
-
-    /**
      * 复制邀请链接
      */
     copyInviteLink() {
         this.elements.inviteLink.select();
         document.execCommand('copy');
-        this.showToast('链接已复制！');
+        this.showToast('链接已复制！', 'success');
     }
 
     /**
@@ -393,18 +475,52 @@ class GameUI {
     }
 
     /**
+     * 升级回调
+     */
+    onLevelUp({ level }) {
+        this.elements.playerLevel.textContent = level;
+        this.animations.animateLevelUp();
+        this.showToast(`恭喜升级到 Lv.${level}！`, 'success');
+    }
+
+    /**
+     * 天气变化
+     */
+    onWeatherChange({ type, icon, text }) {
+        this.elements.weatherIcon.textContent = icon;
+        this.elements.weatherText.textContent = text;
+        this.animations.animateWeather(type);
+    }
+
+    /**
      * 显示提示消息
      */
     showToast(message, type = 'info') {
         const toast = this.elements.toast;
-        toast.textContent = message;
-        toast.className = 'toast show';
+        const icon = this.elements.toastIcon;
+        const msg = this.elements.toastMessage;
 
-        if (type === 'error') {
-            toast.style.background = '#f44336';
-        } else {
-            toast.style.background = 'rgba(0,0,0,0.8)';
+        msg.textContent = message;
+
+        switch (type) {
+            case 'error':
+                icon.textContent = '❌';
+                toast.style.borderColor = '#ff6b6b';
+                break;
+            case 'success':
+                icon.textContent = '✅';
+                toast.style.borderColor = '#4ade80';
+                break;
+            case 'warning':
+                icon.textContent = '⚠️';
+                toast.style.borderColor = '#ffd93d';
+                break;
+            default:
+                icon.textContent = 'ℹ️';
+                toast.style.borderColor = 'var(--pixel-white)';
         }
+
+        toast.classList.add('show');
 
         setTimeout(() => {
             toast.classList.remove('show');
