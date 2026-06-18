@@ -78,8 +78,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('controls-hint').classList.add('active');
 
         // 更新 HUD
-        document.getElementById('hud-name').textContent = name;
-        document.getElementById('hud-room').textContent = state.roomId;
+        const hudName = document.getElementById('hud-name');
+        if (hudName) hudName.textContent = name;
 
         // 启动游戏循环
         state.running = true;
@@ -130,24 +130,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== HUD 更新 =====
     function updateHUD(state) {
-        document.getElementById('hud-coins').textContent = state.coins;
-        document.getElementById('hud-day').textContent = `第 ${state.day} 天`;
-        document.getElementById('hud-time').textContent = getTimeString(state.time);
+        const coinsEl = document.getElementById('coins-display');
+        if (coinsEl) coinsEl.textContent = state.coins;
 
         const seasonNames = { spring: '🌸春', summer: '☀️夏', fall: '🍂秋', winter: '❄️冬' };
-        document.getElementById('hud-season').textContent = seasonNames[state.season] || '🌸春';
+        const dayEl = document.getElementById('day-display');
+        if (dayEl) dayEl.textContent = `第 ${state.day} 天 · ${seasonNames[state.season] || '🌸春'}`;
+
+        const timeEl = document.getElementById('time-display');
+        if (timeEl) timeEl.textContent = getTimeString(state.time);
 
         const h = state.time / 60;
         let weatherIcon = '☀️', weatherText = '晴朗';
         if (h < 6 || h > 20) { weatherIcon = '🌙'; weatherText = '夜晚'; }
         else if (h < 8) { weatherIcon = '🌅'; weatherText = '清晨'; }
         else if (h > 17) { weatherIcon = '🌇'; weatherText = '黄昏'; }
-        document.getElementById('hud-weather').textContent = weatherText;
+        const weatherEl = document.getElementById('weather-display');
+        if (weatherEl) weatherEl.textContent = `${weatherIcon} ${weatherText}`;
+
+        // 体力条
+        const staminaFill = document.getElementById('stamina-bar-fill');
+        const staminaText = document.getElementById('stamina-text');
+        if (staminaFill && staminaText) {
+            const pct = Math.max(0, Math.min(100, (state.energy / state.maxEnergy) * 100));
+            staminaFill.style.width = pct + '%';
+            staminaText.textContent = `${Math.floor(state.energy)}/${state.maxEnergy}`;
+            if (pct < 25) staminaFill.classList.add('low');
+            else staminaFill.classList.remove('low');
+        }
+
+        // 当前区域 (根据玩家位置实时计算)
+        const areaEl = document.getElementById('area-display');
+        if (areaEl && typeof getZone === 'function') {
+            const zone = getZone(Math.floor(state.playerX), Math.floor(state.playerY));
+            const areaNames = {
+                'FARM': '🏠 农场', 'TOWN': '🏘️ 小镇', 'FOREST': '🌲 森林',
+                'MINE': '⛏️ 矿洞', 'LAKE': '🎣 湖泊', 'WILD': '🌿 荒野'
+            };
+            areaEl.textContent = areaNames[zone] || '🌍 野外';
+        }
 
         // 当前种子显示
         const crop = CONFIG.CROPS[state.selectedSeed];
         const seedTool = document.querySelector('.tool-item[data-tool="2"]');
-        if (seedTool) {
+        if (seedTool && crop) {
             seedTool.title = `${crop.emoji} ${crop.name} (${crop.price}💰) [3]`;
         }
     }
