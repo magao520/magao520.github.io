@@ -29,6 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     function startGame() {
+        // 防止重复调用（快速双击等）
+        if (state.running) return;
+
         const name = document.getElementById('player-name').value.trim();
         if (!name) {
             showToast('请输入你的名字！');

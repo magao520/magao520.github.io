@@ -8,6 +8,16 @@ class Renderer {
         this.tileCache = {};
         this.resize();
         window.addEventListener('resize', () => this.resize());
+
+        // 生成固定星星位置（使用归一化坐标 0-1，渲染时映射到实际屏幕尺寸）
+        this.stars = [];
+        for (let i = 0; i < 30; i++) {
+            this.stars.push({
+                nx: ((i * 137 + 50) % 1000) / 1000,  // 归一化 x (0-1)
+                ny: ((i * 97 + 30) % 400) / 1000,     // 归一化 y (0-0.4)
+                size: 1 + (i % 3)
+            });
+        }
     }
     
     resize() {
@@ -392,9 +402,9 @@ class Renderer {
 
         if (sheet) {
             // spritesheet 帧参数
-            const frameW = sheet.width / 8;  // 每帧宽度
+            const totalFrames = Math.round(sheet.width / Math.max(1, sheet.height));
+            const frameW = sheet.width / Math.max(1, totalFrames);  // 每帧宽度
             const frameH = sheet.height;     // 每帧高度
-            const totalFrames = 8;
 
             // 计算当前帧
             let frame;
@@ -405,24 +415,34 @@ class Renderer {
                 frame = 0;
             }
 
-            // 绘制 spritesheet 帧，缩放到 TILE 大小
+            // 保持宽高比缩放，底部对齐
+            const scale = TILE / Math.max(frameW, frameH);
+            const drawW = frameW * scale;
+            const drawH = frameH * scale;
             ctx.drawImage(
                 sheet,
                 frame * frameW, 0, frameW, frameH,  // 源区域
-                px, py, TILE, TILE                    // 目标区域
+                px + (TILE - drawW) / 2, py + TILE - drawH, drawW, drawH  // 目标区域，居中底部对齐
             );
         } else {
             // Fallback: 手绘角色
             this.renderPlayerFallback(ctx, state, px, py);
         }
 
-        // 工具指示
+        // 工具指示 - 根据方向调整位置
         const toolEmojis = ['⛏️', '🚿', '🌱', '🧺', '🗑️'];
-        if (state.playerDir === 0) {
-            ctx.font = '14px serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(toolEmojis[state.currentTool], px + TILE / 2, py - 8);
+        ctx.font = '14px serif';
+        ctx.textAlign = 'center';
+        let toolX = px + TILE / 2;
+        let toolY = py - 8;
+        // 方向: 0=down, 1=up, 2=left, 3=right
+        switch (state.playerDir) {
+            case 0: toolX = px + TILE / 2; toolY = py - 8; break;       // 下方 - 头顶上方
+            case 1: toolX = px + TILE / 2; toolY = py + TILE + 14; break; // 上方 - 脚下下方
+            case 2: toolX = px - 12; toolY = py + TILE / 2; break;       // 左方 - 身体左侧
+            case 3: toolX = px + TILE + 12; toolY = py + TILE / 2; break; // 右方 - 身体右侧
         }
+        ctx.fillText(toolEmojis[state.currentTool] || '⛏️', toolX, toolY);
     }
 
     /**
@@ -519,11 +539,10 @@ class Renderer {
             // 星星
             if (alpha > 0.3) {
                 ctx.fillStyle = `rgba(255, 255, 200, ${alpha})`;
-                for (let i = 0; i < 30; i++) {
-                    const sx = ((i * 137 + 50) % this.screenW);
-                    const sy = ((i * 97 + 30) % (this.screenH * 0.4));
-                    const ss = 1 + (i % 3);
-                    ctx.fillRect(sx, sy, ss, ss);
+                for (const star of this.stars) {
+                    const sx = star.nx * this.screenW;
+                    const sy = star.ny * this.screenH;
+                    ctx.fillRect(sx, sy, star.size, star.size);
                 }
             }
         }

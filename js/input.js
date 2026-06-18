@@ -23,8 +23,8 @@ class InputHandler {
             this.setTool(parseInt(e.key) - 1);
         }
 
-        // 互动
-        if (e.key === ' ' || e.key === 'e' || e.key === 'Enter') {
+        // 互动 (空格/Enter)
+        if (e.key === ' ' || e.key === 'Enter') {
             e.preventDefault();
             const now = Date.now();
             if (now - this.lastInteract > 300) {
@@ -46,7 +46,9 @@ class InputHandler {
             showToast(`种子: ${crop.emoji} ${crop.name}`);
         }
         if (e.key.toLowerCase() === 'e' && !e.repeat) {
-            // E is used for interact above, use Tab for seed cycle forward
+            this.state.selectedSeed = (this.state.selectedSeed + 1) % CONFIG.CROPS.length;
+            const crop = CONFIG.CROPS[this.state.selectedSeed];
+            showToast(`种子: ${crop.emoji} ${crop.name}`);
         }
         if (e.key === 'Tab') {
             e.preventDefault();
@@ -61,6 +63,9 @@ class InputHandler {
     }
 
     setTool(index) {
+        // 边界检查：工具索引必须在 0-4 范围内
+        const toolNames = ['锄头', '水壶', '种子袋', '收获篮', '铲子'];
+        if (index < 0 || index >= toolNames.length || !Number.isInteger(index)) return;
         this.state.currentTool = index;
 
         // 更新 UI (桌面工具栏)
@@ -73,7 +78,6 @@ class InputHandler {
             el.classList.toggle('active', parseInt(el.dataset.tool) === index);
         });
 
-        const toolNames = ['锄头', '水壶', '种子袋', '收获篮', '铲子'];
         showToast(`工具: ${toolNames[index]}`);
     }
 
@@ -86,6 +90,11 @@ class InputHandler {
         this.joystickDir.x = dx;
         this.joystickDir.y = dy;
         this.joystickActive = (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1);
+        // 摇杆松开时清除方向，避免残留
+        if (!this.joystickActive) {
+            this.joystickDir.x = 0;
+            this.joystickDir.y = 0;
+        }
     }
 
     /**

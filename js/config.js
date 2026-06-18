@@ -9,7 +9,7 @@ const CONFIG = {
         TICK_INTERVAL: 1000,      // 游戏心跳间隔(ms)
         WATER_DECAY: 5,           // 水分每秒衰减
         GROWTH_RATE: 2,           // 生长速度
-        INITIAL_COINS: 100,       // 初始金币
+        INITIAL_COINS: 500,       // 初始金币
         MAX_WATER: 100,           // 最大水分
         MAX_GROWTH: 100           // 最大生长值
     },

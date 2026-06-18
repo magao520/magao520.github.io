@@ -32,7 +32,7 @@ class GameState {
     constructor() {
         this.playerName = '';
         this.roomId = '';
-        this.coins = 500;
+        this.coins = 100;
         this.day = 1;
         this.season = 'spring';
         this.seasonIndex = 0;
@@ -43,7 +43,7 @@ class GameState {
         this.map = [];
         this.crops = {};   // key: "x,y" -> crop data
         this.playerX = 15 * TILE;
-        this.playerY = 20 * TILE;
+        this.playerY = 21 * TILE;
         this.playerDir = 0; // 0=down 1=up 2=left 3=right
         this.playerFrame = 0;
         this.playerMoving = false;
@@ -80,10 +80,6 @@ function generateMap(state) {
             if (x === 15 && y >= 5 && y <= 20) tile = T.PATH;
             if (y === 20 && x >= 8 && x <= 22) tile = T.PATH;
             
-            // 围栏
-            if ((x === 7 || x === 23) && y >= 7 && y <= 19) tile = T.FENCE;
-            if ((y === 7 || y === 19) && x >= 7 && x <= 23) tile = T.FENCE;
-            
             // 房子区域
             if (x >= 2 && x <= 6 && y >= 2 && y <= 5) tile = T.HOUSE;
             if (x === 4 && y === 5) tile = T.DOOR;
@@ -95,8 +91,12 @@ function generateMap(state) {
             // 花园
             if (x >= 1 && x <= 3 && y >= 7 && y <= 9) tile = T.FLOWER;
             
-            // 石头装饰
-            if ((x === 10 && y === 10) || (x === 20 && y === 15)) tile = T.STONE;
+            // 石头装饰 (围栏外面)
+            if ((x === 4 && y === 10) || (x === 25 && y === 15)) tile = T.STONE;
+            
+            // 围栏 (最后设置，确保最高优先级)
+            if ((x === 6 || x === 24) && y >= 6 && y <= 20) tile = T.FENCE;
+            if ((y === 6 || y === 20) && x >= 6 && x <= 24) tile = T.FENCE;
             
             state.map[y][x] = tile;
         }
@@ -114,13 +114,13 @@ function tickCrops(state, dt) {
         const tile = state.map[y]?.[x];
         
         // 水分衰减
-        crop.water = Math.max(0, crop.water - 0.05 * dt);
+        crop.water = Math.max(0, crop.water - 0.03 * dt);
         
         // 生长
         if (crop.water > 10) {
             const cropData = getCropData(crop.cropId);
             if (cropData) {
-                let rate = 0.02 * dt;
+                let rate = 0.5 * dt;
                 if (crop.fertilized) rate *= 1.5;
                 crop.growth = Math.min(100, crop.growth + rate);
             }
@@ -199,6 +199,10 @@ function interact(state) {
         case 'water':
             if (state.crops[key]) {
                 state.crops[key].water = 100;
+                state.map[ty][tx] = T.WATERED;
+                spawnParticles(state, tx * TILE + TILE/2, ty * TILE + TILE/2, '💧', 5);
+                return true;
+            } else if (tile === T.TILLED) {
                 state.map[ty][tx] = T.WATERED;
                 spawnParticles(state, tx * TILE + TILE/2, ty * TILE + TILE/2, '💧', 5);
                 return true;
@@ -315,7 +319,7 @@ function canMove(state, nx, ny) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return false;
         
         const tile = state.map[ty][tx];
-        if (tile === T.FENCE || tile === T.HOUSE || tile === T.WATER || tile === T.STONE) {
+        if (tile === T.FENCE || tile === T.HOUSE || tile === T.DOOR || tile === T.WATER || tile === T.STONE) {
             return false;
         }
     }
