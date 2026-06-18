@@ -69,8 +69,23 @@ const AssetsLoader = {
             }
         }
 
+        // 加载 Tiny Town 瓦片 (tile_0000 ~ tile_0131)
+        const tinyTownPromises = [];
+        for (let i = 0; i <= 131; i++) {
+            const num = i.toString().padStart(4, '0');
+            const key = `tt${i}`;
+            const src = `assets/tiles/tiny_town/Tiles/tile_${num}.png`;
+            tinyTownPromises.push(
+                this.loadImage(src).then(img => {
+                    if (img) this.assets[key] = img;
+                    return img;
+                })
+            );
+        }
+        await Promise.all(tinyTownPromises);
+
         this.loaded = true;
-        console.log(`[AssetsLoader] 加载完成: ${Object.keys(this.assets).length}/${entries.length} 张图片`);
+        console.log(`[AssetsLoader] 加载完成: ${Object.keys(this.assets).length}/${entries.length + 132} 张图片`);
         return this.assets;
     }
 };

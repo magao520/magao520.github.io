@@ -49,6 +49,11 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('素材加载完成，游戏准备就绪');
         });
 
+        // 绑定触控事件（手机摇杆等）
+        if (typeof window._touchInit === 'function') {
+            window._touchInit();
+        }
+
         // 隐藏登录，显示游戏
         document.getElementById('login-overlay').style.display = 'none';
         document.getElementById('hud').classList.add('active');

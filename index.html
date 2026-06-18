@@ -513,13 +513,21 @@
 
     <!-- 触控控件初始化 -->
     <script>
-    (function() {
-        // ===== 虚拟摇杆 =====
+    // 触控事件处理器 - 在 main.js 的 startGame() 创建 input 后自动绑定
+    window._touchInit = function() {
+        if (window._touchInitialized) return;
+        window._touchInitialized = true;
+
         const joystickZone = document.getElementById('joystick-zone');
         const joystickThumb = document.getElementById('joystick-thumb');
         const joystickBase = document.getElementById('joystick-base');
         let joystickActive = false;
-        const joystickRadius = 35; // 摇杆最大偏移半径
+        const joystickRadius = 35;
+
+        function getInput() {
+            // input 在 main.js 的 startGame() 中创建为全局变量
+            return (typeof input !== 'undefined') ? input : null;
+        }
 
         function handleJoystickStart(e) {
             e.preventDefault();
@@ -540,27 +548,20 @@
             let dy = touch.clientY - centerY;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // 限制在半径内
             if (dist > joystickRadius) {
                 dx = (dx / dist) * joystickRadius;
                 dy = (dy / dist) * joystickRadius;
             }
 
-            // 移动摇杆拇指
             joystickThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 
-            // 计算方向 (归一化)
             const deadzone = 8;
-            if (dist > deadzone) {
-                const ndx = dx / joystickRadius;
-                const ndy = dy / joystickRadius;
-                // 设置摇杆方向
-                if (typeof input !== 'undefined' && input) {
-                    input.setJoystickDir(ndx, ndy);
-                }
-            } else {
-                if (typeof input !== 'undefined' && input) {
-                    input.setJoystickDir(0, 0);
+            const inp = getInput();
+            if (inp) {
+                if (dist > deadzone) {
+                    inp.setJoystickDir(dx / joystickRadius, dy / joystickRadius);
+                } else {
+                    inp.setJoystickDir(0, 0);
                 }
             }
         }
@@ -569,9 +570,10 @@
             e.preventDefault();
             joystickActive = false;
             joystickThumb.style.transform = 'translate(-50%, -50%)';
-            if (typeof input !== 'undefined' && input) {
-                input.setJoystickDir(0, 0);
-                input.joystickActive = false;
+            const inp = getInput();
+            if (inp) {
+                inp.setJoystickDir(0, 0);
+                inp.joystickActive = false;
             }
         }
 
@@ -589,9 +591,8 @@
         const interactBtn = document.getElementById('touch-interact');
         interactBtn.addEventListener('touchstart', function(e) {
             e.preventDefault();
-            if (typeof input !== 'undefined' && input) {
-                input.triggerInteract();
-            }
+            const inp = getInput();
+            if (inp) inp.triggerInteract();
         }, { passive: false });
 
         // ===== 工具切换按钮 =====
@@ -599,17 +600,19 @@
             btn.addEventListener('touchstart', function(e) {
                 e.preventDefault();
                 const tool = parseInt(btn.dataset.tool);
-                if (typeof input !== 'undefined' && input) {
-                    input.setTool(tool);
+                const inp = getInput();
+                if (inp) {
+                    inp.setTool(tool);
                 }
-                // 更新触控工具栏高亮
                 document.querySelectorAll('.touch-tool-btn').forEach(function(b) {
                     b.classList.remove('active');
                 });
                 btn.classList.add('active');
             }, { passive: false });
         });
-    })();
+
+        console.log('[Touch] 触控事件已绑定到 input');
+    };
     </script>
 </body>
 </html>

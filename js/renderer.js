@@ -91,161 +91,216 @@ class Renderer {
     }
     
     /**
-     * 渲染单个图块
+     * 渲染单个图块 - 使用 Tiny Town 像素瓦片
+     * Tiny Town 瓦片编号映射:
+     * 0-3: 草地变体, 4-7: 泥土, 8-11: 水, 12-15: 沙地
+     * 16-19: 草地花, 20-23: 树木, 24-27: 灌木
+     * 28-35: 房子墙壁/屋顶, 36-39: 门, 40-43: 窗户
+     * 44-51: 栅栏, 52-55: 石头/岩石, 56-59: 箱子
+     * 60-67: 路/桥, 68-75: 室内地板
      */
     renderTile(ctx, tile, px, py, x, y, sc) {
+        const a = AssetsLoader.assets;
+        // 基于坐标选择变体，让地图更自然
+        const variant = (x * 3 + y * 7) % 4;
+        const v2 = (x * 5 + y * 11) % 4;
+
         switch (tile) {
             case T.GRASS:
-                // 优先使用 Grass.png 图块
-                if (AssetsLoader.assets.grass) {
-                    ctx.drawImage(AssetsLoader.assets.grass, px, py, TILE, TILE);
+                // 草地 - 使用 tt0-tt3 变体
+                if (a.tt0) {
+                    const grassIdx = [0, 1, 2, 3][variant];
+                    if (a[`tt${grassIdx}`]) {
+                        ctx.drawImage(a[`tt${grassIdx}`], px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = sc.grass;
+                        ctx.fillRect(px, py, TILE, TILE);
+                    }
                 } else {
-                    // 棋盘格草地 (fallback)
                     ctx.fillStyle = (x + y) % 2 === 0 ? sc.grass : sc.grassDark;
                     ctx.fillRect(px, py, TILE, TILE);
-                    // 随机草细节
-                    if ((x * 7 + y * 13) % 5 === 0) {
-                        ctx.fillStyle = (x + y) % 2 === 0 ? sc.grassDark : sc.grass;
-                        ctx.fillRect(px + 10, py + 20, 4, 8);
-                        ctx.fillRect(px + 30, py + 8, 4, 8);
-                    }
                 }
                 break;
-                
+
             case T.DIRT:
-                ctx.fillStyle = '#8b6d3f';
-                ctx.fillRect(px, py, TILE, TILE);
-                ctx.fillStyle = '#7a5c30';
-                // 犁地纹理
-                for (let i = 0; i < 4; i++) {
-                    ctx.fillRect(px + 4, py + 4 + i * 12, TILE - 8, 2);
+                // 泥土 - tt4-tt7
+                if (a.tt4) {
+                    const dirtIdx = [4, 5, 6, 7][variant];
+                    if (a[`tt${dirtIdx}`]) {
+                        ctx.drawImage(a[`tt${dirtIdx}`], px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = '#8b6d3f';
+                        ctx.fillRect(px, py, TILE, TILE);
+                    }
+                } else {
+                    ctx.fillStyle = '#8b6d3f';
+                    ctx.fillRect(px, py, TILE, TILE);
                 }
                 break;
-                
+
             case T.TILLED:
-                ctx.fillStyle = '#6b4423';
-                ctx.fillRect(px, py, TILE, TILE);
-                ctx.fillStyle = '#5a3a1a';
+                // 已犁地 - 用深色泥土 tt6-tt7
+                if (a.tt6) {
+                    ctx.drawImage(a.tt6, px, py, TILE, TILE);
+                } else {
+                    ctx.fillStyle = '#6b4423';
+                    ctx.fillRect(px, py, TILE, TILE);
+                }
+                // 犁沟线
+                ctx.fillStyle = 'rgba(0,0,0,0.15)';
                 for (let i = 0; i < 4; i++) {
-                    ctx.fillRect(px + 4, py + 4 + i * 12, TILE - 8, 2);
+                    ctx.fillRect(px + 4, py + 6 + i * 12, TILE - 8, 2);
                 }
                 break;
-                
+
             case T.WATERED:
-                ctx.fillStyle = '#4a3520';
-                ctx.fillRect(px, py, TILE, TILE);
-                ctx.fillStyle = '#3a2a15';
+                // 湿润耕地 - tt6 + 蓝色覆盖
+                if (a.tt6) {
+                    ctx.drawImage(a.tt6, px, py, TILE, TILE);
+                } else {
+                    ctx.fillStyle = '#4a3520';
+                    ctx.fillRect(px, py, TILE, TILE);
+                }
+                // 犁沟
+                ctx.fillStyle = 'rgba(0,0,0,0.15)';
                 for (let i = 0; i < 4; i++) {
-                    ctx.fillRect(px + 4, py + 4 + i * 12, TILE - 8, 2);
+                    ctx.fillRect(px + 4, py + 6 + i * 12, TILE - 8, 2);
                 }
                 // 湿润光泽
-                ctx.fillStyle = 'rgba(100, 150, 255, 0.15)';
+                ctx.fillStyle = 'rgba(80, 140, 220, 0.2)';
                 ctx.fillRect(px, py, TILE, TILE);
                 break;
-                
+
             case T.PATH:
-                ctx.fillStyle = '#c4a96a';
-                ctx.fillRect(px, py, TILE, TILE);
-                ctx.fillStyle = '#b09558';
-                ctx.fillRect(px + 4, py + 4, 8, 8);
-                ctx.fillRect(px + 28, py + 24, 12, 12);
-                ctx.fillRect(px + 16, py + 32, 6, 6);
+                // 小路 - tt60-tt63 (路面)
+                if (a.tt60) {
+                    const pathIdx = [60, 61, 62, 63][variant];
+                    if (a[`tt${pathIdx}`]) {
+                        ctx.drawImage(a[`tt${pathIdx}`], px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = '#c4a96a';
+                        ctx.fillRect(px, py, TILE, TILE);
+                    }
+                } else {
+                    ctx.fillStyle = '#c4a96a';
+                    ctx.fillRect(px, py, TILE, TILE);
+                    ctx.fillStyle = '#b09558';
+                    ctx.fillRect(px + 4, py + 4, 8, 8);
+                    ctx.fillRect(px + 28, py + 24, 12, 12);
+                    ctx.fillRect(px + 16, py + 32, 6, 6);
+                }
                 break;
-                
+
             case T.FENCE:
-                // 草地底
-                ctx.fillStyle = (x + y) % 2 === 0 ? sc.grass : sc.grassDark;
-                ctx.fillRect(px, py, TILE, TILE);
-                // 栅栏
-                ctx.fillStyle = '#8b6914';
-                ctx.fillRect(px + 2, py + 8, TILE - 4, 6);
-                ctx.fillRect(px + 2, py + 32, TILE - 4, 6);
-                ctx.fillStyle = '#a07828';
-                ctx.fillRect(px + 8, py + 4, 6, TILE - 8);
-                ctx.fillRect(px + TILE - 14, py + 4, 6, TILE - 8);
+                // 栅栏 - 先画草地底，再画栅栏 tt44-tt51
+                if (a.tt0) {
+                    ctx.drawImage(a.tt0, px, py, TILE, TILE);
+                } else {
+                    ctx.fillStyle = sc.grass;
+                    ctx.fillRect(px, py, TILE, TILE);
+                }
+                // 栅栏 - 根据位置选择横/竖/角
+                const fenceIdx = 44 + ((x + y) % 8);
+                if (a[`tt${fenceIdx}`]) {
+                    ctx.drawImage(a[`tt${fenceIdx}`], px, py, TILE, TILE);
+                } else {
+                    ctx.fillStyle = '#8b6914';
+                    ctx.fillRect(px + 2, py + 8, TILE - 4, 6);
+                    ctx.fillRect(px + 2, py + 32, TILE - 4, 6);
+                    ctx.fillStyle = '#a07828';
+                    ctx.fillRect(px + 8, py + 4, 6, TILE - 8);
+                    ctx.fillRect(px + TILE - 14, py + 4, 6, TILE - 8);
+                }
                 break;
-                
+
             case T.WATER:
-                // 水面
-                const waterPhase = Date.now() / 1000;
-                ctx.fillStyle = '#3a7bd5';
-                ctx.fillRect(px, py, TILE, TILE);
-                ctx.fillStyle = '#4a8be5';
-                const waveOff = Math.sin(waterPhase + x + y) * 3;
-                ctx.fillRect(px + 4, py + 12 + waveOff, TILE - 8, 3);
-                ctx.fillRect(px + 8, py + 28 - waveOff, TILE - 16, 2);
-                // 高光
-                ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                ctx.fillRect(px + 10, py + 8, 8, 3);
+                // 水面 - tt8-tt11
+                if (a.tt8) {
+                    const waterIdx = [8, 9, 10, 11][variant];
+                    if (a[`tt${waterIdx}`]) {
+                        ctx.drawImage(a[`tt${waterIdx}`], px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = '#3a7bd5';
+                        ctx.fillRect(px, py, TILE, TILE);
+                    }
+                } else {
+                    const waterPhase = Date.now() / 1000;
+                    ctx.fillStyle = '#3a7bd5';
+                    ctx.fillRect(px, py, TILE, TILE);
+                    ctx.fillStyle = '#4a8be5';
+                    const waveOff = Math.sin(waterPhase + x + y) * 3;
+                    ctx.fillRect(px + 4, py + 12 + waveOff, TILE - 8, 3);
+                    ctx.fillRect(px + 8, py + 28 - waveOff, TILE - 16, 2);
+                    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                    ctx.fillRect(px + 10, py + 8, 8, 3);
+                }
                 break;
-                
+
             case T.FLOWER:
-                ctx.fillStyle = (x + y) % 2 === 0 ? sc.grass : sc.grassDark;
-                ctx.fillRect(px, py, TILE, TILE);
-                // 花朵
-                const flowerColors = ['#ff69b4', '#ffeb3b', '#ff6347', '#da70d6', '#87ceeb'];
-                const fc = flowerColors[(x * 3 + y * 7) % flowerColors.length];
-                ctx.fillStyle = '#2d5a1e';
-                ctx.fillRect(px + 20, py + 24, 3, 12);
-                ctx.fillRect(px + 28, py + 20, 3, 16);
-                ctx.fillStyle = fc;
-                ctx.beginPath();
-                ctx.arc(px + 22, py + 22, 5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(px + 30, py + 18, 4, 0, Math.PI * 2);
-                ctx.fill();
+                // 花丛 - 草地底 + 花 tt16-tt19
+                if (a.tt0) {
+                    ctx.drawImage(a.tt0, px, py, TILE, TILE);
+                } else {
+                    ctx.fillStyle = sc.grass;
+                    ctx.fillRect(px, py, TILE, TILE);
+                }
+                const flowerIdx = 16 + variant;
+                if (a[`tt${flowerIdx}`]) {
+                    ctx.drawImage(a[`tt${flowerIdx}`], px, py, TILE, TILE);
+                } else {
+                    const flowerColors = ['#ff69b4', '#ffeb3b', '#ff6347', '#da70d6'];
+                    ctx.fillStyle = flowerColors[variant];
+                    ctx.beginPath();
+                    ctx.arc(px + TILE/2, py + TILE/2, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
                 break;
-                
+
             case T.HOUSE:
-                // 房子
-                ctx.fillStyle = '#d4a76a';
-                ctx.fillRect(px, py, TILE, TILE);
-                ctx.fillStyle = '#c49558';
-                ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
-                // 窗户
-                if ((x === 3 || x === 5) && y === 3) {
-                    ctx.fillStyle = '#87ceeb';
-                    ctx.fillRect(px + 12, py + 12, 20, 16);
-                    ctx.fillStyle = '#5c3d1e';
-                    ctx.fillRect(px + 22, py + 12, 2, 16);
-                    ctx.fillRect(px + 12, py + 20, 20, 2);
-                }
-                // 屋顶 (在y=2时)
-                if (y === 2) {
-                    ctx.fillStyle = '#8b4513';
-                    ctx.fillRect(px - 4, py + 30, TILE + 8, 18);
-                    ctx.fillStyle = '#a0522d';
-                    ctx.fillRect(px - 2, py + 32, TILE + 4, 14);
+                // 房子 - tt28-tt35 墙壁/屋顶
+                const houseIdx = 28 + ((x + y) % 8);
+                if (a[`tt${houseIdx}`]) {
+                    ctx.drawImage(a[`tt${houseIdx}`], px, py, TILE, TILE);
+                } else {
+                    ctx.fillStyle = '#d4a76a';
+                    ctx.fillRect(px, py, TILE, TILE);
+                    ctx.fillStyle = '#c49558';
+                    ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
                 }
                 break;
-                
+
             case T.DOOR:
-                ctx.fillStyle = '#d4a76a';
-                ctx.fillRect(px, py, TILE, TILE);
-                ctx.fillStyle = '#5c3d1e';
-                ctx.fillRect(px + 14, py + 4, 20, TILE - 4);
-                ctx.fillStyle = '#ffd93d';
-                ctx.beginPath();
-                ctx.arc(px + 30, py + 28, 2, 0, Math.PI * 2);
-                ctx.fill();
+                // 门 - tt36-tt39
+                const doorIdx = 36 + variant;
+                if (a[`tt${doorIdx}`]) {
+                    ctx.drawImage(a[`tt${doorIdx}`], px, py, TILE, TILE);
+                } else {
+                    ctx.fillStyle = '#8b5a2b';
+                    ctx.fillRect(px + 12, py + 4, 24, TILE - 4);
+                    ctx.fillStyle = '#ffd93d';
+                    ctx.beginPath();
+                    ctx.arc(px + 30, py + 28, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
                 break;
-                
+
             case T.STONE:
-                // 草地底
-                ctx.fillStyle = (x + y) % 2 === 0 ? sc.grass : sc.grassDark;
-                ctx.fillRect(px, py, TILE, TILE);
-                // 使用 Rock.png
-                if (AssetsLoader.assets.rock) {
-                    ctx.drawImage(AssetsLoader.assets.rock, px + (TILE - 15) / 2, py + (TILE - 15) / 2, 15, 15);
+                // 石头 - 草地底 + 岩石 tt52-tt55
+                if (a.tt0) {
+                    ctx.drawImage(a.tt0, px, py, TILE, TILE);
+                } else {
+                    ctx.fillStyle = sc.grass;
+                    ctx.fillRect(px, py, TILE, TILE);
+                }
+                const rockIdx = 52 + variant;
+                if (a[`tt${rockIdx}`]) {
+                    ctx.drawImage(a[`tt${rockIdx}`], px, py, TILE, TILE);
+                } else if (a.rock) {
+                    ctx.drawImage(a.rock, px + (TILE - 15) / 2, py + (TILE - 15) / 2, 15, 15);
                 } else {
                     ctx.fillStyle = '#888';
                     ctx.beginPath();
                     ctx.ellipse(px + TILE/2, py + TILE/2 + 4, 16, 12, 0, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#999';
-                    ctx.beginPath();
-                    ctx.ellipse(px + TILE/2 - 2, py + TILE/2 + 2, 12, 9, 0, 0, Math.PI * 2);
                     ctx.fill();
                 }
                 break;
@@ -344,9 +399,10 @@ class Renderer {
             // 计算当前帧
             let frame;
             if (state.playerMoving) {
-                frame = Math.floor(state.moveTimer * 6) % totalFrames;
+                frame = Math.floor(state.moveTimer * 8) % totalFrames;
             } else {
-                frame = Math.floor(Date.now() / 200) % totalFrames;
+                // idle 状态使用固定第0帧，避免闪烁
+                frame = 0;
             }
 
             // 绘制 spritesheet 帧，缩放到 TILE 大小
