@@ -3,270 +3,377 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌾 快乐农场 - 像素风联机种菜</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <title>🌾 快乐农场 - 星露谷风格</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: #1a1a2e;
+            overflow: hidden;
+            font-family: 'ZCOOL KuaiLe', cursive;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #game-wrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        
+        /* ===== 登录界面 ===== */
+        #login-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(180deg, #87ceeb 0%, #e8d5a3 50%, #4a7c3f 50%, #3d6b35 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            flex-direction: column;
+        }
+        
+        .login-box {
+            background: #f4e8c1;
+            border: 4px solid #5c3d1e;
+            padding: 30px 40px;
+            box-shadow: 8px 8px 0 rgba(0,0,0,0.3), inset 2px 2px 0 rgba(255,255,255,0.5);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .login-box h1 {
+            font-size: 36px;
+            color: #5c3d1e;
+            text-shadow: 2px 2px 0 #c4a96a;
+            margin-bottom: 5px;
+        }
+        
+        .login-box .subtitle {
+            color: #8b6d3f;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .login-box input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 3px solid #5c3d1e;
+            background: #fff8e7;
+            font-family: 'ZCOOL KuaiLe', cursive;
+            font-size: 16px;
+            color: #5c3d1e;
+            margin-bottom: 12px;
+            outline: none;
+        }
+        
+        .login-box input:focus {
+            box-shadow: inset 0 0 0 2px #c4a96a;
+        }
+        
+        .login-box button {
+            width: 100%;
+            padding: 12px;
+            background: #e74c3c;
+            border: 3px solid #5c3d1e;
+            color: #fff;
+            font-family: 'ZCOOL KuaiLe', cursive;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 4px 4px 0 #5c3d1e;
+            transition: all 0.1s;
+            margin-top: 5px;
+        }
+        
+        .login-box button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #5c3d1e;
+        }
+        
+        .login-box button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #5c3d1e;
+        }
+        
+        .login-box .hint {
+            color: #8b6d3f;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+        
+        .login-box details {
+            margin-top: 12px;
+            text-align: left;
+        }
+        
+        .login-box details summary {
+            color: #8b6d3f;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        /* ===== HUD ===== */
+        #hud {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            display: none;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 10px 15px;
+            pointer-events: none;
+            z-index: 50;
+        }
+        
+        #hud.active { display: flex; }
+        
+        .hud-box {
+            background: rgba(20, 15, 10, 0.85);
+            border: 2px solid #c4a96a;
+            padding: 8px 14px;
+            color: #f4e8c1;
+            font-size: 14px;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .hud-box .icon { font-size: 20px; }
+        .hud-box .value { color: #ffd93d; font-weight: bold; }
+        
+        .hud-left, .hud-right { display: flex; flex-direction: column; gap: 6px; }
+        
+        /* ===== 工具栏 ===== */
+        #toolbar {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            gap: 4px;
+            z-index: 50;
+            background: rgba(20, 15, 10, 0.85);
+            border: 2px solid #c4a96a;
+            padding: 6px 10px;
+        }
+        
+        #toolbar.active { display: flex; }
+        
+        .tool-item {
+            width: 48px;
+            height: 48px;
+            background: #3d2b1f;
+            border: 2px solid #5c3d1e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+        
+        .tool-item:hover { background: #5c3d1e; }
+        .tool-item.active {
+            border-color: #ffd93d;
+            background: #5c3d1e;
+            box-shadow: 0 0 8px #ffd93d;
+        }
+        
+        .tool-separator {
+            width: 2px;
+            background: #5c3d1e;
+            margin: 4px 2px;
+        }
+        
+        /* ===== 对话框 ===== */
+        #dialog-box {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            max-width: 90vw;
+            background: rgba(20, 15, 10, 0.92);
+            border: 3px solid #c4a96a;
+            padding: 16px 20px;
+            color: #f4e8c1;
+            font-size: 16px;
+            z-index: 60;
+            display: none;
+            line-height: 1.6;
+        }
+        
+        #dialog-box.active { display: block; }
+        
+        #dialog-box .speaker {
+            color: #ffd93d;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        
+        /* ===== 小地图 ===== */
+        #minimap {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 150px;
+            height: 150px;
+            background: rgba(20, 15, 10, 0.85);
+            border: 2px solid #c4a96a;
+            z-index: 50;
+            display: none;
+        }
+        
+        #minimap.active { display: block; }
+        
+        /* ===== 提示 ===== */
+        #toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(20, 15, 10, 0.9);
+            border: 2px solid #ffd93d;
+            color: #f4e8c1;
+            padding: 12px 24px;
+            font-size: 18px;
+            z-index: 200;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            text-align: center;
+        }
+        
+        #toast.show { opacity: 1; }
+        
+        /* ===== 控制提示 ===== */
+        #controls-hint {
+            position: fixed;
+            bottom: 80px;
+            right: 10px;
+            background: rgba(20, 15, 10, 0.7);
+            border: 1px solid #5c3d1e;
+            padding: 8px 12px;
+            color: #8b7355;
+            font-size: 11px;
+            z-index: 50;
+            display: none;
+            line-height: 1.8;
+        }
+        
+        #controls-hint.active { display: block; }
+        
+        #controls-hint kbd {
+            background: #3d2b1f;
+            border: 1px solid #5c3d1e;
+            padding: 1px 5px;
+            color: #c4a96a;
+            font-family: monospace;
+        }
+    </style>
 </head>
 <body>
-    <div id="app">
-        <!-- 加载画面 -->
-        <div id="loading-screen" class="screen active">
-            <div class="pixel-loading">
-                <div class="pixel-logo">🌾</div>
-                <div class="loading-text">加载中...</div>
-                <div class="pixel-progress">
-                    <div class="pixel-progress-bar"></div>
-                </div>
+    <div id="game-wrapper">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+    
+    <!-- 登录界面 -->
+    <div id="login-overlay">
+        <div class="login-box">
+            <h1>🌾 快乐农场</h1>
+            <p class="subtitle">星露谷风格 · 2D联机种菜</p>
+            <input type="text" id="player-name" placeholder="输入你的名字" maxlength="12">
+            <input type="text" id="room-id" placeholder="房间号 (留空创建新房)">
+            <details>
+                <summary>⚙️ GitHub 配置</summary>
+                <input type="text" id="github-token" placeholder="Personal Access Token">
+                <input type="text" id="github-repo" placeholder="用户名/仓库名">
+            </details>
+            <button id="start-btn">🚀 开始种田</button>
+            <p class="hint">WASD移动 · 空格键互动 · 数字键切换工具</p>
+        </div>
+    </div>
+    
+    <!-- HUD -->
+    <div id="hud">
+        <div class="hud-left">
+            <div class="hud-box">
+                <span class="icon">👤</span>
+                <span id="hud-name">农场主</span>
+            </div>
+            <div class="hud-box">
+                <span class="icon">💰</span>
+                <span class="value" id="hud-coins">500</span>
+            </div>
+            <div class="hud-box">
+                <span class="icon">📅</span>
+                <span id="hud-day">第 1 天</span>
+                <span id="hud-season" style="color:#4ade80">春</span>
             </div>
         </div>
-
-        <!-- 登录界面 -->
-        <div id="login-screen" class="screen">
-            <div class="pixel-bg">
-                <div class="cloud cloud-1">☁️</div>
-                <div class="cloud cloud-2">☁️</div>
-                <div class="cloud cloud-3">☁️</div>
-                <div class="sun">☀️</div>
+        <div class="hud-right">
+            <div class="hud-box">
+                <span class="icon">🕐</span>
+                <span id="hud-time">06:00</span>
             </div>
-            <div class="login-box pixel-box">
-                <div class="pixel-corner tl"></div>
-                <div class="pixel-corner tr"></div>
-                <div class="pixel-corner bl"></div>
-                <div class="pixel-corner br"></div>
-                
-                <div class="game-logo">
-                    <div class="logo-emoji">🌾</div>
-                    <h1>快乐农场</h1>
-                    <p class="pixel-subtitle">✨ 像素风多人联机 ✨</p>
-                </div>
-
-                <div class="pixel-field">
-                    <label class="pixel-label">👤 农场主名字</label>
-                    <input type="text" id="player-name" class="pixel-input" placeholder="输入你的名字" maxlength="12">
-                </div>
-
-                <div class="pixel-field">
-                    <label class="pixel-label">🏠 房间号</label>
-                    <input type="text" id="room-id" class="pixel-input" placeholder="留空创建新房">
-                </div>
-
-                <details class="pixel-details">
-                    <summary>⚙️ GitHub 配置</summary>
-                    <div class="pixel-field">
-                        <input type="text" id="github-token" class="pixel-input" placeholder="Personal Access Token">
-                    </div>
-                    <div class="pixel-field">
-                        <input type="text" id="github-repo" class="pixel-input" placeholder="用户名/仓库名">
-                    </div>
-                </details>
-
-                <button id="join-btn" class="pixel-btn primary">
-                    <span class="btn-icon">🚀</span>
-                    <span>进入农场</span>
-                </button>
-
-                <div class="pixel-features">
-                    <div class="feature-item">
-                        <span class="feature-icon">🌱</span>
-                        <span>种植</span>
-                    </div>
-                    <div class="feature-item">
-                        <span class="feature-icon">💧</span>
-                        <span>浇水</span>
-                    </div>
-                    <div class="feature-item">
-                        <span class="feature-icon">🤝</span>
-                        <span>联机</span>
-                    </div>
-                    <div class="feature-item">
-                        <span class="feature-icon">🏆</span>
-                        <span>排行</span>
-                    </div>
-                </div>
+            <div class="hud-box">
+                <span class="icon">🌤️</span>
+                <span id="hud-weather">晴朗</span>
+            </div>
+            <div class="hud-box">
+                <span>🏠</span>
+                <span id="hud-room">-</span>
             </div>
         </div>
-
-        <!-- 游戏主界面 -->
-        <div id="game-screen" class="screen">
-            <!-- 顶部状态栏 -->
-            <header class="pixel-header">
-                <div class="header-left">
-                    <div class="pixel-avatar" id="player-avatar">👨‍🌾</div>
-                    <div class="player-info">
-                        <div class="player-name" id="current-player">农场主</div>
-                        <div class="player-level">Lv.<span id="player-level">1</span></div>
-                    </div>
-                </div>
-                
-                <div class="header-center">
-                    <div class="pixel-coin">
-                        <span class="coin-icon">💰</span>
-                        <span class="coin-amount" id="player-coins">100</span>
-                    </div>
-                    <div class="pixel-time">
-                        <span id="game-time">☀️ 第1天</span>
-                    </div>
-                </div>
-
-                <div class="header-right">
-                    <div class="room-badge">
-                        <span>🏠</span>
-                        <span id="room-display">-</span>
-                    </div>
-                    <div class="online-badge">
-                        <span class="online-dot"></span>
-                        <span id="online-count">1</span>
-                    </div>
-                </div>
-            </header>
-
-            <!-- 游戏主体 -->
-            <main class="game-container">
-                <!-- 左侧农场 -->
-                <section class="farm-section">
-                    <div class="section-title">
-                        <span class="title-icon">🌾</span>
-                        <span>我的农场</span>
-                    </div>
-                    <div class="farm-viewport">
-                        <div id="farm-grid" class="farm-grid"></div>
-                    </div>
-                    <div class="weather-bar">
-                        <span id="weather-icon">☀️</span>
-                        <span id="weather-text">晴朗</span>
-                    </div>
-                </section>
-
-                <!-- 右侧面板 -->
-                <aside class="side-panel">
-                    <!-- 种子商店 -->
-                    <div class="panel-card">
-                        <div class="panel-header">
-                            <span>🛒</span>
-                            <span>种子商店</span>
-                        </div>
-                        <div id="seed-shop" class="seed-grid"></div>
-                    </div>
-
-                    <!-- 背包 -->
-                    <div class="panel-card">
-                        <div class="panel-header">
-                            <span>🎒</span>
-                            <span>背包</span>
-                        </div>
-                        <div id="inventory" class="inventory-grid"></div>
-                    </div>
-
-                    <!-- 在线玩家 -->
-                    <div class="panel-card">
-                        <div class="panel-header">
-                            <span>👥</span>
-                            <span>农场伙伴</span>
-                        </div>
-                        <div id="player-list" class="player-list"></div>
-                    </div>
-
-                    <!-- 游戏日志 -->
-                    <div class="panel-card">
-                        <div class="panel-header">
-                            <span>📜</span>
-                            <span>农场日记</span>
-                        </div>
-                        <div id="game-log" class="game-log"></div>
-                    </div>
-                </aside>
-            </main>
-
-            <!-- 底部工具栏 -->
-            <nav class="pixel-toolbar">
-                <div class="tool-slot" data-tool="cursor" title="选择工具">
-                    <div class="tool-icon">👆</div>
-                    <div class="tool-name">选择</div>
-                </div>
-                <div class="tool-slot" data-tool="water" title="浇水壶">
-                    <div class="tool-icon">💧</div>
-                    <div class="tool-name">浇水</div>
-                </div>
-                <div class="tool-slot" data-tool="fertilize" title="肥料">
-                    <div class="tool-icon">🧪</div>
-                    <div class="tool-name">施肥</div>
-                </div>
-                <div class="tool-slot" data-tool="harvest" title="镰刀">
-                    <div class="tool-icon">✂️</div>
-                    <div class="tool-name">收获</div>
-                </div>
-                <div class="tool-slot" data-tool="remove" title="铲子">
-                    <div class="tool-icon">🗑️</div>
-                    <div class="tool-name">铲除</div>
-                </div>
-                <div class="toolbar-divider"></div>
-                <button id="invite-btn" class="tool-btn" title="邀请好友">
-                    <span>📋</span>
-                </button>
-                <button id="save-btn" class="tool-btn" title="保存游戏">
-                    <span>💾</span>
-                </button>
-                <button id="settings-btn" class="tool-btn" title="设置">
-                    <span>⚙️</span>
-                </button>
-                <button id="quit-btn" class="tool-btn" title="退出">
-                    <span>🚪</span>
-                </button>
-            </nav>
-        </div>
-
-        <!-- 邀请弹窗 -->
-        <div id="invite-modal" class="pixel-modal">
-            <div class="pixel-modal-box">
-                <div class="modal-header">
-                    <span>📋 邀请好友</span>
-                    <button class="modal-close">✕</button>
-                </div>
-                <div class="modal-body">
-                    <p>分享链接给好友，一起种菜！</p>
-                    <div class="pixel-input-group">
-                        <input type="text" id="invite-link" class="pixel-input" readonly>
-                        <button id="copy-link-btn" class="pixel-btn small">复制</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 收获弹窗 -->
-        <div id="harvest-modal" class="pixel-modal">
-            <div class="pixel-modal-box harvest-box">
-                <div class="harvest-animation">
-                    <div class="harvest-stars">✨✨✨</div>
-                    <div class="harvest-crop" id="harvest-crop-emoji">🥕</div>
-                    <div class="harvest-stars">✨✨✨</div>
-                </div>
-                <div class="harvest-text">收获成功！</div>
-                <div class="harvest-reward">
-                    <span>获得</span>
-                    <span class="reward-coins" id="harvest-coins">+25</span>
-                    <span>💰</span>
-                </div>
-                <button class="pixel-btn primary modal-close">太棒了！</button>
-            </div>
-        </div>
-
-        <!-- 像素风提示 -->
-        <div id="pixel-toast" class="pixel-toast">
-            <div class="toast-icon" id="toast-icon">ℹ️</div>
-            <div class="toast-message" id="toast-message">提示消息</div>
-        </div>
-
-        <!-- 浮动粒子容器 -->
-        <div id="particles" class="particles-container"></div>
+    </div>
+    
+    <!-- 工具栏 -->
+    <div id="toolbar">
+        <div class="tool-item active" data-tool="0" title="锄头 [1]">⛏️</div>
+        <div class="tool-item" data-tool="1" title="水壶 [2]">🚿</div>
+        <div class="tool-item" data-tool="2" title="种子袋 [3]">🌱</div>
+        <div class="tool-item" data-tool="3" title="收获 [4]">🧺</div>
+        <div class="tool-item" data-tool="4" title="铲除 [5]">🗑️</div>
+        <div class="tool-separator"></div>
+        <div class="tool-item" data-tool="5" title="地图 [M]">🗺️</div>
+        <div class="tool-item" data-tool="6" title="背包 [B]">🎒</div>
+    </div>
+    
+    <!-- 对话框 -->
+    <div id="dialog-box">
+        <div class="speaker" id="dialog-speaker"></div>
+        <div id="dialog-text"></div>
+    </div>
+    
+    <!-- 小地图 -->
+    <canvas id="minimap" width="150" height="150"></canvas>
+    
+    <!-- 提示 -->
+    <div id="toast"></div>
+    
+    <!-- 控制提示 -->
+    <div id="controls-hint">
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动<br>
+        <kbd>空格</kbd> 互动<br>
+        <kbd>1</kbd>-<kbd>5</kbd> 切换工具<br>
+        <kbd>M</kbd> 地图 · <kbd>B</kbd> 背包
     </div>
 
     <script src="js/config.js"></script>
     <script src="js/github-backend.js"></script>
     <script src="js/webrtc.js"></script>
-    <script src="js/game.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/animations.js"></script>
+    <script src="js/game-engine.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/input.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>
