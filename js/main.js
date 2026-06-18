@@ -66,15 +66,18 @@ document.addEventListener('DOMContentLoaded', () => {
             window._touchInit();
         }
 
-        // 检测触摸设备，确保触控控件可见
-        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        // 检测触摸设备，决定显示哪个工具栏
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        if (isTouchDevice) {
             document.getElementById('touch-controls').style.display = 'flex';
+            document.getElementById('touch-toolbar').classList.add('active');
+        } else {
+            document.getElementById('toolbar').classList.add('active');
         }
 
         // 隐藏登录，显示游戏
         document.getElementById('login-overlay').style.display = 'none';
         document.getElementById('hud').classList.add('active');
-        document.getElementById('toolbar').classList.add('active');
         document.getElementById('controls-hint').classList.add('active');
 
         // 更新 HUD
@@ -133,20 +136,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const coinsEl = document.getElementById('coins-display');
         if (coinsEl) coinsEl.textContent = state.coins;
 
-        const seasonNames = { spring: '🌸春', summer: '☀️夏', fall: '🍂秋', winter: '❄️冬' };
+        const seasonNames = { spring: '春', summer: '夏', fall: '秋', winter: '冬' };
         const dayEl = document.getElementById('day-display');
-        if (dayEl) dayEl.textContent = `第 ${state.day} 天 · ${seasonNames[state.season] || '🌸春'}`;
+        if (dayEl) dayEl.textContent = `第 ${state.day} 天 · ${seasonNames[state.season] || '春'}`;
 
         const timeEl = document.getElementById('time-display');
         if (timeEl) timeEl.textContent = getTimeString(state.time);
 
         const h = state.time / 60;
-        let weatherIcon = '☀️', weatherText = '晴朗';
-        if (h < 6 || h > 20) { weatherIcon = '🌙'; weatherText = '夜晚'; }
-        else if (h < 8) { weatherIcon = '🌅'; weatherText = '清晨'; }
-        else if (h > 17) { weatherIcon = '🌇'; weatherText = '黄昏'; }
+        let weatherText = '晴朗';
+        if (h < 6 || h > 20) { weatherText = '夜晚'; }
+        else if (h < 8) { weatherText = '清晨'; }
+        else if (h > 17) { weatherText = '黄昏'; }
         const weatherEl = document.getElementById('weather-display');
-        if (weatherEl) weatherEl.textContent = `${weatherIcon} ${weatherText}`;
+        if (weatherEl) weatherEl.textContent = weatherText;
 
         // 体力条
         const staminaFill = document.getElementById('stamina-bar-fill');
@@ -164,10 +167,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (areaEl && typeof getZone === 'function') {
             const zone = getZone(Math.floor(state.playerX), Math.floor(state.playerY));
             const areaNames = {
-                'FARM': '🏠 农场', 'TOWN': '🏘️ 小镇', 'FOREST': '🌲 森林',
-                'MINE': '⛏️ 矿洞', 'LAKE': '🎣 湖泊', 'WILD': '🌿 荒野'
+                'FARM': '农场', 'TOWN': '小镇', 'FOREST': '森林',
+                'MINE': '矿洞', 'LAKE': '湖泊', 'WILD': '荒野'
             };
-            areaEl.textContent = areaNames[zone] || '🌍 野外';
+            areaEl.textContent = areaNames[zone] || '野外';
         }
 
         // 当前种子显示

@@ -148,6 +148,24 @@ class GameState {
         this.totalFishCaught = 0;
         this.totalMined = 0;
         this.totalForaged = 0;
+
+        // 其他玩家数据 (WebRTC 联机)
+        this.otherPlayers = new Map(); // peerId -> {name, x, y, dir, color, lastUpdate}
+    }
+
+    updateOtherPlayer(peerId, data) {
+        this.otherPlayers.set(peerId, {
+            name: data.name || '玩家',
+            x: data.x,
+            y: data.y,
+            dir: data.dir || 0,
+            color: data.color || '#ff6b6b',
+            lastUpdate: Date.now()
+        });
+    }
+
+    removeOtherPlayer(peerId) {
+        this.otherPlayers.delete(peerId);
     }
 }
 

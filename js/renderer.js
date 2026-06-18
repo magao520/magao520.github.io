@@ -36,6 +36,44 @@ class Renderer {
         // 太阳光方向 (随时间变化)
         this.sunAngle = 0;
 
+        // === HSL 和谐配色系统 ===
+        // 主色调、辅助色、强调色，确保色相环上和谐
+        this.colorScheme = {
+            // 基础色相 (绿色系为主，代表自然/农场)
+            baseHue: 120,
+            // 辅助色偏移 (+30度 黄绿色)
+            secondaryOffset: 30,
+            // 强调色偏移 (+180度 互补色，用于高光/点缀)
+            accentOffset: 180,
+            // 季节色相偏移
+            seasonHueShift: {
+                spring: 0,
+                summer: -10,
+                autumn: 40,
+                winter: 200
+            }
+        };
+
+        // HSL 辅助函数
+        this.hsl = (h, s, l, a = 1) => {
+            const hue = ((h % 360) + 360) % 360;
+            return a < 1 ? `hsla(${hue}, ${s}%, ${l}%, ${a})` : `hsl(${hue}, ${s}%, ${l}%)`;
+        };
+
+        // 获取和谐色组
+        this.getHarmonyColors = (baseHue, season) => {
+            const shift = this.colorScheme.seasonHueShift[season] || 0;
+            const h = ((baseHue + shift) % 360 + 360) % 360;
+            return {
+                primary:   this.hsl(h, 55, 45),
+                secondary: this.hsl((h + 30) % 360, 50, 55),
+                accent:    this.hsl((h + 180) % 360, 65, 60),
+                light:     this.hsl(h, 45, 70),
+                dark:      this.hsl(h, 60, 25),
+                shadow:    this.hsl(h, 40, 15, 0.4)
+            };
+        };
+
         // 地形颜色定义 (用于过渡混合)
         this.tileColors = {
             [T.GRASS]:     { r: 132, g: 198, b: 105 },
@@ -158,6 +196,9 @@ class Renderer {
 
         // 7. 渲染玩家
         this.renderPlayer(ctx, state);
+
+        // 7.5 渲染其他玩家
+        this.renderOtherPlayers(ctx, state);
 
         // 8. 渲染粒子和浮动文字
         this.renderParticles(ctx, state);
@@ -528,51 +569,77 @@ class Renderer {
     }
 
     /**
-     * 渲染水面效果
+     * 渲染水面效果（视觉升级版）
      */
     renderWaterTile(ctx, px, py, x, y) {
         const t = Date.now() / 1000;
 
-        // 基础水色渐变
+        // 基础水色渐变 - 更丰富的蓝色层次
         const waterGrad = ctx.createLinearGradient(px, py, px, py + TILE);
-        waterGrad.addColorStop(0, 'rgba(80, 160, 230, 0.25)');
-        waterGrad.addColorStop(0.5, 'rgba(60, 130, 210, 0.15)');
-        waterGrad.addColorStop(1, 'rgba(30, 80, 160, 0.25)');
+        waterGrad.addColorStop(0, 'rgba(90, 170, 240, 0.30)');
+        waterGrad.addColorStop(0.4, 'rgba(60, 140, 220, 0.20)');
+        waterGrad.addColorStop(0.7, 'rgba(40, 110, 190, 0.25)');
+        waterGrad.addColorStop(1, 'rgba(25, 70, 150, 0.30)');
         ctx.fillStyle = waterGrad;
         ctx.fillRect(px, py, TILE, TILE);
 
-        // 多层波浪动画
+        // 水面反射（根据天空颜色）
+        const hour = (window.state && window.state.timeOfDay) || 12;
+        let skyR = 200, skyG = 230, skyB = 255;
+        if (hour >= 18 || hour < 6) {
+            skyR = 80; skyG = 90; skyB = 140;
+        } else if (hour >= 16) {
+            skyR = 255; skyG = 200; skyB = 150;
+        }
+        const reflectAlpha = 0.04 + Math.sin(t * 0.5 + x * 0.3) * 0.02;
+        ctx.fillStyle = `rgba(${skyR}, ${skyG}, ${skyB}, ${reflectAlpha})`;
+        ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+
+        // 正弦波叠加产生更自然的波纹
         const waveLayers = [
-            { speed: 1.2, amp: 3, freq: 0.8, alpha: 0.08, width: 18, height: 2 },
-            { speed: 0.8, amp: 5, freq: 0.5, alpha: 0.06, width: 14, height: 2 },
-            { speed: 1.5, amp: 2, freq: 1.2, alpha: 0.05, width: 22, height: 1.5 }
+            { speed: 1.2, amp: 3, freq: 0.8, alpha: 0.10, width: 18, height: 2, yOff: 8 },
+            { speed: 0.8, amp: 5, freq: 0.5, alpha: 0.07, width: 14, height: 2, yOff: 22 },
+            { speed: 1.5, amp: 2, freq: 1.2, alpha: 0.06, width: 22, height: 1.5, yOff: 34 },
+            // 新增第四层：更细密的波纹
+            { speed: 2.0, amp: 1.5, freq: 2.0, alpha: 0.04, width: 10, height: 1, yOff: 14 },
+            { speed: 0.5, amp: 4, freq: 0.3, alpha: 0.05, width: 28, height: 1.5, yOff: 28 }
         ];
 
         for (const layer of waveLayers) {
             ctx.fillStyle = `rgba(255, 255, 255, ${layer.alpha})`;
-            const wx1 = Math.sin(t * layer.speed + x * layer.freq + y * 0.3) * layer.amp;
-            const wx2 = Math.cos(t * layer.speed * 0.7 + x * 0.6 + y * layer.freq) * layer.amp;
-            ctx.fillRect(px + 4 + wx1, py + 8, layer.width, layer.height);
-            ctx.fillRect(px + 20 + wx2, py + 22, layer.width * 0.7, layer.height);
-            ctx.fillRect(px + 8 - wx1 * 0.5, py + 34, layer.width * 0.8, layer.height);
+            // 使用正弦波叠加：主波 + 谐波
+            const wave1 = Math.sin(t * layer.speed + x * layer.freq + y * 0.3) * layer.amp;
+            const wave2 = Math.cos(t * layer.speed * 1.3 + x * layer.freq * 0.7 + y * 0.5) * layer.amp * 0.5;
+            const wave3 = Math.sin(t * layer.speed * 0.6 + x * 1.1 + y * layer.freq * 0.8) * layer.amp * 0.3;
+            const wx = wave1 + wave2 + wave3;
+
+            ctx.fillRect(px + 4 + wx, py + layer.yOff, layer.width, layer.height);
+            // 第二条波纹，相位偏移
+            const wx2 = Math.sin(t * layer.speed * 0.9 + x * layer.freq + y * 0.3 + Math.PI) * layer.amp;
+            ctx.fillRect(px + 20 + wx2, py + layer.yOff + 6, layer.width * 0.7, layer.height);
         }
 
-        // 水面反光效果
+        // 水面反光效果 - 更细腻
         const shimmerPhase = t * 2 + x * 1.3 + y * 0.7;
-        const shimmerAlpha = Math.max(0, Math.sin(shimmerPhase) * 0.06);
+        const shimmerAlpha = Math.max(0, Math.sin(shimmerPhase) * 0.08);
         if (shimmerAlpha > 0.01) {
-            ctx.fillStyle = `rgba(200, 230, 255, ${shimmerAlpha})`;
+            ctx.fillStyle = `rgba(220, 240, 255, ${shimmerAlpha})`;
             ctx.beginPath();
-            ctx.ellipse(px + TILE/2 + Math.sin(t + x) * 6, py + TILE/2 + Math.cos(t * 0.8 + y) * 4, 10, 4, 0, 0, Math.PI * 2);
+            ctx.ellipse(px + TILE/2 + Math.sin(t + x) * 6, py + TILE/2 + Math.cos(t * 0.8 + y) * 4, 12, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // 反光中心更亮
+            ctx.fillStyle = `rgba(255, 255, 255, ${shimmerAlpha * 0.6})`;
+            ctx.beginPath();
+            ctx.ellipse(px + TILE/2 + Math.sin(t + x) * 6 - 1, py + TILE/2 + Math.cos(t * 0.8 + y) * 4 - 1, 5, 2, 0, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        // 岸边泡沫效果（检查相邻陆地）
+        // 岸边泡沫效果（检查相邻陆地）- 更细腻
         const neighbors = [
-            { dx: 0, dy: -1, fx: px + 4, fy: py, fw: TILE - 8, fh: 4 },
-            { dx: 0, dy: 1, fx: px + 4, fy: py + TILE - 4, fw: TILE - 8, fh: 4 },
-            { dx: -1, dy: 0, fx: px, fy: py + 4, fw: 4, fh: TILE - 8 },
-            { dx: 1, dy: 0, fx: px + TILE - 4, fy: py + 4, fw: 4, fh: TILE - 8 }
+            { dx: 0, dy: -1, fx: px + 2, fy: py, fw: TILE - 4, fh: 5 },
+            { dx: 0, dy: 1, fx: px + 2, fy: py + TILE - 5, fw: TILE - 4, fh: 5 },
+            { dx: -1, dy: 0, fx: px, fy: py + 2, fw: 5, fh: TILE - 4 },
+            { dx: 1, dy: 0, fx: px + TILE - 5, fy: py + 2, fw: 5, fh: TILE - 4 }
         ];
 
         for (const n of neighbors) {
@@ -581,26 +648,43 @@ class Renderer {
             if (nx >= 0 && nx < MAP_W && ny >= 0 && ny < MAP_H) {
                 const neighborTile = window.state.map[ny][nx];
                 if (neighborTile !== T.WATER && neighborTile !== T.FISH_SPOT) {
-                    // 岸边泡沫
+                    // 岸边泡沫 - 更多更小的泡沫点
                     const foamPhase = t * 1.5 + nx * 2 + ny * 3;
-                    const foamAlpha = 0.15 + Math.sin(foamPhase) * 0.08;
+                    const foamAlpha = 0.12 + Math.sin(foamPhase) * 0.06;
                     ctx.fillStyle = `rgba(255, 255, 255, ${foamAlpha})`;
-                    // 绘制不规则泡沫点
-                    for (let i = 0; i < 3; i++) {
+                    for (let i = 0; i < 5; i++) {
                         const fx = n.fx + this.seededRandom(i, x + y, 10) * n.fw;
                         const fy = n.fy + this.seededRandom(i + 1, x + y, 10) * n.fh;
-                        const fs = 2 + this.seededRandom(i + 2, x + y, 10) * 3;
+                        const fs = 1 + this.seededRandom(i + 2, x + y, 10) * 2.5;
                         ctx.beginPath();
                         ctx.arc(fx, fy, fs, 0, Math.PI * 2);
                         ctx.fill();
                     }
+                    // 泡沫边缘线
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${foamAlpha * 0.5})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    if (n.dy === -1) {
+                        ctx.moveTo(n.fx, n.fy + n.fh);
+                        ctx.lineTo(n.fx + n.fw, n.fy + n.fh);
+                    } else if (n.dy === 1) {
+                        ctx.moveTo(n.fx, n.fy);
+                        ctx.lineTo(n.fx + n.fw, n.fy);
+                    } else if (n.dx === -1) {
+                        ctx.moveTo(n.fx + n.fw, n.fy);
+                        ctx.lineTo(n.fx + n.fw, n.fy + n.fh);
+                    } else {
+                        ctx.moveTo(n.fx, n.fy);
+                        ctx.lineTo(n.fx, n.fy + n.fh);
+                    }
+                    ctx.stroke();
                 }
             }
         }
     }
 
     /**
-     * 渲染树木（优化版）
+     * 渲染树木（视觉升级版）
      */
     renderTree(ctx, px, py, x, y) {
         const t = Date.now() / 1000;
@@ -608,96 +692,173 @@ class Renderer {
         const windStrength = 0.8 + Math.sin(t * 0.7 + x * 0.5) * 0.3;
         const sway = Math.sin(t * 1.2 + x * 0.8 + y * 0.3) * 2 * windStrength;
 
-        // 树影
-        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        // 树影 - 使用模糊渐变而非纯色
+        const shadowGrad = ctx.createRadialGradient(
+            px + TILE/2 + sway * 0.3, py + TILE - 4, 2,
+            px + TILE/2 + sway * 0.3, py + TILE - 4, 20
+        );
+        shadowGrad.addColorStop(0, 'rgba(0,0,0,0.22)');
+        shadowGrad.addColorStop(0.6, 'rgba(0,0,0,0.10)');
+        shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = shadowGrad;
         ctx.beginPath();
-        ctx.ellipse(px + TILE/2 + sway * 0.3, py + TILE - 2, 16, 5, 0, 0, Math.PI * 2);
+        ctx.ellipse(px + TILE/2 + sway * 0.3, py + TILE - 4, 18, 6, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // 树干 - 带树皮纹理
         const trunkW = 10 + this.seededRandom(seed, 1, 1) * 4;
         const trunkX = px + TILE/2 - trunkW/2;
-        ctx.fillStyle = '#4a3020';
+
+        // 树干主体渐变（从亮到暗，模拟圆柱体）
+        const trunkGrad = ctx.createLinearGradient(trunkX, 0, trunkX + trunkW, 0);
+        trunkGrad.addColorStop(0, '#3d2818');
+        trunkGrad.addColorStop(0.3, '#5a3a24');
+        trunkGrad.addColorStop(0.7, '#4a3020');
+        trunkGrad.addColorStop(1, '#2a1a10');
+        ctx.fillStyle = trunkGrad;
         ctx.fillRect(trunkX, py + 22, trunkW, 26);
 
-        // 树皮纹理线条
-        ctx.strokeStyle = 'rgba(30, 15, 5, 0.3)';
+        // 树皮纹理 - 横向裂纹
+        ctx.strokeStyle = 'rgba(20, 10, 5, 0.35)';
         ctx.lineWidth = 1;
-        for (let i = 0; i < 3; i++) {
-            const tx = trunkX + 2 + this.seededRandom(seed, i + 5, 2) * (trunkW - 4);
+        for (let i = 0; i < 4; i++) {
+            const ty = py + 25 + this.seededRandom(seed, i + 3, 2) * 20;
+            const tx1 = trunkX + 1;
+            const tx2 = trunkX + trunkW - 1;
             ctx.beginPath();
-            ctx.moveTo(tx, py + 24);
-            ctx.lineTo(tx + Math.sin(i + seed) * 2, py + 46);
+            ctx.moveTo(tx1, ty);
+            // 裂纹呈锯齿状
+            const segCount = 3;
+            for (let s = 1; s <= segCount; s++) {
+                const sx = tx1 + (tx2 - tx1) * (s / segCount);
+                const sy = ty + (this.seededRandom(seed, i + s, 7) - 0.5) * 3;
+                ctx.lineTo(sx, sy);
+            }
             ctx.stroke();
         }
 
-        // 树干高光
-        ctx.fillStyle = 'rgba(120, 80, 50, 0.2)';
-        ctx.fillRect(trunkX + 1, py + 22, trunkW * 0.3, 26);
+        // 纵向树皮沟槽
+        ctx.strokeStyle = 'rgba(30, 15, 5, 0.2)';
+        for (let i = 0; i < 2; i++) {
+            const tx = trunkX + 3 + this.seededRandom(seed, i + 10, 3) * (trunkW - 6);
+            ctx.beginPath();
+            ctx.moveTo(tx, py + 24);
+            ctx.lineTo(tx + Math.sin(i + seed) * 1.5, py + 46);
+            ctx.stroke();
+        }
+
+        // 树干高光（左侧边缘）
+        ctx.fillStyle = 'rgba(140, 100, 60, 0.25)';
+        ctx.fillRect(trunkX + 1, py + 22, trunkW * 0.25, 26);
 
         // 树冠类型（基于种子）
         const treeType = Math.floor(this.seededRandom(seed, 0, 3) * 3); // 0: 圆形, 1: 椭圆形, 2: 松树形
 
-        // 多层树冠 - 深色底层
+        // 使用 HSL 和谐配色，根据季节微调
+        const season = (window.state && window.state.season) || 'spring';
+        const hueShift = this.colorScheme.seasonHueShift[season] || 0;
+        const baseH = 120 + hueShift;
+
         const crownColors = [
-            { dark: '#1a5c10', mid: '#2d8a1e', light: '#4db83a' },
-            { dark: '#1e6b14', mid: '#339e22', light: '#5acd45' },
-            { dark: '#164a0e', mid: '#267a18', light: '#42a830' }
+            { dark: this.hsl(baseH - 10, 65, 18), mid: this.hsl(baseH, 60, 32), light: this.hsl(baseH + 10, 55, 48), highlight: this.hsl(baseH + 15, 70, 65) },
+            { dark: this.hsl(baseH - 5, 70, 20), mid: this.hsl(baseH + 5, 65, 35), light: this.hsl(baseH + 15, 60, 52), highlight: this.hsl(baseH + 20, 75, 68) },
+            { dark: this.hsl(baseH - 15, 60, 15), mid: this.hsl(baseH - 5, 55, 28), light: this.hsl(baseH + 5, 50, 42), highlight: this.hsl(baseH + 10, 65, 60) }
         ];
         const colors = crownColors[treeType];
 
         const crownBaseY = py + 20;
         const crownBaseX = px + TILE/2 + sway;
 
-        // 底层大冠
-        ctx.fillStyle = colors.dark;
-        this.drawCrownLayer(ctx, crownBaseX, crownBaseY, 18, treeType, seed, 0);
+        // 底层大冠 - 径向渐变
+        this.drawCrownLayerGrad(ctx, crownBaseX, crownBaseY, 20, treeType, seed, 0, colors.dark, colors.mid);
+        // 中层冠 - 径向渐变
+        this.drawCrownLayerGrad(ctx, crownBaseX - 2, crownBaseY - 5, 15, treeType, seed, 1, colors.mid, colors.light);
+        // 顶层亮冠 - 径向渐变
+        this.drawCrownLayerGrad(ctx, crownBaseX + 1, crownBaseY - 10, 11, treeType, seed, 2, colors.light, colors.highlight);
 
-        // 中层冠
-        ctx.fillStyle = colors.mid;
-        this.drawCrownLayer(ctx, crownBaseX - 2, crownBaseY - 4, 14, treeType, seed, 1);
-
-        // 顶层亮冠
-        ctx.fillStyle = colors.light;
-        this.drawCrownLayer(ctx, crownBaseX + 1, crownBaseY - 8, 10, treeType, seed, 2);
+        // 树叶簇细节 - 用多个小圆点模拟
+        ctx.save();
+        const leafCount = 12 + Math.floor(this.seededRandom(seed, 8, 4) * 8);
+        for (let i = 0; i < leafCount; i++) {
+            const angle = this.seededRandom(seed, i + 50, 5) * Math.PI * 2;
+            const dist = this.seededRandom(seed, i + 60, 6) * 14;
+            const lx = crownBaseX + Math.cos(angle) * dist;
+            const ly = crownBaseY - 6 + Math.sin(angle) * dist * 0.7;
+            const lr = 1.5 + this.seededRandom(seed, i + 70, 7) * 2.5;
+            const leafAlpha = 0.25 + this.seededRandom(seed, i + 80, 8) * 0.35;
+            ctx.fillStyle = this.hsl(baseH + 10 + this.seededRandom(seed, i + 90, 9) * 20, 70, 60, leafAlpha);
+            ctx.beginPath();
+            ctx.arc(lx, ly, lr, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
 
         // 树叶高光点（模拟阳光照射）
-        ctx.fillStyle = 'rgba(150, 230, 120, 0.3)';
-        const highlightX = crownBaseX + Math.cos(t * 0.5 + seed) * 6;
-        const highlightY = crownBaseY - 6 + Math.sin(t * 0.3 + seed) * 3;
+        ctx.fillStyle = this.hsl(baseH + 20, 80, 75, 0.35);
+        const highlightX = crownBaseX + Math.cos(t * 0.5 + seed) * 7;
+        const highlightY = crownBaseY - 8 + Math.sin(t * 0.3 + seed) * 4;
         ctx.beginPath();
-        ctx.arc(highlightX, highlightY, 5, 0, Math.PI * 2);
+        ctx.arc(highlightX, highlightY, 6, 0, Math.PI * 2);
+        ctx.fill();
+        // 高光中心更亮
+        ctx.fillStyle = this.hsl(baseH + 25, 90, 85, 0.5);
+        ctx.beginPath();
+        ctx.arc(highlightX - 1, highlightY - 1, 3, 0, Math.PI * 2);
         ctx.fill();
     }
 
     /**
-     * 绘制树冠层
+     * 绘制带径向渐变的树冠层
      */
-    drawCrownLayer(ctx, cx, cy, size, treeType, seed, layer) {
+    drawCrownLayerGrad(ctx, cx, cy, size, treeType, seed, layer, colorInner, colorOuter) {
         if (treeType === 0) {
-            // 圆形树冠
             const offset = layer * 3;
+            const grad = ctx.createRadialGradient(cx, cy - offset - 3, 2, cx, cy - offset, size);
+            grad.addColorStop(0, colorInner);
+            grad.addColorStop(1, colorOuter);
+            ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.arc(cx, cy - offset, size, 0, Math.PI * 2);
             ctx.fill();
             // 附加小圆增加层次感
+            const grad2 = ctx.createRadialGradient(cx - size * 0.5, cy - offset + 2 - 2, 1, cx - size * 0.5, cy - offset + 2, size * 0.6);
+            grad2.addColorStop(0, colorInner);
+            grad2.addColorStop(1, colorOuter);
+            ctx.fillStyle = grad2;
             ctx.beginPath();
             ctx.arc(cx - size * 0.5, cy - offset + 2, size * 0.6, 0, Math.PI * 2);
             ctx.fill();
+            const grad3 = ctx.createRadialGradient(cx + size * 0.5, cy - offset + 2 - 2, 1, cx + size * 0.5, cy - offset + 2, size * 0.6);
+            grad3.addColorStop(0, colorInner);
+            grad3.addColorStop(1, colorOuter);
+            ctx.fillStyle = grad3;
             ctx.beginPath();
             ctx.arc(cx + size * 0.5, cy - offset + 2, size * 0.6, 0, Math.PI * 2);
             ctx.fill();
         } else if (treeType === 1) {
-            // 椭圆形树冠
+            const grad = ctx.createRadialGradient(cx, cy - 4, 2, cx, cy, size);
+            grad.addColorStop(0, colorInner);
+            grad.addColorStop(1, colorOuter);
+            ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.ellipse(cx, cy, size * 1.1, size * 0.8, 0, 0, Math.PI * 2);
             ctx.fill();
+            const grad2 = ctx.createRadialGradient(cx - 4, cy - 5, 1, cx - 4, cy - 3, size * 0.7);
+            grad2.addColorStop(0, colorInner);
+            grad2.addColorStop(1, colorOuter);
+            ctx.fillStyle = grad2;
             ctx.beginPath();
             ctx.ellipse(cx - 4, cy - 3, size * 0.7, size * 0.6, -0.3, 0, Math.PI * 2);
             ctx.fill();
         } else {
             // 松树形（三角形层叠）
             const topY = cy - size * 1.2;
+            // 松树也用线性渐变模拟光照
+            const grad = ctx.createLinearGradient(cx - size, topY, cx + size, cy + 4);
+            grad.addColorStop(0, colorOuter);
+            grad.addColorStop(0.5, colorInner);
+            grad.addColorStop(1, colorOuter);
+            ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.moveTo(cx, topY);
             ctx.lineTo(cx - size, cy + 4);
@@ -705,6 +866,11 @@ class Renderer {
             ctx.closePath();
             ctx.fill();
             if (layer < 2) {
+                const grad2 = ctx.createLinearGradient(cx - size * 0.7, topY - 4, cx + size * 0.7, cy - 4);
+                grad2.addColorStop(0, colorOuter);
+                grad2.addColorStop(0.5, colorInner);
+                grad2.addColorStop(1, colorOuter);
+                ctx.fillStyle = grad2;
                 ctx.beginPath();
                 ctx.moveTo(cx, topY - 4);
                 ctx.lineTo(cx - size * 0.7, cy - 4);
@@ -716,40 +882,52 @@ class Renderer {
     }
 
     /**
-     * 渲染石头（优化版）
+     * 渲染石头（视觉升级版）
      */
     renderStone(ctx, px, py, x, y) {
         const seed = (x * 53 + y * 29) % 1000;
         const cx = px + TILE/2;
         const cy = py + TILE/2 + 2;
 
-        // 阴影
-        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        // 阴影 - 模糊渐变
+        const shadowGrad = ctx.createRadialGradient(cx, py + TILE - 4, 2, cx, py + TILE - 4, 18);
+        shadowGrad.addColorStop(0, 'rgba(0,0,0,0.20)');
+        shadowGrad.addColorStop(0.5, 'rgba(0,0,0,0.08)');
+        shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = shadowGrad;
         ctx.beginPath();
-        ctx.ellipse(cx, py + TILE - 2, 14, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, py + TILE - 4, 16, 5, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // 石头主体 - 不规则多边形
         const sides = 6 + Math.floor(this.seededRandom(seed, 1, 4) * 4);
         const radius = 14 + this.seededRandom(seed, 2, 5) * 4;
 
-        // 阴影面（深色底层）
-        ctx.fillStyle = '#5a5a5a';
-        this.drawIrregularPolygon(ctx, cx + 1, cy + 1, radius, sides, 0.5, seed);
+        // 1. 阴影层（深色底层，偏移模拟厚度）
+        ctx.fillStyle = '#4a4a4a';
+        this.drawIrregularPolygon(ctx, cx + 2, cy + 2, radius, sides, 0.5, seed);
         ctx.fill();
 
-        // 主体面
-        ctx.fillStyle = '#7a7a7a';
+        // 2. 主体层 - 使用线性渐变模拟光照（左亮右暗）
+        const bodyGrad = ctx.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
+        bodyGrad.addColorStop(0, '#8a8a8a');
+        bodyGrad.addColorStop(0.4, '#7a7a7a');
+        bodyGrad.addColorStop(0.8, '#6a6a6a');
+        bodyGrad.addColorStop(1, '#5a5a5a');
+        ctx.fillStyle = bodyGrad;
         this.drawIrregularPolygon(ctx, cx, cy, radius, sides, 0.5, seed);
         ctx.fill();
 
-        // 高光面（左上）
-        ctx.fillStyle = '#9a9a9a';
-        this.drawIrregularPolygon(ctx, cx - 2, cy - 2, radius * 0.6, Math.max(4, sides - 2), 0.4, seed + 100);
+        // 3. 高光层（左上）
+        const highlightGrad = ctx.createLinearGradient(cx - radius * 0.5, cy - radius * 0.5, cx, cy);
+        highlightGrad.addColorStop(0, 'rgba(180, 180, 180, 0.7)');
+        highlightGrad.addColorStop(1, 'rgba(140, 140, 140, 0)');
+        ctx.fillStyle = highlightGrad;
+        this.drawIrregularPolygon(ctx, cx - 2, cy - 2, radius * 0.55, Math.max(4, sides - 2), 0.4, seed + 100);
         ctx.fill();
 
         // 裂纹纹理
-        ctx.strokeStyle = 'rgba(40, 40, 40, 0.3)';
+        ctx.strokeStyle = 'rgba(40, 40, 40, 0.35)';
         ctx.lineWidth = 1;
         const crackCount = 1 + Math.floor(this.seededRandom(seed, 3, 6) * 2);
         for (let i = 0; i < crackCount; i++) {
@@ -761,6 +939,21 @@ class Renderer {
             ctx.moveTo(sx, sy);
             ctx.lineTo(sx + (this.seededRandom(seed, i + 30, 9) - 0.5) * 8, sy + (this.seededRandom(seed, i + 40, 10) - 0.5) * 6);
             ctx.stroke();
+        }
+
+        // 苔藓效果（在石头底部）
+        const mossColor = this.hsl(100 + this.seededRandom(seed, 15, 11) * 20, 45, 35, 0.6);
+        ctx.fillStyle = mossColor;
+        const mossPatches = 3 + Math.floor(this.seededRandom(seed, 16, 12) * 3);
+        for (let i = 0; i < mossPatches; i++) {
+            const mossAngle = Math.PI * 0.7 + this.seededRandom(seed, i + 20, 13) * Math.PI * 0.6;
+            const mossR = radius * (0.5 + this.seededRandom(seed, i + 30, 14) * 0.4);
+            const mx = cx + Math.cos(mossAngle) * mossR;
+            const my = cy + Math.sin(mossAngle) * mossR * 0.6 + 2;
+            const ms = 2 + this.seededRandom(seed, i + 40, 15) * 3;
+            ctx.beginPath();
+            ctx.arc(mx, my, ms, 0, Math.PI * 2);
+            ctx.fill();
         }
     }
 
@@ -1515,7 +1708,7 @@ class Renderer {
 
             ctx.drawImage(sheet, frame * frameW, 0, frameW, frameH, drawX, drawY, drawW, drawH);
         } else {
-            // === 精致像素风角色绘制 (Fallback) ===
+            // === 精致像素风角色绘制 (Fallback 视觉升级版) ===
             const cx = px + TILE / 2;
             const cy = py + TILE / 2 + 4;
             const facingLeft = dir === 2;
@@ -1523,11 +1716,11 @@ class Renderer {
             const facingUp = dir === 1;
             const facingDown = dir === 0;
 
-            // 身体颜色根据方向微调
+            // 身体颜色根据方向微调 - 使用更和谐的配色
             const bodyColors = {
-                front: '#e74c3c', // 下
-                back:  '#c0392b', // 上 (稍暗)
-                side:  '#d35400'  // 左右
+                front: '#d94e41', // 下 - 稍柔和的砖红
+                back:  '#b0352a', // 上 (稍暗)
+                side:  '#c44d33'  // 左右
             };
             let bodyColor = bodyColors.front;
             if (facingUp) bodyColor = bodyColors.back;
@@ -1537,11 +1730,35 @@ class Renderer {
             const limbSwing = moving ? sinWalk * 6 : 0;
             const bobY = moving ? Math.abs(sinWalk) * 2 : 0;
 
+            // === 鞋子绘制 ===
+            const shoeW = 7;
+            const shoeH = 4;
+            const shoeY = cy + 18 - bobY;
+            ctx.fillStyle = '#3e2723'; // 深棕色鞋子
+            if (facingDown || facingUp) {
+                const leftShoeX = cx - 6 + (moving ? sinWalk * 3 : 0);
+                const rightShoeX = cx + 6 - (moving ? sinWalk * 3 : 0);
+                this.drawRoundRect(ctx, leftShoeX - shoeW/2, shoeY, shoeW, shoeH, 1.5);
+                this.drawRoundRect(ctx, rightShoeX - shoeW/2, shoeY, shoeW, shoeH, 1.5);
+                // 鞋头高光
+                ctx.fillStyle = '#5d4037';
+                ctx.fillRect(leftShoeX - shoeW/2 + 1, shoeY + 1, shoeW * 0.5, 2);
+                ctx.fillRect(rightShoeX - shoeW/2 + 1, shoeY + 1, shoeW * 0.5, 2);
+            } else {
+                const frontShoeX = cx + (facingRight ? 5 : -5) + limbSwing * 0.6;
+                const backShoeX = cx + (facingRight ? -3 : 3) - limbSwing * 0.6;
+                ctx.fillStyle = '#3e2723';
+                this.drawRoundRect(ctx, backShoeX - shoeW/2, shoeY + 1, shoeW, shoeH, 1.5);
+                this.drawRoundRect(ctx, frontShoeX - shoeW/2, shoeY - 1, shoeW, shoeH, 1.5);
+                ctx.fillStyle = '#5d4037';
+                ctx.fillRect(frontShoeX - shoeW/2 + 1, shoeY, shoeW * 0.5, 2);
+            }
+
             // 腿部 (在身体下方绘制)
             const legW = 6;
             const legH = 10;
             const legY = cy + 10 - bobY;
-            ctx.fillStyle = '#2c3e50'; // 裤子颜色
+            ctx.fillStyle = '#34495e'; // 裤子颜色 - 更协调的深蓝灰
 
             if (facingDown || facingUp) {
                 // 前后视角：两条腿分开
@@ -1557,15 +1774,28 @@ class Renderer {
                 this.drawRoundRect(ctx, frontLegX - legW/2, legY - 1, legW, legH, 2);
             }
 
-            // 身体 (圆角矩形)
+            // 身体 (圆角矩形) - 比例微调更协调
             const bodyW = 20;
             const bodyH = 18;
             const bodyY = cy - 6 - bobY;
-            ctx.fillStyle = bodyColor;
+            // 身体使用轻微渐变
+            const bodyGrad = ctx.createLinearGradient(cx - bodyW/2, bodyY, cx + bodyW/2, bodyY + bodyH);
+            bodyGrad.addColorStop(0, bodyColor);
+            bodyGrad.addColorStop(0.5, this.lightenColor(bodyColor, 10));
+            bodyGrad.addColorStop(1, this.darkenColor(bodyColor, 15));
+            ctx.fillStyle = bodyGrad;
             this.drawRoundRect(ctx, cx - bodyW/2, bodyY, bodyW, bodyH, 4);
-            // 衣服细节：中间一条线
-            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+
+            // 衣服褶皱细节
+            ctx.fillStyle = 'rgba(0,0,0,0.12)';
             ctx.fillRect(cx - 1, bodyY + 3, 2, bodyH - 6);
+            // 腰部褶皱
+            ctx.fillStyle = 'rgba(0,0,0,0.08)';
+            ctx.fillRect(cx - bodyW/2 + 3, bodyY + 10, bodyW - 6, 1.5);
+            // 侧边阴影
+            ctx.fillStyle = 'rgba(0,0,0,0.10)';
+            ctx.fillRect(cx - bodyW/2, bodyY + 2, 3, bodyH - 4);
+            ctx.fillRect(cx + bodyW/2 - 3, bodyY + 2, 3, bodyH - 4);
 
             // 手臂
             const armW = 5;
@@ -1578,71 +1808,125 @@ class Renderer {
                 const rightArmX = cx + 12 + (moving ? sinWalk * 2 : 0);
                 this.drawRoundRect(ctx, leftArmX - armW/2, armY, armW, armH, 2);
                 this.drawRoundRect(ctx, rightArmX - armW/2, armY, armW, armH, 2);
+                // 袖口
+                ctx.fillStyle = bodyColor;
+                ctx.fillRect(leftArmX - armW/2 - 0.5, armY, armW + 1, 3);
+                ctx.fillRect(rightArmX - armW/2 - 0.5, armY, armW + 1, 3);
             } else {
                 // 左右视角：一只手臂在前，一只在后
                 const frontArmX = cx + (facingRight ? 12 : -12) + limbSwing * 0.8;
                 const backArmX = cx + (facingRight ? -8 : 8) - limbSwing * 0.5;
+                ctx.fillStyle = '#f5cba7';
                 this.drawRoundRect(ctx, backArmX - armW/2, armY + 1, armW, armH, 2);
                 this.drawRoundRect(ctx, frontArmX - armW/2, armY - 1, armW, armH, 2);
+                // 袖口
+                ctx.fillStyle = bodyColor;
+                ctx.fillRect(backArmX - armW/2 - 0.5, armY + 1, armW + 1, 3);
+                ctx.fillRect(frontArmX - armW/2 - 0.5, armY - 1, armW + 1, 3);
             }
 
-            // 头部
-            const headSize = 14;
-            const headY = bodyY - 10 - bobY;
+            // 头部 - 比例微调
+            const headSize = 13;
+            const headY = bodyY - 9 - bobY;
             ctx.fillStyle = '#f5cba7'; // 肤色
             ctx.beginPath();
             ctx.arc(cx, headY, headSize, 0, Math.PI * 2);
             ctx.fill();
+            // 脸部阴影（下巴处）
+            ctx.fillStyle = 'rgba(200, 160, 130, 0.3)';
+            ctx.beginPath();
+            ctx.arc(cx, headY + 3, headSize * 0.7, 0, Math.PI);
+            ctx.fill();
 
-            // 头发
-            ctx.fillStyle = '#5d4037'; // 深棕色头发
+            // 头发 - 增加高光
+            const hairBase = '#4e342e';
+            const hairHighlight = '#6d4c41';
             if (facingDown) {
                 // 前面头发：刘海
+                ctx.fillStyle = hairBase;
                 ctx.beginPath();
                 ctx.arc(cx, headY - 2, headSize + 2, Math.PI, 0);
                 ctx.fill();
                 // 两侧
                 ctx.fillRect(cx - headSize - 2, headY - 4, 4, 10);
                 ctx.fillRect(cx + headSize - 2, headY - 4, 4, 10);
+                // 头发高光
+                ctx.fillStyle = hairHighlight;
+                ctx.beginPath();
+                ctx.arc(cx - 3, headY - 6, 4, Math.PI * 1.1, Math.PI * 1.6);
+                ctx.fill();
             } else if (facingUp) {
                 // 后面：只有头顶和两侧一点点
+                ctx.fillStyle = hairBase;
                 ctx.beginPath();
                 ctx.arc(cx, headY - 4, headSize + 1, Math.PI, 0);
                 ctx.fill();
+                ctx.fillRect(cx - headSize - 1, headY - 4, 3, 6);
+                ctx.fillRect(cx + headSize - 2, headY - 4, 3, 6);
+                // 头发高光
+                ctx.fillStyle = hairHighlight;
+                ctx.beginPath();
+                ctx.arc(cx - 2, headY - 7, 4, Math.PI * 1.1, Math.PI * 1.6);
+                ctx.fill();
             } else if (facingLeft) {
                 // 左侧：头发偏左
+                ctx.fillStyle = hairBase;
                 ctx.beginPath();
                 ctx.arc(cx - 2, headY - 2, headSize + 2, Math.PI * 0.7, Math.PI * 1.9);
                 ctx.fill();
                 ctx.fillRect(cx - headSize - 2, headY - 6, 6, 14);
+                // 头发高光
+                ctx.fillStyle = hairHighlight;
+                ctx.beginPath();
+                ctx.arc(cx - 5, headY - 5, 4, Math.PI * 1.0, Math.PI * 1.5);
+                ctx.fill();
             } else if (facingRight) {
                 // 右侧：头发偏右
+                ctx.fillStyle = hairBase;
                 ctx.beginPath();
                 ctx.arc(cx + 2, headY - 2, headSize + 2, Math.PI * 0.1, Math.PI * 1.3);
                 ctx.fill();
                 ctx.fillRect(cx + headSize - 4, headY - 6, 6, 14);
+                // 头发高光
+                ctx.fillStyle = hairHighlight;
+                ctx.beginPath();
+                ctx.arc(cx + 3, headY - 5, 4, Math.PI * 1.5, Math.PI * 2.0);
+                ctx.fill();
             }
 
-            // 眼睛 (小黑点，有眨眼动画)
+            // 眼睛 (小黑点，有眨眼动画) - 增加眼白
             if (!facingUp) {
                 const blink = (now % 3000) < 150; // 每3秒眨眼150ms
                 if (!blink) {
+                    // 眼白
+                    ctx.fillStyle = '#fff';
+                    if (facingDown) {
+                        ctx.beginPath(); ctx.arc(cx - 5, headY + 1, 2.5, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx + 5, headY + 1, 2.5, 0, Math.PI * 2); ctx.fill();
+                    } else if (facingLeft) {
+                        ctx.beginPath(); ctx.arc(cx - 6, headY + 1, 2.5, 0, Math.PI * 2); ctx.fill();
+                    } else if (facingRight) {
+                        ctx.beginPath(); ctx.arc(cx + 6, headY + 1, 2.5, 0, Math.PI * 2); ctx.fill();
+                    }
+                    // 瞳孔
                     ctx.fillStyle = '#1a1a1a';
                     if (facingDown) {
-                        ctx.beginPath();
-                        ctx.arc(cx - 5, headY + 1, 2, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.beginPath();
-                        ctx.arc(cx + 5, headY + 1, 2, 0, Math.PI * 2);
-                        ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx - 5, headY + 1, 1.5, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx + 5, headY + 1, 1.5, 0, Math.PI * 2); ctx.fill();
                     } else if (facingLeft) {
-                        ctx.beginPath();
-                        ctx.arc(cx - 6, headY + 1, 2, 0, Math.PI * 2);
-                        ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx - 6, headY + 1, 1.5, 0, Math.PI * 2); ctx.fill();
                     } else if (facingRight) {
-                        ctx.beginPath();
-                        ctx.arc(cx + 6, headY + 1, 2, 0, Math.PI * 2);
-                        ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx + 6, headY + 1, 1.5, 0, Math.PI * 2); ctx.fill();
+                    }
+                    // 眼睛高光
+                    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                    if (facingDown) {
+                        ctx.beginPath(); ctx.arc(cx - 5.5, headY + 0.5, 0.6, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx + 4.5, headY + 0.5, 0.6, 0, Math.PI * 2); ctx.fill();
+                    } else if (facingLeft) {
+                        ctx.beginPath(); ctx.arc(cx - 6.5, headY + 0.5, 0.6, 0, Math.PI * 2); ctx.fill();
+                    } else if (facingRight) {
+                        ctx.beginPath(); ctx.arc(cx + 5.5, headY + 0.5, 0.6, 0, Math.PI * 2); ctx.fill();
                     }
                 } else {
                     // 闭眼：一条短线
@@ -1673,9 +1957,9 @@ class Renderer {
         }
 
         // === 工具视觉表现 ===
-        const toolEmojis = ['⛏️', '🚿', '🌱', '🧺', '🗑️'];
-        const toolEmoji = toolEmojis[state.currentTool] || '';
-        if (toolEmoji) {
+        const toolColors = ['#c4a96a', '#4a9bd5', '#4db83a', '#ff8c00', '#8b7355'];
+        const toolColor = toolColors[state.currentTool] || '#c4a96a';
+        if (state.currentTool >= 0 && state.currentTool <= 4) {
             // 工具位置根据方向和行走动画微调
             let tx = px + TILE / 2;
             let ty = py + TILE / 2;
@@ -1714,10 +1998,76 @@ class Renderer {
             ctx.save();
             ctx.translate(tx + toolOffsetX, ty + toolOffsetY);
             ctx.rotate(swingAngle);
-            ctx.font = '14px serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(toolEmoji, 0, 0);
+            ctx.strokeStyle = toolColor;
+            ctx.fillStyle = toolColor;
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // 绘制工具图标（简约矢量风格）
+            switch (state.currentTool) {
+                case 0: // 锄头
+                    ctx.beginPath();
+                    ctx.moveTo(-4, -6);
+                    ctx.lineTo(4, 6);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(2, 6);
+                    ctx.lineTo(6, 6);
+                    ctx.lineTo(5, 2);
+                    ctx.stroke();
+                    break;
+                case 1: // 水壶
+                    ctx.beginPath();
+                    ctx.moveTo(-3, -4);
+                    ctx.lineTo(-3, 4);
+                    ctx.lineTo(3, 4);
+                    ctx.lineTo(3, -2);
+                    ctx.lineTo(0, -4);
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(3, -1);
+                    ctx.lineTo(6, -4);
+                    ctx.stroke();
+                    break;
+                case 2: // 种子
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(0, -3);
+                    ctx.lineTo(-2, -7);
+                    ctx.moveTo(0, -3);
+                    ctx.lineTo(2, -7);
+                    ctx.stroke();
+                    break;
+                case 3: // 收获篮子
+                    ctx.beginPath();
+                    ctx.moveTo(-4, -2);
+                    ctx.lineTo(-4, 4);
+                    ctx.lineTo(4, 4);
+                    ctx.lineTo(4, -2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-4, -2);
+                    ctx.quadraticCurveTo(0, -6, 4, -2);
+                    ctx.stroke();
+                    break;
+                case 4: // 铲除铲子
+                    ctx.beginPath();
+                    ctx.moveTo(0, -6);
+                    ctx.lineTo(0, 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-3, 2);
+                    ctx.lineTo(3, 2);
+                    ctx.lineTo(2, 6);
+                    ctx.lineTo(-2, 6);
+                    ctx.closePath();
+                    ctx.stroke();
+                    break;
+            }
             ctx.restore();
         }
 
@@ -1742,6 +2092,161 @@ class Renderer {
             ctx.fillStyle = '#2c3e50';
             ctx.fillText(nameText, nameX, nameY);
         }
+    }
+
+    /**
+     * 渲染其他玩家 (简化版角色)
+     */
+    renderOtherPlayers(ctx, state) {
+        const now = Date.now();
+        for (const [peerId, player] of state.otherPlayers) {
+            if (now - player.lastUpdate > 10000) continue; // 超过10秒未更新不显示
+
+            const px = player.x;
+            const py = player.y;
+            const dir = player.dir || 0;
+            const color = player.color || '#ff6b6b';
+
+            // 动态阴影
+            const shadowOffsetX = Math.cos(this.sunAngle) * 6;
+            const shadowOffsetY = Math.sin(this.sunAngle) * 3 + 3;
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(px + TILE / 2 + shadowOffsetX, py + TILE - 2 + shadowOffsetY, 14, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const cx = px + TILE / 2;
+            const cy = py + TILE / 2 + 4;
+            const facingLeft = dir === 2;
+            const facingRight = dir === 3;
+            const facingUp = dir === 1;
+
+            // 腿部
+            const legW = 5;
+            const legH = 9;
+            const legY = cy + 10;
+            ctx.fillStyle = '#2c3e50';
+            if (facingUp || dir === 0) {
+                const leftLegX = cx - 5;
+                const rightLegX = cx + 5;
+                this.drawRoundRect(ctx, leftLegX - legW / 2, legY, legW, legH, 2);
+                this.drawRoundRect(ctx, rightLegX - legW / 2, legY, legW, legH, 2);
+            } else {
+                const frontLegX = cx + (facingRight ? 3 : -3);
+                const backLegX = cx + (facingRight ? -2 : 2);
+                this.drawRoundRect(ctx, backLegX - legW / 2, legY + 1, legW, legH, 2);
+                this.drawRoundRect(ctx, frontLegX - legW / 2, legY - 1, legW, legH, 2);
+            }
+
+            // 身体 (使用玩家指定颜色)
+            const bodyW = 18;
+            const bodyH = 16;
+            const bodyY = cy - 6;
+            ctx.fillStyle = color;
+            this.drawRoundRect(ctx, cx - bodyW / 2, bodyY, bodyW, bodyH, 4);
+
+            // 手臂
+            const armW = 4;
+            const armH = 11;
+            const armY = bodyY + 2;
+            ctx.fillStyle = '#f5cba7';
+            if (facingUp || dir === 0) {
+                const leftArmX = cx - 11;
+                const rightArmX = cx + 11;
+                this.drawRoundRect(ctx, leftArmX - armW / 2, armY, armW, armH, 2);
+                this.drawRoundRect(ctx, rightArmX - armW / 2, armY, armW, armH, 2);
+            } else {
+                const frontArmX = cx + (facingRight ? 11 : -11);
+                const backArmX = cx + (facingRight ? -7 : 7);
+                this.drawRoundRect(ctx, backArmX - armW / 2, armY + 1, armW, armH, 2);
+                this.drawRoundRect(ctx, frontArmX - armW / 2, armY - 1, armW, armH, 2);
+            }
+
+            // 头部
+            const headSize = 12;
+            const headY = bodyY - 9;
+            ctx.fillStyle = '#f5cba7';
+            ctx.beginPath();
+            ctx.arc(cx, headY, headSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 头发
+            ctx.fillStyle = '#5d4037';
+            if (!facingUp) {
+                ctx.beginPath();
+                ctx.arc(cx, headY - 2, headSize + 1, Math.PI, 0);
+                ctx.fill();
+                ctx.fillRect(cx - headSize - 1, headY - 3, 3, 8);
+                ctx.fillRect(cx + headSize - 2, headY - 3, 3, 8);
+            } else {
+                ctx.beginPath();
+                ctx.arc(cx, headY - 3, headSize, Math.PI, 0);
+                ctx.fill();
+            }
+
+            // 眼睛 (不朝上看时显示)
+            if (!facingUp) {
+                ctx.fillStyle = '#1a1a1a';
+                if (dir === 0) {
+                    ctx.beginPath();
+                    ctx.arc(cx - 4, headY + 1, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(cx + 4, headY + 1, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (facingLeft) {
+                    ctx.beginPath();
+                    ctx.arc(cx - 5, headY + 1, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (facingRight) {
+                    ctx.beginPath();
+                    ctx.arc(cx + 5, headY + 1, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // 玩家名字标签
+            const nameText = player.name || '玩家';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            const textMetrics = ctx.measureText(nameText);
+            const textW = textMetrics.width;
+            const padX = 5;
+            const padY = 2;
+            const nameX = px + TILE / 2;
+            const nameY = py - 10;
+
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            this.drawRoundRect(ctx, nameX - textW / 2 - padX, nameY - 10 - padY, textW + padX * 2, 12 + padY * 2, 5);
+
+            ctx.fillStyle = '#fff';
+            ctx.fillText(nameText, nameX, nameY);
+        }
+    }
+
+    /**
+     * 辅助：颜色变亮
+     */
+    lightenColor(hex, percent) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.min(255, (num >> 16) + amt);
+        const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+        const B = Math.min(255, (num & 0x0000FF) + amt);
+        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+    }
+
+    /**
+     * 辅助：颜色变暗
+     */
+    darkenColor(hex, percent) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.max(0, (num >> 16) - amt);
+        const G = Math.max(0, ((num >> 8) & 0x00FF) - amt);
+        const B = Math.max(0, (num & 0x0000FF) - amt);
+        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
     }
 
     /**
@@ -1847,20 +2352,27 @@ class Renderer {
         let overlayColor = null;
         let overlayAlpha = 0;
         let warmth = 0;
+        let coolness = 0;
 
         if (hour >= 20 || hour < 5) {
-            overlayColor = '#0a0a2e';
-            overlayAlpha = 0.55;
+            // 夜晚 - 月光色调（偏蓝紫）
+            overlayColor = '#1a1a4e';
+            overlayAlpha = 0.45;
+            coolness = 0.6;
         } else if (hour >= 18) {
+            // 傍晚 - 暖橙过渡
             overlayColor = '#ff6b35';
-            overlayAlpha = (hour - 18) / 2 * 0.35;
+            overlayAlpha = (hour - 18) / 2 * 0.30;
             warmth = (hour - 18) / 2;
         } else if (hour < 7) {
+            // 清晨 - 冷蓝过渡
             overlayColor = '#87ceeb';
-            overlayAlpha = (7 - hour) / 2 * 0.2;
+            overlayAlpha = (7 - hour) / 2 * 0.18;
+            coolness = (7 - hour) / 7;
         } else if (hour >= 12 && hour < 15) {
+            // 正午 - 轻微暖白
             overlayColor = '#fff8e7';
-            overlayAlpha = 0.08;
+            overlayAlpha = 0.06;
         }
 
         if (overlayColor) {
@@ -1873,7 +2385,30 @@ class Renderer {
         // 傍晚暖色覆盖
         if (warmth > 0) {
             ctx.fillStyle = '#ffaa44';
-            ctx.globalAlpha = warmth * 0.15;
+            ctx.globalAlpha = warmth * 0.12;
+            ctx.fillRect(0, 0, this.screenW, this.screenH);
+            ctx.globalAlpha = 1;
+        }
+
+        // 清晨/夜晚冷色覆盖
+        if (coolness > 0) {
+            ctx.fillStyle = '#4466aa';
+            ctx.globalAlpha = coolness * 0.08;
+            ctx.fillRect(0, 0, this.screenW, this.screenH);
+            ctx.globalAlpha = 1;
+        }
+
+        // 全局色彩校正 - 让画面更温暖/更冷
+        if (hour >= 6 && hour < 18) {
+            // 白天：轻微暖色调校正
+            ctx.fillStyle = '#ffddaa';
+            ctx.globalAlpha = 0.03;
+            ctx.fillRect(0, 0, this.screenW, this.screenH);
+            ctx.globalAlpha = 1;
+        } else {
+            // 夜晚：冷色调校正 + 月光蓝
+            ctx.fillStyle = '#6688cc';
+            ctx.globalAlpha = 0.04;
             ctx.fillRect(0, 0, this.screenW, this.screenH);
             ctx.globalAlpha = 1;
         }
@@ -1891,6 +2426,20 @@ class Renderer {
             }
         }
 
+        // 月光效果 (夜晚)
+        if (hour >= 20 || hour < 5) {
+            const moonIntensity = (hour >= 20 || hour < 5) ? 0.08 : 0.04;
+            const moonGrad = ctx.createRadialGradient(
+                this.screenW * 0.7, this.screenH * 0.2, 0,
+                this.screenW * 0.7, this.screenH * 0.2, this.screenH * 0.6
+            );
+            moonGrad.addColorStop(0, `rgba(180, 200, 255, ${moonIntensity})`);
+            moonGrad.addColorStop(0.5, `rgba(180, 200, 255, ${moonIntensity * 0.3})`);
+            moonGrad.addColorStop(1, 'rgba(180, 200, 255, 0)');
+            ctx.fillStyle = moonGrad;
+            ctx.fillRect(0, 0, this.screenW, this.screenH);
+        }
+
         // 阳光射线效果 (清晨和傍晚)
         if ((hour >= 6 && hour < 9) || (hour >= 16 && hour < 19)) {
             const sunIntensity = hour < 9 ? (9 - hour) / 3 : (hour - 16) / 3;
@@ -1902,13 +2451,14 @@ class Renderer {
             ctx.fillRect(0, 0, this.screenW, this.screenH);
         }
 
-        // 暗角效果 (Vignette)
+        // 暗角效果 (Vignette) - 更柔和
         const vignetteGrad = ctx.createRadialGradient(
-            this.screenW / 2, this.screenH / 2, this.screenH * 0.3,
-            this.screenW / 2, this.screenH / 2, this.screenH * 0.8
+            this.screenW / 2, this.screenH / 2, this.screenH * 0.35,
+            this.screenW / 2, this.screenH / 2, this.screenH * 0.85
         );
         vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.2)');
+        vignetteGrad.addColorStop(0.6, 'rgba(0,0,0,0.03)');
+        vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
         ctx.fillStyle = vignetteGrad;
         ctx.fillRect(0, 0, this.screenW, this.screenH);
     }
@@ -2024,6 +2574,27 @@ class Renderer {
             mmY + (state.playerY / TILE) * scaleY - 2,
             4, 4
         );
+
+        // 其他玩家位置
+        const now = Date.now();
+        for (const [peerId, player] of state.otherPlayers) {
+            if (now - player.lastUpdate > 10000) continue; // 超过10秒未更新不显示
+
+            const opx = mmX + (player.x / TILE) * scaleX;
+            const opy = mmY + (player.y / TILE) * scaleY;
+
+            // 绘制小圆点
+            ctx.fillStyle = player.color || '#ff6b6b';
+            ctx.beginPath();
+            ctx.arc(opx, opy, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 绘制玩家名字
+            ctx.font = '8px sans-serif';
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.fillText(player.name || '玩家', opx, opy - 5);
+        }
 
         // 视野范围
         ctx.strokeStyle = '#fff';
