@@ -161,9 +161,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // 分块加载：玩家移动时动态扩展
         ensureChunksAroundPlayer(state);
 
-        // 计算 timeOfDay (小时) 供 renderer 使用
-        state.timeOfDay = state.time / 60;
-
         // 渲染
         renderer.render(state);
 

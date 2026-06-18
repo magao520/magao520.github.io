@@ -674,7 +674,7 @@ function addToInventory(state, item) {
         state.inventory.push({
             id: Date.now() + Math.random(),
             name: item.name,
-            emoji: item.emoji,
+            emoji: item.emoji || '',
             qty: item.qty || 1,
             type: item.type || 'item',
             value: item.value || 0,
@@ -927,7 +927,7 @@ function handleFishingInput(state) {
 
         addToInventory(state, {
             name: fish.name,
-            emoji: fish.emoji,
+            emoji: '',
             qty: 1,
             type: 'fish',
             value: value,
@@ -937,7 +937,7 @@ function handleFishingInput(state) {
         state.totalFishCaught++;
         state.energy -= 5;
         spawnParticles(state, state.playerX + TILE / 2, state.playerY, '💧', 8);
-        addFloatingText(state, state.playerX, state.playerY - 20, `+${fish.emoji} ${quality.prefix}${fish.name}`, quality.color);
+        addFloatingText(state, state.playerX, state.playerY - 20, `+${quality.prefix}${fish.name}`, quality.color);
         showToast(`钓到了 ${quality.prefix}${fish.name}！价值 ${value}💰`);
     } else {
         // 失败
@@ -995,7 +995,7 @@ function handleMiningInteract(state, tx, ty) {
 
         addToInventory(state, {
             name: ore.name,
-            emoji: ore.emoji,
+            emoji: '',
             qty: 1,
             type: 'ore',
             value: value,
@@ -1009,7 +1009,7 @@ function handleMiningInteract(state, tx, ty) {
         state.map[ty][tx] = T.DIRT;
 
         spawnParticles(state, tx * TILE + TILE / 2, ty * TILE + TILE / 2, '✨', 6);
-        addFloatingText(state, tx * TILE, ty * TILE - 10, `+${ore.emoji} ${quality.prefix}${ore.name}`, quality.color);
+        addFloatingText(state, tx * TILE, ty * TILE - 10, `+${quality.prefix}${ore.name}`, quality.color);
         showToast(`挖到了 ${quality.prefix}${ore.name}！价值 ${value}💰`);
         checkAchievements(state);
     }
@@ -1027,7 +1027,7 @@ function handleForageInteract(state, tx, ty) {
 
     addToInventory(state, {
         name: item.name,
-        emoji: item.emoji,
+        emoji: '',
         qty: 1,
         type: 'forage',
         value: value,
@@ -1038,7 +1038,7 @@ function handleForageInteract(state, tx, ty) {
     state.map[ty][tx] = T.GRASS; // 采集后变为草地
 
     spawnParticles(state, tx * TILE + TILE / 2, ty * TILE + TILE / 2, '🌿', 4);
-    addFloatingText(state, tx * TILE, ty * TILE, `+${item.emoji} ${quality.prefix}${item.name}`, quality.color);
+    addFloatingText(state, tx * TILE, ty * TILE, `+${quality.prefix}${item.name}`, quality.color);
     showToast(`采集了 ${quality.prefix}${item.name}！`);
     checkAchievements(state);
     return true;
@@ -1107,7 +1107,7 @@ function openShop(state, tx, ty) {
     const speaker = document.getElementById('dialog-speaker');
     const text = document.getElementById('dialog-text');
 
-    speaker.textContent = `${npc.emoji} ${npc.name} (${npc.role})`;
+    speaker.textContent = `${npc.name} (${npc.role})`;
 
     let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">';
 
@@ -1118,15 +1118,15 @@ function openShop(state, tx, ty) {
     for (const item of SHOP_ITEMS) {
         if (item.type === 'seed') {
             const crop = CONFIG.CROPS[item.cropIndex];
-            html += `<button onclick="buyItem('${item.type}', ${item.cropIndex}, ${item.price})" style="padding:6px 12px;background:#2196f3;border:2px solid #1565c0;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.emoji} ${item.name} (${item.price}💰)</button>`;
+            html += `<button onclick="buyItem('${item.type}', ${item.cropIndex}, ${item.price})" style="padding:6px 12px;background:#2196f3;border:2px solid #1565c0;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.name} (${item.price}💰)</button>`;
         } else if (item.type === 'bait') {
-            html += `<button onclick="buyItem('${item.type}', 0, ${item.price})" style="padding:6px 12px;background:#2196f3;border:2px solid #1565c0;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.emoji} ${item.name} (${item.price}💰) [x${window.state ? window.state.baitCount : 0}]</button>`;
+            html += `<button onclick="buyItem('${item.type}', 0, ${item.price})" style="padding:6px 12px;background:#2196f3;border:2px solid #1565c0;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.name} (${item.price}💰) [x${window.state ? window.state.baitCount : 0}]</button>`;
         } else if (item.type === 'upgrade') {
             const owned = window.state ? window.state.hasPickaxeUpgrade : false;
             if (!owned) {
-                html += `<button onclick="buyItem('${item.type}', 0, ${item.price})" style="padding:6px 12px;background:#ff9800;border:2px solid #e65100;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.emoji} ${item.name} (${item.price}💰)</button>`;
+                html += `<button onclick="buyItem('${item.type}', 0, ${item.price})" style="padding:6px 12px;background:#ff9800;border:2px solid #e65100;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.name} (${item.price}💰)</button>`;
             } else {
-                html += `<span style="padding:6px 12px;background:#666;border:2px solid #444;color:#aaa;font-size:13px;">${item.emoji} 已升级</span>`;
+                html += `<span style="padding:6px 12px;background:#666;border:2px solid #444;color:#aaa;font-size:13px;">已升级</span>`;
             }
         }
     }
@@ -1148,7 +1148,7 @@ function openShop(state, tx, ty) {
     text.innerHTML = html;
     dialogBox.classList.add('active');
 
-    showToast(`${npc.emoji} ${npc.name}: 欢迎光临！`);
+    showToast(`${npc.name}: 欢迎光临！`);
     return true;
 }
 
@@ -1202,7 +1202,7 @@ function buyItem(type, index, price) {
         const dialogBox = document.getElementById('dialog-box');
         const speaker = document.getElementById('dialog-speaker');
         const text = document.getElementById('dialog-text');
-        speaker.textContent = `${npc.emoji} ${npc.name} (${npc.role})`;
+        speaker.textContent = `${npc.name} (${npc.role})`;
 
         let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">';
         html += `<button onclick="sellAllItems()" style="padding:6px 12px;background:#4caf50;border:2px solid #2e7d32;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">💰 出售全部物品</button>`;
@@ -1210,14 +1210,14 @@ function buyItem(type, index, price) {
         for (const item of SHOP_ITEMS) {
             if (item.type === 'seed') {
                 const crop = CONFIG.CROPS[item.cropIndex];
-                html += `<button onclick="buyItem('${item.type}', ${item.cropIndex}, ${item.price})" style="padding:6px 12px;background:#2196f3;border:2px solid #1565c0;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.emoji} ${item.name} (${item.price}💰)</button>`;
+                html += `<button onclick="buyItem('${item.type}', ${item.cropIndex}, ${item.price})" style="padding:6px 12px;background:#2196f3;border:2px solid #1565c0;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.name} (${item.price}💰)</button>`;
             } else if (item.type === 'bait') {
-                html += `<button onclick="buyItem('${item.type}', 0, ${item.price})" style="padding:6px 12px;background:#2196f3;border:2px solid #1565c0;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.emoji} ${item.name} (${item.price}💰) [x${state.baitCount}]</button>`;
+                html += `<button onclick="buyItem('${item.type}', 0, ${item.price})" style="padding:6px 12px;background:#2196f3;border:2px solid #1565c0;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.name} (${item.price}💰) [x${state.baitCount}]</button>`;
             } else if (item.type === 'upgrade') {
                 if (!state.hasPickaxeUpgrade) {
-                    html += `<button onclick="buyItem('${item.type}', 0, ${item.price})" style="padding:6px 12px;background:#ff9800;border:2px solid #e65100;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.emoji} ${item.name} (${item.price}💰)</button>`;
+                    html += `<button onclick="buyItem('${item.type}', 0, ${item.price})" style="padding:6px 12px;background:#ff9800;border:2px solid #e65100;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;">${item.name} (${item.price}💰)</button>`;
                 } else {
-                    html += `<span style="padding:6px 12px;background:#666;border:2px solid #444;color:#aaa;font-size:13px;">${item.emoji} 已升级</span>`;
+                    html += `<span style="padding:6px 12px;background:#666;border:2px solid #444;color:#aaa;font-size:13px;">已升级</span>`;
                 }
             }
         }

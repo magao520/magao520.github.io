@@ -95,7 +95,7 @@ class Renderer {
         const sc = this.getSeasonColors(state.season);
         const palette = this.seasonPalette(state.season);
 
-        const hour = state.timeOfDay || (state.time / 60);
+        const hour = state.time / 60;
 
         // 清屏
         ctx.fillStyle = '#1a2615';
@@ -184,7 +184,7 @@ class Renderer {
         const endX = Math.min(MAP_W, Math.ceil((state.cameraX + this.screenW) / TILE) + 3);
         const endY = Math.min(MAP_H, Math.ceil((state.cameraY + this.screenH) / TILE) + 3);
 
-        const hour = state.timeOfDay || (state.time / 60);
+        const hour = state.time / 60;
         const isNight = hour >= 19 || hour < 6;
 
         // 收集所有需要按Y排序的渲染对象
@@ -1178,7 +1178,7 @@ class Renderer {
         const endX = Math.min(MAP_W, Math.ceil((state.cameraX + this.screenW) / TILE) + 1);
         const endY = Math.min(MAP_H, Math.ceil((state.cameraY + this.screenH) / TILE) + 1);
 
-        const hour = state.timeOfDay || (state.time / 60);
+        const hour = state.time / 60;
         const isNight = hour >= 19 || hour < 6;
 
         for (let y = startY; y < endY; y++) {
@@ -1892,7 +1892,7 @@ class Renderer {
 
     // ===== 全局光影效果 =====
     renderGlobalLighting(ctx, state, sc) {
-        const hour = state.timeOfDay || (state.time / 60);
+        const hour = state.time / 60;
 
         if (hour >= 20 || hour < 5) {
             // 夜晚：深蓝覆盖层 alpha 0.4 + 星星
