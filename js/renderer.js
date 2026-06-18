@@ -1,15 +1,12 @@
 /**
- * Canvas 渲染器 - 星露谷风格极致优化版 (大世界版)
+ * Canvas 渲染器 - 星露谷(Stardew Valley) 像素美术风格
  *
- * 优化特性:
- * 1. 无缝纹理平铺 - 使用 createPattern 消除瓦片边界
- * 2. 边缘过渡混合 - 相邻不同地形之间绘制半透明渐变
- * 3. 环境光遮蔽 (AO) - 瓦片四角暗角增强立体感
- * 4. 地形凹凸法线 - 明暗变化模拟地形起伏
- * 5. 动态光影 - 实时阴影、水面反射、阳光方向
- * 6. 色彩分级 - 季节和时间动态色调
- * 7. NPC 渲染 - 小镇NPC显示
- * 8. 钓鱼进度条 - 钓鱼小游戏UI
+ * 美术规范:
+ * 1. TILE = 48 (逻辑16x16像素格放大3倍绘制)
+ * 2. 无渐变、无dithering、纯 flat color
+ * 3. 温暖色调，深棕色(#3d2817) 1px描边
+ * 4. 每个表面2-4色变化
+ * 5. 季节配色严格遵循规范
  */
 class Renderer {
     constructor(canvas) {
@@ -18,9 +15,9 @@ class Renderer {
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
-        // 生成固定星星位置
+        // 固定星星位置
         this.stars = [];
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 50; i++) {
             this.stars.push({
                 nx: ((i * 137 + 50) % 1000) / 1000,
                 ny: ((i * 97 + 30) % 600) / 1000,
@@ -29,71 +26,8 @@ class Renderer {
             });
         }
 
-        // 缓存的 patterns
-        this.patterns = {};
-        this.aoCache = null;
-
-        // 太阳光方向 (随时间变化)
-        this.sunAngle = 0;
-
-        // === HSL 和谐配色系统 ===
-        // 主色调、辅助色、强调色，确保色相环上和谐
-        this.colorScheme = {
-            // 基础色相 (绿色系为主，代表自然/农场)
-            baseHue: 120,
-            // 辅助色偏移 (+30度 黄绿色)
-            secondaryOffset: 30,
-            // 强调色偏移 (+180度 互补色，用于高光/点缀)
-            accentOffset: 180,
-            // 季节色相偏移
-            seasonHueShift: {
-                spring: 0,
-                summer: -10,
-                autumn: 40,
-                winter: 200
-            }
-        };
-
-        // HSL 辅助函数
-        this.hsl = (h, s, l, a = 1) => {
-            const hue = ((h % 360) + 360) % 360;
-            return a < 1 ? `hsla(${hue}, ${s}%, ${l}%, ${a})` : `hsl(${hue}, ${s}%, ${l}%)`;
-        };
-
-        // 获取和谐色组
-        this.getHarmonyColors = (baseHue, season) => {
-            const shift = this.colorScheme.seasonHueShift[season] || 0;
-            const h = ((baseHue + shift) % 360 + 360) % 360;
-            return {
-                primary:   this.hsl(h, 55, 45),
-                secondary: this.hsl((h + 30) % 360, 50, 55),
-                accent:    this.hsl((h + 180) % 360, 65, 60),
-                light:     this.hsl(h, 45, 70),
-                dark:      this.hsl(h, 60, 25),
-                shadow:    this.hsl(h, 40, 15, 0.4)
-            };
-        };
-
-        // 地形颜色定义 (用于过渡混合)
-        this.tileColors = {
-            [T.GRASS]:     { r: 132, g: 198, b: 105 },
-            [T.DIRT]:      { r: 139, g: 109, b:  63 },
-            [T.TILLED]:    { r: 107, g:  68, b:  35 },
-            [T.WATERED]:   { r:  90, g:  60, b:  30 },
-            [T.PATH]:      { r: 180, g: 160, b: 110 },
-            [T.FENCE]:     { r: 132, g: 198, b: 105 },
-            [T.WATER]:     { r:  58, g: 123, b: 213 },
-            [T.FLOWER]:    { r: 132, g: 198, b: 105 },
-            [T.HOUSE]:     { r: 196, g: 150, b: 100 },
-            [T.DOOR]:      { r: 139, g:  90, b:  43 },
-            [T.STONE]:     { r: 132, g: 198, b: 105 },
-            [T.BRIDGE]:    { r: 139, g: 109, b:  63 },
-            [T.TREE]:      { r:  60, g: 120, b:  40 },
-            [T.ROCK_MINE]: { r: 100, g:  90, b:  80 },
-            [T.FISH_SPOT]: { r:  58, g: 123, b: 213 },
-            [T.WILD_CROP]: { r: 132, g: 198, b: 105 },
-            [T.NPC_HOUSE]: { r: 180, g: 140, b: 100 },
-        };
+        // 伪随机种子缓存
+        this._seedCache = new Map();
     }
 
     resize() {
@@ -101,73 +35,73 @@ class Renderer {
         this.canvas.height = window.innerHeight;
         this.screenW = this.canvas.width;
         this.screenH = this.canvas.height;
-        this.aoCache = null; // 清除AO缓存
     }
 
     getSeasonColors(season) {
         return SEASON_COLORS[season] || SEASON_COLORS.spring;
     }
 
-    /**
-     * 获取或创建无缝纹理 Pattern
-     */
-    getPattern(assetKey) {
-        if (this.patterns[assetKey]) return this.patterns[assetKey];
-        const img = AssetsLoader.assets[assetKey];
-        if (!img) return null;
-        const pattern = this.ctx.createPattern(img, 'repeat');
-        this.patterns[assetKey] = pattern;
-        return pattern;
+    // ===== 伪随机数（基于坐标种子，纯确定性） =====
+    seededRandom(x, y, seed = 0) {
+        const key = `${x},${y},${seed}`;
+        if (this._seedCache.has(key)) return this._seedCache.get(key);
+        const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43758.5453) * 43758.5453;
+        const v = n - Math.floor(n);
+        this._seedCache.set(key, v);
+        return v;
     }
 
-    /**
-     * 安全绘制瓦片
-     */
-    drawTile(ctx, assetKey, px, py) {
-        const img = AssetsLoader.assets[assetKey];
-        if (img) {
-            ctx.drawImage(img, px, py, TILE, TILE);
-            return true;
+    // ===== 颜色辅助（纯hex，无HSL渐变） =====
+    seasonPalette(season) {
+        switch (season) {
+            case 'spring': return {
+                grass: ['#7cb342', '#558b2f', '#aed581'],
+                tree: ['#2e7d32', '#4caf50', '#81c784'],
+                flower: ['#f8bbd0', '#f48fb1', '#ec407a', '#ffd54f'],
+                dirt: '#8d6e63', water: '#4fc3f7', sky: '#e3f2fd'
+            };
+            case 'summer': return {
+                grass: ['#4caf50', '#388e3c', '#66bb6a'],
+                tree: ['#1b5e20', '#2e7d32', '#4caf50'],
+                flower: ['#ffd54f', '#ffca28', '#ffb300', '#fff176'],
+                dirt: '#795548', water: '#29b6f6', sky: '#fff3e0'
+            };
+            case 'autumn': return {
+                grass: ['#d84315', '#bf360c', '#ff7043'],
+                tree: ['#bf360c', '#e65100', '#ff9800'],
+                flower: ['#ff8f00', '#ff6f00', '#8e24aa', '#ffcc80'],
+                dirt: '#5d4037', water: '#81d4fa', sky: '#fce4ec'
+            };
+            case 'winter': return {
+                grass: ['#b0bec5', '#90a4ae', '#cfd8dc'],
+                tree: ['#546e7a', '#78909c', '#b0bec5'],
+                flower: ['#eceff1', '#b0bec5', '#ffcc80', '#e1f5fe'],
+                dirt: '#546e7a', water: '#b3e5fc', sky: '#eceff1'
+            };
+            default: return this.seasonPalette('spring');
         }
-        return false;
     }
 
-    /**
-     * 用无缝纹理填充区域
-     */
-    fillWithPattern(ctx, assetKey, x, y, w, h) {
-        const pattern = this.getPattern(assetKey);
-        if (pattern) {
-            ctx.save();
-            ctx.fillStyle = pattern;
-            ctx.translate(x, y);
-            ctx.fillRect(0, 0, w, h);
-            ctx.restore();
-            return true;
-        }
-        return false;
+    // ===== 描边辅助 =====
+    strokeRect(ctx, x, y, w, h, color = '#3d2817') {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, w, h);
     }
 
-    /**
-     * 主渲染循环
-     */
+    // ===== 主渲染循环 =====
     render(state) {
         const ctx = this.ctx;
         const sc = this.getSeasonColors(state.season);
+        const palette = this.seasonPalette(state.season);
 
-        // 更新太阳光角度 (6:00= sunrise, 12:00= overhead, 18:00= sunset)
         const hour = state.timeOfDay || (state.time / 60);
-        if (hour >= 6 && hour <= 18) {
-            this.sunAngle = ((hour - 6) / 12) * Math.PI; // 0 to PI
-        } else {
-            this.sunAngle = -0.5; // night
-        }
 
         // 清屏
-        ctx.fillStyle = '#0d1b0d';
+        ctx.fillStyle = '#1a2615';
         ctx.fillRect(0, 0, this.screenW, this.screenH);
 
-        // 计算相机
+        // 相机计算
         state.cameraX = state.playerX - this.screenW / 2 + TILE / 2;
         state.cameraY = state.playerY - this.screenH / 2 + TILE / 2;
         state.cameraX = Math.max(0, Math.min(state.cameraX, MAP_W * TILE - this.screenW));
@@ -176,282 +110,515 @@ class Renderer {
         ctx.save();
         ctx.translate(-Math.round(state.cameraX), -Math.round(state.cameraY));
 
-        // 1. 渲染底层地形 (无缝纹理平铺)
-        this.renderTerrainBase(ctx, state, sc);
+        // 1. 地形底层
+        this.renderTerrainBase(ctx, state, sc, palette);
 
-        // 2. 渲染边缘过渡
-        this.renderEdgeTransitions(ctx, state);
+        // 2. 地形细节（树木、石头、房屋等）
+        this.renderTerrainDetails(ctx, state, sc, palette);
 
-        // 3. 渲染环境光遮蔽
-        this.renderAmbientOcclusion(ctx, state);
+        // 3. 作物
+        this.renderCrops(ctx, state, palette);
 
-        // 4. 渲染地形细节 (犁沟、水波等)
-        this.renderTerrainDetails(ctx, state);
-
-        // 5. 渲染作物
-        this.renderCrops(ctx, state);
-
-        // 6. 渲染NPC
+        // 4. NPC
         this.renderNPCs(ctx, state);
 
-        // 7. 渲染玩家
+        // 5. 玩家
         this.renderPlayer(ctx, state);
 
-        // 7.5 渲染其他玩家
+        // 6. 其他玩家
         this.renderOtherPlayers(ctx, state);
 
-        // 8. 渲染粒子和浮动文字
+        // 7. 粒子和浮动文字
         this.renderParticles(ctx, state);
         this.renderFloatingTexts(ctx, state);
 
         ctx.restore();
 
-        // 9. 全局光影效果
+        // 8. 全局光影
         this.renderGlobalLighting(ctx, state, sc);
 
-        // 10. 钓鱼进度条
+        // 9. 钓鱼进度条
         this.renderFishingBar(ctx, state);
 
-        // 11. 小地图
+        // 10. 小地图
         this.renderMinimap(state, sc);
     }
 
-    /**
-     * 渲染底层地形 - 使用无缝纹理平铺
-     */
-    renderTerrainBase(ctx, state, sc) {
+    // ===== 地形底层绘制 =====
+    renderTerrainBase(ctx, state, sc, palette) {
         const startX = Math.max(0, Math.floor(state.cameraX / TILE));
         const startY = Math.max(0, Math.floor(state.cameraY / TILE));
         const endX = Math.min(MAP_W, Math.ceil((state.cameraX + this.screenW) / TILE) + 1);
         const endY = Math.min(MAP_H, Math.ceil((state.cameraY + this.screenH) / TILE) + 1);
 
-        // 按地形类型分组渲染，减少 pattern 切换
-        const terrainGroups = {};
         for (let y = startY; y < endY; y++) {
             for (let x = startX; x < endX; x++) {
                 const tile = state.map[y][x];
-                if (!terrainGroups[tile]) terrainGroups[tile] = [];
-                terrainGroups[tile].push({x, y});
-            }
-        }
-
-        // 渲染每个地形组
-        for (const [tileType, cells] of Object.entries(terrainGroups)) {
-            const assetKey = this.getTerrainAssetKey(parseInt(tileType));
-            const pattern = this.getPattern(assetKey);
-
-            if (pattern) {
-                ctx.fillStyle = pattern;
-                for (const cell of cells) {
-                    ctx.fillRect(cell.x * TILE, cell.y * TILE, TILE, TILE);
-                }
-            } else {
-                // fallback: 纯色填充
-                ctx.fillStyle = this.getTerrainColor(parseInt(tileType), sc);
-                for (const cell of cells) {
-                    ctx.fillRect(cell.x * TILE, cell.y * TILE, TILE, TILE);
-                }
+                const px = x * TILE;
+                const py = y * TILE;
+                this.drawTerrainTile(ctx, tile, px, py, x, y, sc, palette);
             }
         }
     }
 
-    /**
-     * 获取地形对应的素材键
-     */
-    getTerrainAssetKey(tile) {
-        const season = window.state ? window.state.season : 'spring';
+    drawTerrainTile(ctx, tile, px, py, tx, ty, sc, palette) {
         switch (tile) {
             case T.GRASS:
-                if (season === 'winter') return 'texGrassSnowy';
-                if (season === 'autumn') return 'texGrassNov';
-                if (season === 'summer') return 'texGrassDry';
-                return 'texGrass';
-            case T.DIRT:      return 'texDryland';
-            case T.TILLED:    return 'texFarmland';
-            case T.WATERED:   return 'texMud';
-            case T.PATH:      return 'texPath';
-            case T.FENCE:     return 'texGrass';
-            case T.WATER:     return 'texWater';
-            case T.FLOWER:    return 'texGrass';
-            case T.HOUSE:     return 'texStoneTile';
-            case T.DOOR:      return 'texWoodTile';
-            case T.STONE:     return 'texPebbles';
-            case T.BRIDGE:    return 'texWoodpath';
-            case T.TREE:      return 'texJungle';
-            case T.ROCK_MINE: return 'texGravel';
-            case T.FISH_SPOT: return 'texShallow';
-            case T.WILD_CROP: return 'texGrass';
-            case T.NPC_HOUSE: return 'texWoodTile';
-            default:          return 'texGrass';
+                this.drawGrass(ctx, px, py, tx, ty, palette);
+                break;
+            case T.DIRT:
+                this.drawDirt(ctx, px, py, tx, ty);
+                break;
+            case T.TILLED:
+                this.drawTilled(ctx, px, py, tx, ty);
+                break;
+            case T.WATERED:
+                this.drawWatered(ctx, px, py, tx, ty);
+                break;
+            case T.PATH:
+                this.drawPath(ctx, px, py, tx, ty);
+                break;
+            case T.WATER:
+                this.drawWater(ctx, px, py, tx, ty);
+                break;
+            case T.FENCE:
+                this.drawFence(ctx, px, py, tx, ty);
+                break;
+            case T.BRIDGE:
+                this.drawBridge(ctx, px, py, tx, ty);
+                break;
+            case T.HOUSE:
+            case T.NPC_HOUSE:
+                this.drawHouseBase(ctx, px, py, tx, ty, tile === T.NPC_HOUSE);
+                break;
+            case T.DOOR:
+                this.drawDoor(ctx, px, py, tx, ty);
+                break;
+            case T.STONE:
+                this.drawStoneBase(ctx, px, py, tx, ty);
+                break;
+            case T.TREE:
+                this.drawTreeBase(ctx, px, py, tx, ty, palette);
+                break;
+            case T.ROCK_MINE:
+                this.drawRockMineBase(ctx, px, py, tx, ty);
+                break;
+            case T.FISH_SPOT:
+                this.drawFishSpot(ctx, px, py, tx, ty);
+                break;
+            case T.WILD_CROP:
+                this.drawWildCrop(ctx, px, py, tx, ty, palette);
+                break;
+            case T.FLOWER:
+                this.drawFlower(ctx, px, py, tx, ty, palette);
+                break;
+            default:
+                ctx.fillStyle = sc.grass;
+                ctx.fillRect(px, py, TILE, TILE);
         }
     }
 
-    /**
-     * 获取地形颜色 (fallback)
-     */
-    getTerrainColor(tile, sc) {
-        switch (tile) {
-            case T.GRASS:     return sc.grass;
-            case T.DIRT:      return '#8b6d3f';
-            case T.TILLED:    return '#6b4423';
-            case T.WATERED:   return '#5a3a1a';
-            case T.PATH:      return '#c4a96a';
-            case T.FENCE:     return sc.grass;
-            case T.WATER:     return '#3a7bd5';
-            case T.FLOWER:    return sc.grass;
-            case T.HOUSE:     return '#c49558';
-            case T.DOOR:      return '#8b5a2b';
-            case T.STONE:     return sc.grass;
-            case T.BRIDGE:    return '#a08060';
-            case T.TREE:      return '#2d5a1e';
-            case T.ROCK_MINE: return '#6a6058';
-            case T.FISH_SPOT: return '#4a9bd5';
-            case T.WILD_CROP: return sc.grass;
-            case T.NPC_HOUSE: return '#b08050';
-            default:          return '#4a6741';
+    // ===== 草地：基础绿 + 2-3个随机亮色小点模拟草叶 =====
+    drawGrass(ctx, px, py, tx, ty, palette) {
+        const colors = palette.grass;
+        ctx.fillStyle = colors[0];
+        ctx.fillRect(px, py, TILE, TILE);
+        // 深色纹理
+        ctx.fillStyle = colors[1];
+        const r1 = this.seededRandom(tx, ty, 1);
+        const r2 = this.seededRandom(tx, ty, 2);
+        ctx.fillRect(px + 4 + Math.floor(r1 * 24), py + 4 + Math.floor(r2 * 24), 4, 4);
+        // 亮色草叶小点
+        ctx.fillStyle = colors[2];
+        for (let i = 0; i < 3; i++) {
+            const rx = this.seededRandom(tx, ty, i + 10);
+            const ry = this.seededRandom(tx, ty, i + 20);
+            ctx.fillRect(px + 2 + Math.floor(rx * 40), py + 2 + Math.floor(ry * 40), 2, 2);
         }
     }
 
-    /**
-     * 渲染边缘过渡 - 在相邻不同地形之间绘制渐变混合
-     */
-    renderEdgeTransitions(ctx, state) {
-        const startX = Math.max(0, Math.floor(state.cameraX / TILE));
-        const startY = Math.max(0, Math.floor(state.cameraY / TILE));
-        const endX = Math.min(MAP_W, Math.ceil((state.cameraX + this.screenW) / TILE) + 1);
-        const endY = Math.min(MAP_H, Math.ceil((state.cameraY + this.screenH) / TILE) + 1);
+    // ===== 泥土 =====
+    drawDirt(ctx, px, py, tx, ty) {
+        ctx.fillStyle = '#8d6e63';
+        ctx.fillRect(px, py, TILE, TILE);
+        ctx.fillStyle = '#795548';
+        const r1 = this.seededRandom(tx, ty, 1);
+        const r2 = this.seededRandom(tx, ty, 2);
+        ctx.fillRect(px + 8 + Math.floor(r1 * 20), py + 8 + Math.floor(r2 * 20), 6, 6);
+        ctx.fillStyle = '#a1887f';
+        const r3 = this.seededRandom(tx, ty, 3);
+        const r4 = this.seededRandom(tx, ty, 4);
+        ctx.fillRect(px + 4 + Math.floor(r3 * 30), py + 4 + Math.floor(r4 * 30), 3, 3);
+    }
 
-        for (let y = startY; y < endY; y++) {
-            for (let x = startX; x < endX; x++) {
-                const tile = state.map[y][x];
-                const px = x * TILE;
-                const py = y * TILE;
+    // ===== 耕地：深棕色底 + 浅棕色犁沟线 =====
+    drawTilled(ctx, px, py, tx, ty) {
+        ctx.fillStyle = '#6b4423';
+        ctx.fillRect(px, py, TILE, TILE);
+        // 犁沟线
+        ctx.fillStyle = '#5a3a1a';
+        for (let i = 0; i < 3; i++) {
+            const yOff = 6 + i * 14;
+            ctx.fillRect(px + 2, py + yOff, TILE - 4, 3);
+        }
+        // 浅色斑点
+        ctx.fillStyle = '#8b6d4a';
+        const r1 = this.seededRandom(tx, ty, 1);
+        const r2 = this.seededRandom(tx, ty, 2);
+        ctx.fillRect(px + 10 + Math.floor(r1 * 20), py + 10 + Math.floor(r2 * 20), 4, 4);
+    }
 
-                // 检查四个方向的邻居
-                const neighbors = [
-                    { dx: 0, dy: -1, edge: 'top' },
-                    { dx: 0, dy: 1, edge: 'bottom' },
-                    { dx: -1, dy: 0, edge: 'left' },
-                    { dx: 1, dy: 0, edge: 'right' }
-                ];
+    // ===== 浇水耕地：耕地基础上加蓝色反光点 =====
+    drawWatered(ctx, px, py, tx, ty) {
+        this.drawTilled(ctx, px, py, tx, ty);
+        // 蓝色反光点
+        ctx.fillStyle = '#4fc3f7';
+        const r1 = this.seededRandom(tx, ty, 5);
+        const r2 = this.seededRandom(tx, ty, 6);
+        ctx.fillRect(px + 6 + Math.floor(r1 * 30), py + 6 + Math.floor(r2 * 30), 3, 3);
+        ctx.fillStyle = '#81d4fa';
+        const r3 = this.seededRandom(tx, ty, 7);
+        const r4 = this.seededRandom(tx, ty, 8);
+        ctx.fillRect(px + 4 + Math.floor(r3 * 36), py + 4 + Math.floor(r4 * 36), 2, 2);
+    }
 
-                for (const n of neighbors) {
-                    const nx = x + n.dx;
-                    const ny = y + n.dy;
-                    if (nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) continue;
-
-                    const neighborTile = state.map[ny][nx];
-                    if (neighborTile === tile) continue;
-
-                    // 绘制过渡渐变
-                    this.drawEdgeTransition(ctx, px, py, n.edge, tile, neighborTile);
-                }
-            }
+    // ===== 路径：沙色底 + 深色斑点 =====
+    drawPath(ctx, px, py, tx, ty) {
+        ctx.fillStyle = '#c4a96a';
+        ctx.fillRect(px, py, TILE, TILE);
+        ctx.fillStyle = '#a18850';
+        const r1 = this.seededRandom(tx, ty, 1);
+        const r2 = this.seededRandom(tx, ty, 2);
+        ctx.fillRect(px + 6 + Math.floor(r1 * 28), py + 6 + Math.floor(r2 * 28), 8, 8);
+        ctx.fillStyle = '#8d6e40';
+        for (let i = 0; i < 3; i++) {
+            const rx = this.seededRandom(tx, ty, i + 10);
+            const ry = this.seededRandom(tx, ty, i + 20);
+            ctx.fillRect(px + 2 + Math.floor(rx * 40), py + 2 + Math.floor(ry * 40), 3, 3);
         }
     }
 
-    /**
-     * 绘制单个边缘过渡
-     */
-    drawEdgeTransition(ctx, px, py, edge, fromTile, toTile) {
-        const fromColor = this.tileColors[fromTile] || this.tileColors[T.GRASS];
-        const toColor = this.tileColors[toTile] || this.tileColors[T.GRASS];
+    // ===== 水面：蓝色底 + 白色小横线模拟波纹 =====
+    drawWater(ctx, px, py, tx, ty) {
+        const t = Date.now() / 1000;
+        ctx.fillStyle = '#4fc3f7';
+        ctx.fillRect(px, py, TILE, TILE);
+        ctx.fillStyle = '#29b6f6';
+        const r1 = this.seededRandom(tx, ty, 1);
+        const r2 = this.seededRandom(tx, ty, 2);
+        ctx.fillRect(px + 4 + Math.floor(r1 * 30), py + 4 + Math.floor(r2 * 30), 8, 8);
+        // 白色波纹小横线
+        ctx.fillStyle = '#e1f5fe';
+        const waveOffset = Math.sin(t * 2 + tx * 0.5 + ty * 0.3) * 4;
+        ctx.fillRect(px + 6 + waveOffset, py + 14, 12, 2);
+        ctx.fillRect(px + 10 - waveOffset, py + 28, 10, 2);
+        ctx.fillRect(px + 8 + waveOffset * 0.5, py + 38, 8, 2);
+    }
 
-        const gradientSize = 8;
-        let grad;
+    // ===== 栅栏 =====
+    drawFence(ctx, px, py, tx, ty) {
+        // 先画草地底
+        ctx.fillStyle = '#7cb342';
+        ctx.fillRect(px, py, TILE, TILE);
+        // 栅栏柱
+        ctx.fillStyle = '#6b4223';
+        ctx.fillRect(px + 4, py + 8, 4, TILE - 14);
+        ctx.fillRect(px + TILE - 8, py + 8, 4, TILE - 14);
+        // 横条
+        ctx.fillStyle = '#8b5a2b';
+        ctx.fillRect(px + 4, py + 12, TILE - 8, 3);
+        ctx.fillRect(px + 4, py + 28, TILE - 8, 3);
+        // 描边
+        this.strokeRect(ctx, px + 4, py + 8, 4, TILE - 14);
+        this.strokeRect(ctx, px + TILE - 8, py + 8, 4, TILE - 14);
+    }
 
-        if (edge === 'top') {
-            grad = ctx.createLinearGradient(px, py, px, py + gradientSize);
-            grad.addColorStop(0, `rgba(${toColor.r},${toColor.g},${toColor.b},0.35)`);
-            grad.addColorStop(1, `rgba(${toColor.r},${toColor.g},${toColor.b},0)`);
-            ctx.fillStyle = grad;
-            ctx.fillRect(px, py, TILE, gradientSize);
-        } else if (edge === 'bottom') {
-            grad = ctx.createLinearGradient(px, py + TILE - gradientSize, px, py + TILE);
-            grad.addColorStop(0, `rgba(${toColor.r},${toColor.g},${toColor.b},0)`);
-            grad.addColorStop(1, `rgba(${toColor.r},${toColor.g},${toColor.b},0.35)`);
-            ctx.fillStyle = grad;
-            ctx.fillRect(px, py + TILE - gradientSize, TILE, gradientSize);
-        } else if (edge === 'left') {
-            grad = ctx.createLinearGradient(px, py, px + gradientSize, py);
-            grad.addColorStop(0, `rgba(${toColor.r},${toColor.g},${toColor.b},0.35)`);
-            grad.addColorStop(1, `rgba(${toColor.r},${toColor.g},${toColor.b},0)`);
-            ctx.fillStyle = grad;
-            ctx.fillRect(px, py, gradientSize, TILE);
-        } else if (edge === 'right') {
-            grad = ctx.createLinearGradient(px + TILE - gradientSize, py, px + TILE, py);
-            grad.addColorStop(0, `rgba(${toColor.r},${toColor.g},${toColor.b},0)`);
-            grad.addColorStop(1, `rgba(${toColor.r},${toColor.g},${toColor.b},0.35)`);
-            ctx.fillStyle = grad;
-            ctx.fillRect(px + TILE - gradientSize, py, gradientSize, TILE);
+    // ===== 桥梁 =====
+    drawBridge(ctx, px, py, tx, ty) {
+        ctx.fillStyle = '#a08060';
+        ctx.fillRect(px, py, TILE, TILE);
+        ctx.fillStyle = '#8b6d4a';
+        // 木板线
+        for (let i = 0; i < 4; i++) {
+            ctx.fillRect(px + 2, py + 4 + i * 11, TILE - 4, 2);
+        }
+        // 钉子
+        ctx.fillStyle = '#5d4037';
+        for (let i = 0; i < 4; i++) {
+            ctx.fillRect(px + 6, py + 6 + i * 11, 2, 2);
+            ctx.fillRect(px + TILE - 8, py + 6 + i * 11, 2, 2);
         }
     }
 
-    /**
-     * 渲染环境光遮蔽 - 瓦片四角暗角
-     */
-    renderAmbientOcclusion(ctx, state) {
-        const startX = Math.max(0, Math.floor(state.cameraX / TILE));
-        const startY = Math.max(0, Math.floor(state.cameraY / TILE));
-        const endX = Math.min(MAP_W, Math.ceil((state.cameraX + this.screenW) / TILE) + 1);
-        const endY = Math.min(MAP_H, Math.ceil((state.cameraY + this.screenH) / TILE) + 1);
+    // ===== 房屋底 =====
+    drawHouseBase(ctx, px, py, tx, ty, isNpc) {
+        const wallColor = isNpc ? '#b08050' : '#c49558';
+        const roofColor = isNpc ? '#8b4513' : '#a0522d';
 
-        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        // 墙
+        ctx.fillStyle = wallColor;
+        ctx.fillRect(px + 4, py + 14, TILE - 8, TILE - 16);
+        this.strokeRect(ctx, px + 4, py + 14, TILE - 8, TILE - 16);
 
-        for (let y = startY; y < endY; y++) {
-            for (let x = startX; x < endX; x++) {
-                const px = x * TILE;
-                const py = y * TILE;
+        // 屋顶
+        ctx.fillStyle = roofColor;
+        ctx.beginPath();
+        ctx.moveTo(px + 1, py + 16);
+        ctx.lineTo(px + TILE / 2, py + 2);
+        ctx.lineTo(px + TILE - 1, py + 16);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-                // 检查四个角是否有高度差
-                const corners = [
-                    { cx: px, cy: py, checks: [[0,-1],[-1,0],[-1,-1]] },
-                    { cx: px + TILE, cy: py, checks: [[0,-1],[1,0],[1,-1]] },
-                    { cx: px, cy: py + TILE, checks: [[0,1],[-1,0],[-1,1]] },
-                    { cx: px + TILE, cy: py + TILE, checks: [[0,1],[1,0],[1,1]] }
-                ];
+        // 屋顶瓦片线条
+        ctx.strokeStyle = 'rgba(60,30,10,0.4)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 3; i++) {
+            const ry = py + 6 + i * 4;
+            const rw = (ry - (py + 2)) / 14 * (TILE - 2);
+            ctx.beginPath();
+            ctx.moveTo(px + TILE / 2 - rw / 2, ry);
+            ctx.lineTo(px + TILE / 2 + rw / 2, ry);
+            ctx.stroke();
+        }
 
-                for (const corner of corners) {
-                    let diffCount = 0;
-                    for (const check of corner.checks) {
-                        const nx = x + check[0];
-                        const ny = y + check[1];
-                        if (nx >= 0 && nx < MAP_W && ny >= 0 && ny < MAP_H) {
-                            if (state.map[ny][nx] !== state.map[y][x]) diffCount++;
-                        }
-                    }
-                    if (diffCount > 0) {
-                        const alpha = 0.08 * diffCount;
-                        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-                        ctx.beginPath();
-                        ctx.arc(corner.cx, corner.cy, 10, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                }
+        // 烟囱
+        const chimneyX = px + TILE * 0.7;
+        const chimneyY = py + 8;
+        ctx.fillStyle = '#6a6a6a';
+        ctx.fillRect(chimneyX, chimneyY, 6, 10);
+        ctx.fillStyle = '#4a4a4a';
+        ctx.fillRect(chimneyX - 1, chimneyY - 2, 8, 3);
+        this.strokeRect(ctx, chimneyX, chimneyY, 6, 10);
+    }
 
-                // 瓦片底部阴影（模拟高度）
-                if (y < MAP_H - 1 && state.map[y + 1][x] !== state.map[y][x]) {
-                    const grad = ctx.createLinearGradient(px, py + TILE - 4, px, py + TILE);
-                    grad.addColorStop(0, 'rgba(0,0,0,0)');
-                    grad.addColorStop(1, 'rgba(0,0,0,0.15)');
-                    ctx.fillStyle = grad;
-                    ctx.fillRect(px, py + TILE - 4, TILE, 4);
-                }
-            }
+    // ===== 门 =====
+    drawDoor(ctx, px, py, tx, ty) {
+        ctx.fillStyle = '#5c3d1e';
+        ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
+        this.strokeRect(ctx, px + 4, py + 4, TILE - 8, TILE - 8);
+        // 门把手
+        ctx.fillStyle = '#ffd700';
+        ctx.fillRect(px + TILE - 12, py + TILE / 2, 3, 3);
+    }
+
+    // ===== 石头底 =====
+    drawStoneBase(ctx, px, py, tx, ty) {
+        const seed = (tx * 53 + ty * 29) % 1000;
+        const cx = px + TILE / 2;
+        const cy = py + TILE / 2 + 2;
+        const radius = 14 + this.seededRandom(seed, 2, 5) * 4;
+        const sides = 6 + Math.floor(this.seededRandom(seed, 1, 4) * 4);
+
+        // 阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(cx, py + TILE - 4, 16, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 石头主体 - 3色灰
+        ctx.fillStyle = '#7a7a7a';
+        this.drawIrregularPolygon(ctx, cx, cy, radius, sides, 0.5, seed);
+        ctx.fill();
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 高光面
+        ctx.fillStyle = '#9e9e9e';
+        this.drawIrregularPolygon(ctx, cx - 2, cy - 3, radius * 0.55, Math.max(4, sides - 2), 0.4, seed + 100);
+        ctx.fill();
+
+        // 暗面
+        ctx.fillStyle = '#616161';
+        this.drawIrregularPolygon(ctx, cx + 2, cy + 2, radius * 0.4, Math.max(4, sides - 2), 0.3, seed + 200);
+        ctx.fill();
+    }
+
+    // ===== 树木底 =====
+    drawTreeBase(ctx, px, py, tx, ty, palette) {
+        const seed = (tx * 73 + ty * 37) % 1000;
+        const t = Date.now() / 1000;
+        const sway = Math.sin(t * 1.2 + tx * 0.8 + ty * 0.3) * 1;
+
+        // 树影
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(px + TILE / 2 + sway * 0.3, py + TILE - 4, 16, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 树干 - 棕3色
+        const trunkW = 8 + Math.floor(this.seededRandom(seed, 1, 1) * 4);
+        const trunkX = px + TILE / 2 - trunkW / 2;
+        ctx.fillStyle = '#5a3a24';
+        ctx.fillRect(trunkX, py + 20, trunkW, 26);
+        this.strokeRect(ctx, trunkX, py + 20, trunkW, 26);
+        // 树干高光
+        ctx.fillStyle = '#7a5a44';
+        ctx.fillRect(trunkX + 1, py + 20, trunkW * 0.3, 26);
+        // 树干暗面
+        ctx.fillStyle = '#3d2818';
+        ctx.fillRect(trunkX + trunkW - 2, py + 20, 2, 26);
+
+        // 树冠 - 绿3色，圆形
+        const colors = palette.tree;
+        const crownBaseX = px + TILE / 2 + sway;
+        const crownBaseY = py + 18;
+
+        // 底层大冠
+        ctx.fillStyle = colors[0];
+        ctx.beginPath();
+        ctx.arc(crownBaseX, crownBaseY, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 中层冠
+        ctx.fillStyle = colors[1];
+        ctx.beginPath();
+        ctx.arc(crownBaseX - 2, crownBaseY - 4, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 顶层亮冠
+        ctx.fillStyle = colors[2];
+        ctx.beginPath();
+        ctx.arc(crownBaseX + 1, crownBaseY - 8, 10, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // ===== 矿岩底 =====
+    drawRockMineBase(ctx, px, py, tx, ty) {
+        const seed = (tx * 67 + ty * 41) % 1000;
+        const cx = px + TILE / 2;
+        const cy = py + TILE / 2 + 2;
+        const sides = 7 + Math.floor(this.seededRandom(seed, 1, 4) * 4);
+        const radius = 16 + this.seededRandom(seed, 2, 5) * 4;
+
+        // 阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(cx, py + TILE - 2, 16, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 主体 - 3色
+        ctx.fillStyle = '#6a6058';
+        this.drawIrregularPolygon(ctx, cx, cy, radius, sides, 0.6, seed);
+        ctx.fill();
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#8a8078';
+        this.drawIrregularPolygon(ctx, cx - 2, cy - 3, radius * 0.55, Math.max(4, sides - 2), 0.5, seed + 100);
+        ctx.fill();
+
+        ctx.fillStyle = '#4a4540';
+        this.drawIrregularPolygon(ctx, cx + 2, cy + 2, radius * 0.4, Math.max(4, sides - 2), 0.4, seed + 200);
+        ctx.fill();
+
+        // 矿石闪光点
+        const t = Date.now() / 1000;
+        const sparklePhase = t * 2 + tx * 0.5 + ty * 0.3;
+        const sparkleAlpha = Math.max(0, Math.sin(sparklePhase) * 0.5 + 0.5);
+        if (sparkleAlpha > 0.2) {
+            ctx.fillStyle = `rgba(255, 215, 0, ${sparkleAlpha * 0.8})`;
+            const sx = cx + (this.seededRandom(seed, 5, 11) - 0.5) * 12;
+            const sy = cy + (this.seededRandom(seed, 6, 12) - 0.5) * 10 - 2;
+            ctx.fillRect(sx - 1, sy - 1, 3, 3);
         }
     }
 
-    /**
-     * 伪随机数生成器（基于坐标种子）
-     */
-    seededRandom(x, y, seed = 0) {
-        const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43758.5453) * 43758.5453;
-        return n - Math.floor(n);
+    // ===== 钓鱼点 =====
+    drawFishSpot(ctx, px, py, tx, ty) {
+        this.drawWater(ctx, px, py, tx, ty);
+        const t = Date.now() / 800;
+        const fwx = Math.sin(t + tx * 2) * 6;
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(px + 10 + fwx, py + 15, 12, 2);
+        ctx.fillRect(px + 22 - fwx, py + 30, 10, 2);
+        // 鱼标志 - 简单像素鱼
+        ctx.fillStyle = '#ff8f00';
+        ctx.fillRect(px + TILE / 2 - 4, py + TILE / 2 - 2, 8, 4);
+        ctx.fillRect(px + TILE / 2 + 4, py + TILE / 2 - 3, 3, 2);
+        ctx.fillRect(px + TILE / 2 + 4, py + TILE / 2 + 1, 3, 2);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(px + TILE / 2 - 2, py + TILE / 2 - 1, 2, 2);
     }
 
-    /**
-     * 绘制不规则多边形（用于石头）
-     */
+    // ===== 野生采集物 =====
+    drawWildCrop(ctx, px, py, tx, ty, palette) {
+        // 草地底
+        ctx.fillStyle = palette.grass[0];
+        ctx.fillRect(px, py, TILE, TILE);
+        const forageColors = ['#8d6e63', '#5d4037', '#4caf50', '#ff9800'];
+        const forageIdx = (tx * 7 + ty * 13) % 4;
+        ctx.fillStyle = forageColors[forageIdx];
+        // 简单蘑菇/浆果形状
+        ctx.fillRect(px + TILE / 2 - 4, py + TILE / 2 + 2, 8, 6);
+        ctx.fillRect(px + TILE / 2 - 6, py + TILE / 2 - 2, 12, 5);
+        this.strokeRect(ctx, px + TILE / 2 - 6, py + TILE / 2 - 2, 12, 5);
+    }
+
+    // ===== 花朵：茎(绿) + 花瓣(4色) + 花心(黄) =====
+    drawFlower(ctx, px, py, tx, ty, palette) {
+        // 草地底
+        ctx.fillStyle = palette.grass[0];
+        ctx.fillRect(px, py, TILE, TILE);
+
+        const seed = (tx * 43 + ty * 71) % 1000;
+        const t = Date.now() / 1000;
+        const sway = Math.sin(t * 1.5 + tx * 0.7 + ty * 0.5) * 2;
+        const flowerType = Math.floor(this.seededRandom(seed, 0, 14) * 4);
+        const colors = palette.flower;
+
+        const stemBaseX = px + TILE / 2;
+        const stemBaseY = py + TILE - 4;
+        const stemTopX = stemBaseX + sway;
+        const stemTopY = stemBaseY - 16;
+
+        // 茎
+        ctx.strokeStyle = '#2d7a1e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(stemBaseX, stemBaseY);
+        ctx.lineTo(stemTopX, stemTopY);
+        ctx.stroke();
+
+        // 叶子
+        ctx.fillStyle = '#3d9b2e';
+        ctx.fillRect(stemBaseX - 6 + sway * 0.3, stemBaseY - 8, 5, 3);
+        ctx.fillRect(stemBaseX + 2 + sway * 0.3, stemBaseY - 10, 4, 3);
+
+        // 花瓣 - 4色变化
+        const fx = stemTopX;
+        const fy = stemTopY;
+        const petalColor = colors[flowerType % colors.length];
+        const petalColor2 = colors[(flowerType + 1) % colors.length];
+
+        // 4个花瓣
+        ctx.fillStyle = petalColor;
+        ctx.fillRect(fx - 5, fy - 2, 4, 4);
+        ctx.fillRect(fx + 1, fy - 2, 4, 4);
+        ctx.fillRect(fx - 2, fy - 5, 4, 4);
+        ctx.fillRect(fx - 2, fy + 1, 4, 4);
+
+        // 花瓣描边
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(fx - 5, fy - 2, 4, 4);
+        ctx.strokeRect(fx + 1, fy - 2, 4, 4);
+        ctx.strokeRect(fx - 2, fy - 5, 4, 4);
+        ctx.strokeRect(fx - 2, fy + 1, 4, 4);
+
+        // 花心(黄)
+        ctx.fillStyle = '#ffd700';
+        ctx.fillRect(fx - 2, fy - 2, 4, 4);
+    }
+
+    // ===== 不规则多边形 =====
     drawIrregularPolygon(ctx, cx, cy, radius, sides, irregularity, seed) {
         ctx.beginPath();
         for (let i = 0; i < sides; i++) {
@@ -465,17 +632,16 @@ class Renderer {
         ctx.closePath();
     }
 
-    /**
-     * 渲染地形细节
-     */
-    renderTerrainDetails(ctx, state) {
+    // ===== 地形细节（后渲染层） =====
+    renderTerrainDetails(ctx, state, sc, palette) {
+        // 房屋窗户、门等需要在所有地形之上渲染的细节
         const startX = Math.max(0, Math.floor(state.cameraX / TILE));
         const startY = Math.max(0, Math.floor(state.cameraY / TILE));
         const endX = Math.min(MAP_W, Math.ceil((state.cameraX + this.screenW) / TILE) + 1);
         const endY = Math.min(MAP_H, Math.ceil((state.cameraY + this.screenH) / TILE) + 1);
 
-        // 收集需要后渲染的元素（如房屋烟雾）
-        const deferredDraws = [];
+        const hour = state.timeOfDay || (state.time / 60);
+        const isNight = hour >= 19 || hour < 6;
 
         for (let y = startY; y < endY; y++) {
             for (let x = startX; x < endX; x++) {
@@ -483,823 +649,72 @@ class Renderer {
                 const px = x * TILE;
                 const py = y * TILE;
 
-                switch (tile) {
-                    case T.TILLED:
-                        // 犁沟线
-                        ctx.fillStyle = 'rgba(30,15,5,0.35)';
-                        for (let i = 0; i < 4; i++) {
-                            ctx.fillRect(px + 4, py + 8 + i * 10, TILE - 8, 2);
-                        }
-                        break;
-
-                    case T.WATERED:
-                        // 犁沟线 + 湿润光泽
-                        ctx.fillStyle = 'rgba(30,15,5,0.35)';
-                        for (let i = 0; i < 4; i++) {
-                            ctx.fillRect(px + 4, py + 8 + i * 10, TILE - 8, 2);
-                        }
-                        ctx.fillStyle = 'rgba(100, 160, 230, 0.15)';
-                        ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
-                        break;
-
-                    case T.WATER:
-                        this.renderWaterTile(ctx, px, py, x, y);
-                        break;
-
-                    case T.FLOWER:
-                        this.renderFlower(ctx, px, py, x, y);
-                        break;
-
-                    case T.FENCE:
-                        // 栅栏阴影
-                        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-                        ctx.fillRect(px + 2, py + TILE - 3, TILE - 4, 3);
-                        // 栅栏柱
-                        ctx.fillStyle = '#6b4423';
-                        ctx.fillRect(px + 4, py + 8, 4, TILE - 10);
-                        ctx.fillRect(px + TILE - 8, py + 8, 4, TILE - 10);
-                        ctx.fillRect(px + 4, py + 10, TILE - 8, 3);
-                        ctx.fillRect(px + 4, py + 28, TILE - 8, 3);
-                        break;
-
-                    case T.STONE:
-                        this.renderStone(ctx, px, py, x, y);
-                        break;
-
-                    case T.TREE:
-                        this.renderTree(ctx, px, py, x, y);
-                        break;
-
-                    case T.ROCK_MINE:
-                        this.renderRockMine(ctx, px, py, x, y);
-                        break;
-
-                    case T.FISH_SPOT:
-                        // 钓鱼点 - 水面 + 鱼标志
-                        const fishPhase = Date.now() / 800;
-                        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-                        const fwx = Math.sin(fishPhase + x * 2) * 6;
-                        ctx.fillRect(px + 10 + fwx, py + 15, 12, 2);
-                        ctx.fillRect(px + 22 - fwx, py + 30, 10, 2);
-                        // 鱼标志
-                        ctx.font = '16px serif';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('🐟', px + TILE/2, py + TILE/2 + 2);
-                        break;
-
-                    case T.WILD_CROP:
-                        // 野生采集物
-                        const forageEmojis = ['🍄', '🫐', '🌸', '🌿'];
-                        const forageIdx = (x * 7 + y * 13) % 4;
-                        ctx.font = '20px serif';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(forageEmojis[forageIdx], px + TILE/2, py + TILE/2 + 4);
-                        break;
-
-                    case T.NPC_HOUSE:
-                        this.renderHouse(ctx, px, py, x, y, state, true);
-                        break;
-
-                    case T.HOUSE:
-                        this.renderHouse(ctx, px, py, x, y, state, false);
-                        break;
+                if (tile === T.HOUSE || tile === T.NPC_HOUSE) {
+                    this.drawHouseDetails(ctx, px, py, x, y, isNight, tile === T.NPC_HOUSE);
                 }
             }
         }
     }
 
-    /**
-     * 渲染水面效果（视觉升级版）
-     */
-    renderWaterTile(ctx, px, py, x, y) {
-        const t = Date.now() / 1000;
-
-        // 基础水色渐变 - 更丰富的蓝色层次
-        const waterGrad = ctx.createLinearGradient(px, py, px, py + TILE);
-        waterGrad.addColorStop(0, 'rgba(90, 170, 240, 0.30)');
-        waterGrad.addColorStop(0.4, 'rgba(60, 140, 220, 0.20)');
-        waterGrad.addColorStop(0.7, 'rgba(40, 110, 190, 0.25)');
-        waterGrad.addColorStop(1, 'rgba(25, 70, 150, 0.30)');
-        ctx.fillStyle = waterGrad;
-        ctx.fillRect(px, py, TILE, TILE);
-
-        // 水面反射（根据天空颜色）
-        const hour = (window.state && window.state.timeOfDay) || 12;
-        let skyR = 200, skyG = 230, skyB = 255;
-        if (hour >= 18 || hour < 6) {
-            skyR = 80; skyG = 90; skyB = 140;
-        } else if (hour >= 16) {
-            skyR = 255; skyG = 200; skyB = 150;
-        }
-        const reflectAlpha = 0.04 + Math.sin(t * 0.5 + x * 0.3) * 0.02;
-        ctx.fillStyle = `rgba(${skyR}, ${skyG}, ${skyB}, ${reflectAlpha})`;
-        ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
-
-        // 正弦波叠加产生更自然的波纹
-        const waveLayers = [
-            { speed: 1.2, amp: 3, freq: 0.8, alpha: 0.10, width: 18, height: 2, yOff: 8 },
-            { speed: 0.8, amp: 5, freq: 0.5, alpha: 0.07, width: 14, height: 2, yOff: 22 },
-            { speed: 1.5, amp: 2, freq: 1.2, alpha: 0.06, width: 22, height: 1.5, yOff: 34 },
-            // 新增第四层：更细密的波纹
-            { speed: 2.0, amp: 1.5, freq: 2.0, alpha: 0.04, width: 10, height: 1, yOff: 14 },
-            { speed: 0.5, amp: 4, freq: 0.3, alpha: 0.05, width: 28, height: 1.5, yOff: 28 }
-        ];
-
-        for (const layer of waveLayers) {
-            ctx.fillStyle = `rgba(255, 255, 255, ${layer.alpha})`;
-            // 使用正弦波叠加：主波 + 谐波
-            const wave1 = Math.sin(t * layer.speed + x * layer.freq + y * 0.3) * layer.amp;
-            const wave2 = Math.cos(t * layer.speed * 1.3 + x * layer.freq * 0.7 + y * 0.5) * layer.amp * 0.5;
-            const wave3 = Math.sin(t * layer.speed * 0.6 + x * 1.1 + y * layer.freq * 0.8) * layer.amp * 0.3;
-            const wx = wave1 + wave2 + wave3;
-
-            ctx.fillRect(px + 4 + wx, py + layer.yOff, layer.width, layer.height);
-            // 第二条波纹，相位偏移
-            const wx2 = Math.sin(t * layer.speed * 0.9 + x * layer.freq + y * 0.3 + Math.PI) * layer.amp;
-            ctx.fillRect(px + 20 + wx2, py + layer.yOff + 6, layer.width * 0.7, layer.height);
-        }
-
-        // 水面反光效果 - 更细腻
-        const shimmerPhase = t * 2 + x * 1.3 + y * 0.7;
-        const shimmerAlpha = Math.max(0, Math.sin(shimmerPhase) * 0.08);
-        if (shimmerAlpha > 0.01) {
-            ctx.fillStyle = `rgba(220, 240, 255, ${shimmerAlpha})`;
-            ctx.beginPath();
-            ctx.ellipse(px + TILE/2 + Math.sin(t + x) * 6, py + TILE/2 + Math.cos(t * 0.8 + y) * 4, 12, 5, 0, 0, Math.PI * 2);
-            ctx.fill();
-            // 反光中心更亮
-            ctx.fillStyle = `rgba(255, 255, 255, ${shimmerAlpha * 0.6})`;
-            ctx.beginPath();
-            ctx.ellipse(px + TILE/2 + Math.sin(t + x) * 6 - 1, py + TILE/2 + Math.cos(t * 0.8 + y) * 4 - 1, 5, 2, 0, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // 岸边泡沫效果（检查相邻陆地）- 更细腻
-        const neighbors = [
-            { dx: 0, dy: -1, fx: px + 2, fy: py, fw: TILE - 4, fh: 5 },
-            { dx: 0, dy: 1, fx: px + 2, fy: py + TILE - 5, fw: TILE - 4, fh: 5 },
-            { dx: -1, dy: 0, fx: px, fy: py + 2, fw: 5, fh: TILE - 4 },
-            { dx: 1, dy: 0, fx: px + TILE - 5, fy: py + 2, fw: 5, fh: TILE - 4 }
-        ];
-
-        for (const n of neighbors) {
-            const nx = x + n.dx;
-            const ny = y + n.dy;
-            if (nx >= 0 && nx < MAP_W && ny >= 0 && ny < MAP_H) {
-                const neighborTile = window.state.map[ny][nx];
-                if (neighborTile !== T.WATER && neighborTile !== T.FISH_SPOT) {
-                    // 岸边泡沫 - 更多更小的泡沫点
-                    const foamPhase = t * 1.5 + nx * 2 + ny * 3;
-                    const foamAlpha = 0.12 + Math.sin(foamPhase) * 0.06;
-                    ctx.fillStyle = `rgba(255, 255, 255, ${foamAlpha})`;
-                    for (let i = 0; i < 5; i++) {
-                        const fx = n.fx + this.seededRandom(i, x + y, 10) * n.fw;
-                        const fy = n.fy + this.seededRandom(i + 1, x + y, 10) * n.fh;
-                        const fs = 1 + this.seededRandom(i + 2, x + y, 10) * 2.5;
-                        ctx.beginPath();
-                        ctx.arc(fx, fy, fs, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                    // 泡沫边缘线
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${foamAlpha * 0.5})`;
-                    ctx.lineWidth = 0.5;
-                    ctx.beginPath();
-                    if (n.dy === -1) {
-                        ctx.moveTo(n.fx, n.fy + n.fh);
-                        ctx.lineTo(n.fx + n.fw, n.fy + n.fh);
-                    } else if (n.dy === 1) {
-                        ctx.moveTo(n.fx, n.fy);
-                        ctx.lineTo(n.fx + n.fw, n.fy);
-                    } else if (n.dx === -1) {
-                        ctx.moveTo(n.fx + n.fw, n.fy);
-                        ctx.lineTo(n.fx + n.fw, n.fy + n.fh);
-                    } else {
-                        ctx.moveTo(n.fx, n.fy);
-                        ctx.lineTo(n.fx, n.fy + n.fh);
-                    }
-                    ctx.stroke();
-                }
-            }
-        }
-    }
-
-    /**
-     * 渲染树木（视觉升级版）
-     */
-    renderTree(ctx, px, py, x, y) {
-        const t = Date.now() / 1000;
-        const seed = (x * 73 + y * 37) % 1000;
-        const windStrength = 0.8 + Math.sin(t * 0.7 + x * 0.5) * 0.3;
-        const sway = Math.sin(t * 1.2 + x * 0.8 + y * 0.3) * 2 * windStrength;
-
-        // 树影 - 使用模糊渐变而非纯色
-        const shadowGrad = ctx.createRadialGradient(
-            px + TILE/2 + sway * 0.3, py + TILE - 4, 2,
-            px + TILE/2 + sway * 0.3, py + TILE - 4, 20
-        );
-        shadowGrad.addColorStop(0, 'rgba(0,0,0,0.22)');
-        shadowGrad.addColorStop(0.6, 'rgba(0,0,0,0.10)');
-        shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = shadowGrad;
-        ctx.beginPath();
-        ctx.ellipse(px + TILE/2 + sway * 0.3, py + TILE - 4, 18, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 树干 - 带树皮纹理
-        const trunkW = 10 + this.seededRandom(seed, 1, 1) * 4;
-        const trunkX = px + TILE/2 - trunkW/2;
-
-        // 树干主体渐变（从亮到暗，模拟圆柱体）
-        const trunkGrad = ctx.createLinearGradient(trunkX, 0, trunkX + trunkW, 0);
-        trunkGrad.addColorStop(0, '#3d2818');
-        trunkGrad.addColorStop(0.3, '#5a3a24');
-        trunkGrad.addColorStop(0.7, '#4a3020');
-        trunkGrad.addColorStop(1, '#2a1a10');
-        ctx.fillStyle = trunkGrad;
-        ctx.fillRect(trunkX, py + 22, trunkW, 26);
-
-        // 树皮纹理 - 横向裂纹
-        ctx.strokeStyle = 'rgba(20, 10, 5, 0.35)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 4; i++) {
-            const ty = py + 25 + this.seededRandom(seed, i + 3, 2) * 20;
-            const tx1 = trunkX + 1;
-            const tx2 = trunkX + trunkW - 1;
-            ctx.beginPath();
-            ctx.moveTo(tx1, ty);
-            // 裂纹呈锯齿状
-            const segCount = 3;
-            for (let s = 1; s <= segCount; s++) {
-                const sx = tx1 + (tx2 - tx1) * (s / segCount);
-                const sy = ty + (this.seededRandom(seed, i + s, 7) - 0.5) * 3;
-                ctx.lineTo(sx, sy);
-            }
-            ctx.stroke();
-        }
-
-        // 纵向树皮沟槽
-        ctx.strokeStyle = 'rgba(30, 15, 5, 0.2)';
-        for (let i = 0; i < 2; i++) {
-            const tx = trunkX + 3 + this.seededRandom(seed, i + 10, 3) * (trunkW - 6);
-            ctx.beginPath();
-            ctx.moveTo(tx, py + 24);
-            ctx.lineTo(tx + Math.sin(i + seed) * 1.5, py + 46);
-            ctx.stroke();
-        }
-
-        // 树干高光（左侧边缘）
-        ctx.fillStyle = 'rgba(140, 100, 60, 0.25)';
-        ctx.fillRect(trunkX + 1, py + 22, trunkW * 0.25, 26);
-
-        // 树冠类型（基于种子）
-        const treeType = Math.floor(this.seededRandom(seed, 0, 3) * 3); // 0: 圆形, 1: 椭圆形, 2: 松树形
-
-        // 使用 HSL 和谐配色，根据季节微调
-        const season = (window.state && window.state.season) || 'spring';
-        const hueShift = this.colorScheme.seasonHueShift[season] || 0;
-        const baseH = 120 + hueShift;
-
-        const crownColors = [
-            { dark: this.hsl(baseH - 10, 65, 18), mid: this.hsl(baseH, 60, 32), light: this.hsl(baseH + 10, 55, 48), highlight: this.hsl(baseH + 15, 70, 65) },
-            { dark: this.hsl(baseH - 5, 70, 20), mid: this.hsl(baseH + 5, 65, 35), light: this.hsl(baseH + 15, 60, 52), highlight: this.hsl(baseH + 20, 75, 68) },
-            { dark: this.hsl(baseH - 15, 60, 15), mid: this.hsl(baseH - 5, 55, 28), light: this.hsl(baseH + 5, 50, 42), highlight: this.hsl(baseH + 10, 65, 60) }
-        ];
-        const colors = crownColors[treeType];
-
-        const crownBaseY = py + 20;
-        const crownBaseX = px + TILE/2 + sway;
-
-        // 底层大冠 - 径向渐变
-        this.drawCrownLayerGrad(ctx, crownBaseX, crownBaseY, 20, treeType, seed, 0, colors.dark, colors.mid);
-        // 中层冠 - 径向渐变
-        this.drawCrownLayerGrad(ctx, crownBaseX - 2, crownBaseY - 5, 15, treeType, seed, 1, colors.mid, colors.light);
-        // 顶层亮冠 - 径向渐变
-        this.drawCrownLayerGrad(ctx, crownBaseX + 1, crownBaseY - 10, 11, treeType, seed, 2, colors.light, colors.highlight);
-
-        // 树叶簇细节 - 用多个小圆点模拟
-        ctx.save();
-        const leafCount = 12 + Math.floor(this.seededRandom(seed, 8, 4) * 8);
-        for (let i = 0; i < leafCount; i++) {
-            const angle = this.seededRandom(seed, i + 50, 5) * Math.PI * 2;
-            const dist = this.seededRandom(seed, i + 60, 6) * 14;
-            const lx = crownBaseX + Math.cos(angle) * dist;
-            const ly = crownBaseY - 6 + Math.sin(angle) * dist * 0.7;
-            const lr = 1.5 + this.seededRandom(seed, i + 70, 7) * 2.5;
-            const leafAlpha = 0.25 + this.seededRandom(seed, i + 80, 8) * 0.35;
-            ctx.fillStyle = this.hsl(baseH + 10 + this.seededRandom(seed, i + 90, 9) * 20, 70, 60, leafAlpha);
-            ctx.beginPath();
-            ctx.arc(lx, ly, lr, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.restore();
-
-        // 树叶高光点（模拟阳光照射）
-        ctx.fillStyle = this.hsl(baseH + 20, 80, 75, 0.35);
-        const highlightX = crownBaseX + Math.cos(t * 0.5 + seed) * 7;
-        const highlightY = crownBaseY - 8 + Math.sin(t * 0.3 + seed) * 4;
-        ctx.beginPath();
-        ctx.arc(highlightX, highlightY, 6, 0, Math.PI * 2);
-        ctx.fill();
-        // 高光中心更亮
-        ctx.fillStyle = this.hsl(baseH + 25, 90, 85, 0.5);
-        ctx.beginPath();
-        ctx.arc(highlightX - 1, highlightY - 1, 3, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    /**
-     * 绘制带径向渐变的树冠层
-     */
-    drawCrownLayerGrad(ctx, cx, cy, size, treeType, seed, layer, colorInner, colorOuter) {
-        if (treeType === 0) {
-            const offset = layer * 3;
-            const grad = ctx.createRadialGradient(cx, cy - offset - 3, 2, cx, cy - offset, size);
-            grad.addColorStop(0, colorInner);
-            grad.addColorStop(1, colorOuter);
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(cx, cy - offset, size, 0, Math.PI * 2);
-            ctx.fill();
-            // 附加小圆增加层次感
-            const grad2 = ctx.createRadialGradient(cx - size * 0.5, cy - offset + 2 - 2, 1, cx - size * 0.5, cy - offset + 2, size * 0.6);
-            grad2.addColorStop(0, colorInner);
-            grad2.addColorStop(1, colorOuter);
-            ctx.fillStyle = grad2;
-            ctx.beginPath();
-            ctx.arc(cx - size * 0.5, cy - offset + 2, size * 0.6, 0, Math.PI * 2);
-            ctx.fill();
-            const grad3 = ctx.createRadialGradient(cx + size * 0.5, cy - offset + 2 - 2, 1, cx + size * 0.5, cy - offset + 2, size * 0.6);
-            grad3.addColorStop(0, colorInner);
-            grad3.addColorStop(1, colorOuter);
-            ctx.fillStyle = grad3;
-            ctx.beginPath();
-            ctx.arc(cx + size * 0.5, cy - offset + 2, size * 0.6, 0, Math.PI * 2);
-            ctx.fill();
-        } else if (treeType === 1) {
-            const grad = ctx.createRadialGradient(cx, cy - 4, 2, cx, cy, size);
-            grad.addColorStop(0, colorInner);
-            grad.addColorStop(1, colorOuter);
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.ellipse(cx, cy, size * 1.1, size * 0.8, 0, 0, Math.PI * 2);
-            ctx.fill();
-            const grad2 = ctx.createRadialGradient(cx - 4, cy - 5, 1, cx - 4, cy - 3, size * 0.7);
-            grad2.addColorStop(0, colorInner);
-            grad2.addColorStop(1, colorOuter);
-            ctx.fillStyle = grad2;
-            ctx.beginPath();
-            ctx.ellipse(cx - 4, cy - 3, size * 0.7, size * 0.6, -0.3, 0, Math.PI * 2);
-            ctx.fill();
-        } else {
-            // 松树形（三角形层叠）
-            const topY = cy - size * 1.2;
-            // 松树也用线性渐变模拟光照
-            const grad = ctx.createLinearGradient(cx - size, topY, cx + size, cy + 4);
-            grad.addColorStop(0, colorOuter);
-            grad.addColorStop(0.5, colorInner);
-            grad.addColorStop(1, colorOuter);
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.moveTo(cx, topY);
-            ctx.lineTo(cx - size, cy + 4);
-            ctx.lineTo(cx + size, cy + 4);
-            ctx.closePath();
-            ctx.fill();
-            if (layer < 2) {
-                const grad2 = ctx.createLinearGradient(cx - size * 0.7, topY - 4, cx + size * 0.7, cy - 4);
-                grad2.addColorStop(0, colorOuter);
-                grad2.addColorStop(0.5, colorInner);
-                grad2.addColorStop(1, colorOuter);
-                ctx.fillStyle = grad2;
-                ctx.beginPath();
-                ctx.moveTo(cx, topY - 4);
-                ctx.lineTo(cx - size * 0.7, cy - 4);
-                ctx.lineTo(cx + size * 0.7, cy - 4);
-                ctx.closePath();
-                ctx.fill();
-            }
-        }
-    }
-
-    /**
-     * 渲染石头（视觉升级版）
-     */
-    renderStone(ctx, px, py, x, y) {
-        const seed = (x * 53 + y * 29) % 1000;
-        const cx = px + TILE/2;
-        const cy = py + TILE/2 + 2;
-
-        // 阴影 - 模糊渐变
-        const shadowGrad = ctx.createRadialGradient(cx, py + TILE - 4, 2, cx, py + TILE - 4, 18);
-        shadowGrad.addColorStop(0, 'rgba(0,0,0,0.20)');
-        shadowGrad.addColorStop(0.5, 'rgba(0,0,0,0.08)');
-        shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = shadowGrad;
-        ctx.beginPath();
-        ctx.ellipse(cx, py + TILE - 4, 16, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 石头主体 - 不规则多边形
-        const sides = 6 + Math.floor(this.seededRandom(seed, 1, 4) * 4);
-        const radius = 14 + this.seededRandom(seed, 2, 5) * 4;
-
-        // 1. 阴影层（深色底层，偏移模拟厚度）
-        ctx.fillStyle = '#4a4a4a';
-        this.drawIrregularPolygon(ctx, cx + 2, cy + 2, radius, sides, 0.5, seed);
-        ctx.fill();
-
-        // 2. 主体层 - 使用线性渐变模拟光照（左亮右暗）
-        const bodyGrad = ctx.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
-        bodyGrad.addColorStop(0, '#8a8a8a');
-        bodyGrad.addColorStop(0.4, '#7a7a7a');
-        bodyGrad.addColorStop(0.8, '#6a6a6a');
-        bodyGrad.addColorStop(1, '#5a5a5a');
-        ctx.fillStyle = bodyGrad;
-        this.drawIrregularPolygon(ctx, cx, cy, radius, sides, 0.5, seed);
-        ctx.fill();
-
-        // 3. 高光层（左上）
-        const highlightGrad = ctx.createLinearGradient(cx - radius * 0.5, cy - radius * 0.5, cx, cy);
-        highlightGrad.addColorStop(0, 'rgba(180, 180, 180, 0.7)');
-        highlightGrad.addColorStop(1, 'rgba(140, 140, 140, 0)');
-        ctx.fillStyle = highlightGrad;
-        this.drawIrregularPolygon(ctx, cx - 2, cy - 2, radius * 0.55, Math.max(4, sides - 2), 0.4, seed + 100);
-        ctx.fill();
-
-        // 裂纹纹理
-        ctx.strokeStyle = 'rgba(40, 40, 40, 0.35)';
-        ctx.lineWidth = 1;
-        const crackCount = 1 + Math.floor(this.seededRandom(seed, 3, 6) * 2);
-        for (let i = 0; i < crackCount; i++) {
-            const startAngle = this.seededRandom(seed, i + 10, 7) * Math.PI * 2;
-            const startR = radius * (0.3 + this.seededRandom(seed, i + 20, 8) * 0.5);
-            const sx = cx + Math.cos(startAngle) * startR;
-            const sy = cy + Math.sin(startAngle) * startR;
-            ctx.beginPath();
-            ctx.moveTo(sx, sy);
-            ctx.lineTo(sx + (this.seededRandom(seed, i + 30, 9) - 0.5) * 8, sy + (this.seededRandom(seed, i + 40, 10) - 0.5) * 6);
-            ctx.stroke();
-        }
-
-        // 苔藓效果（在石头底部）
-        const mossColor = this.hsl(100 + this.seededRandom(seed, 15, 11) * 20, 45, 35, 0.6);
-        ctx.fillStyle = mossColor;
-        const mossPatches = 3 + Math.floor(this.seededRandom(seed, 16, 12) * 3);
-        for (let i = 0; i < mossPatches; i++) {
-            const mossAngle = Math.PI * 0.7 + this.seededRandom(seed, i + 20, 13) * Math.PI * 0.6;
-            const mossR = radius * (0.5 + this.seededRandom(seed, i + 30, 14) * 0.4);
-            const mx = cx + Math.cos(mossAngle) * mossR;
-            const my = cy + Math.sin(mossAngle) * mossR * 0.6 + 2;
-            const ms = 2 + this.seededRandom(seed, i + 40, 15) * 3;
-            ctx.beginPath();
-            ctx.arc(mx, my, ms, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-
-    /**
-     * 渲染矿岩（优化版）
-     */
-    renderRockMine(ctx, px, py, x, y) {
-        const t = Date.now() / 1000;
-        const seed = (x * 67 + y * 41) % 1000;
-        const cx = px + TILE/2;
-        const cy = py + TILE/2 + 2;
-
-        // 阴影
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.ellipse(cx, py + TILE - 2, 16, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 矿岩主体 - 更大更不规则
-        const sides = 7 + Math.floor(this.seededRandom(seed, 1, 4) * 4);
-        const radius = 17 + this.seededRandom(seed, 2, 5) * 4;
-
-        // 深色底层
-        ctx.fillStyle = '#4a4540';
-        this.drawIrregularPolygon(ctx, cx + 1, cy + 1, radius, sides, 0.6, seed);
-        ctx.fill();
-
-        // 主色
-        ctx.fillStyle = '#6a6058';
-        this.drawIrregularPolygon(ctx, cx, cy, radius, sides, 0.6, seed);
-        ctx.fill();
-
-        // 高光面
-        ctx.fillStyle = '#8a8078';
-        this.drawIrregularPolygon(ctx, cx - 2, cy - 3, radius * 0.55, Math.max(4, sides - 2), 0.5, seed + 100);
-        ctx.fill();
-
-        // 矿石闪光点（多个）
-        const sparkleCount = 2 + Math.floor(this.seededRandom(seed, 5, 11) * 3);
-        for (let i = 0; i < sparkleCount; i++) {
-            const sx = cx + (this.seededRandom(seed, i + 50, 12) - 0.5) * radius * 0.8;
-            const sy = cy + (this.seededRandom(seed, i + 60, 13) - 0.5) * radius * 0.6 - 2;
-            const sparklePhase = t * 2 + i * 1.5 + x * 0.5 + y * 0.3;
-            const sparkleAlpha = Math.max(0, Math.sin(sparklePhase) * 0.5 + 0.5) * 0.6;
-            const sparkleSize = 2 + Math.sin(sparklePhase * 1.5) * 1;
-
-            ctx.fillStyle = `rgba(255, 215, 0, ${sparkleAlpha})`;
-            ctx.beginPath();
-            ctx.arc(sx, sy, sparkleSize, 0, Math.PI * 2);
-            ctx.fill();
-
-            // 闪光十字
-            if (sparkleAlpha > 0.3) {
-                ctx.strokeStyle = `rgba(255, 235, 150, ${sparkleAlpha * 0.5})`;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(sx - sparkleSize * 1.5, sy);
-                ctx.lineTo(sx + sparkleSize * 1.5, sy);
-                ctx.moveTo(sx, sy - sparkleSize * 1.5);
-                ctx.lineTo(sx, sy + sparkleSize * 1.5);
-                ctx.stroke();
-            }
-        }
-    }
-
-    /**
-     * 渲染花朵（优化版）
-     */
-    renderFlower(ctx, px, py, x, y) {
-        const t = Date.now() / 1000;
-        const seed = (x * 43 + y * 71) % 1000;
-        const flowerType = Math.floor(this.seededRandom(seed, 0, 14) * 4); // 4种花型
-        const flowerColors = [
-            ['#ff69b4', '#ff1493', '#ffb6c1'],
-            ['#ffeb3b', '#ffd700', '#fff8a0'],
-            ['#ff6347', '#ff4500', '#ffa07a'],
-            ['#da70d6', '#ba55d3', '#e6b3ff']
-        ];
-        const colors = flowerColors[flowerType];
-        const sway = Math.sin(t * 1.5 + x * 0.7 + y * 0.5) * 2;
-
-        // 花茎 - 弯曲效果
-        ctx.strokeStyle = '#2d7a1e';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        const stemBaseX = px + TILE/2;
-        const stemBaseY = py + TILE - 4;
-        const stemTopX = stemBaseX + sway;
-        const stemTopY = stemBaseY - 18;
-        ctx.moveTo(stemBaseX, stemBaseY);
-        ctx.quadraticCurveTo(stemBaseX + sway * 0.5, stemBaseY - 9, stemTopX, stemTopY);
-        ctx.stroke();
-
-        // 叶子
-        ctx.fillStyle = '#3d9b2e';
-        const leafY = stemBaseY - 8;
-        ctx.beginPath();
-        ctx.ellipse(stemBaseX - 4 + sway * 0.3, leafY, 5, 2.5, -0.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(stemBaseX + 4 + sway * 0.3, leafY - 3, 4, 2, 0.5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 花朵绘制
-        const fx = stemTopX;
-        const fy = stemTopY;
-
-        if (flowerType === 0) {
-            // 雏菊型 - 多层花瓣
-            this.drawDaisyFlower(ctx, fx, fy, colors, seed, t);
-        } else if (flowerType === 1) {
-            // 郁金香型
-            this.drawTulipFlower(ctx, fx, fy, colors, seed);
-        } else if (flowerType === 2) {
-            // 向日葵型
-            this.drawSunflower(ctx, fx, fy, colors, seed);
-        } else {
-            // 薰衣草/穗状型
-            this.drawLavenderFlower(ctx, fx, fy, colors, seed);
-        }
-    }
-
-    drawDaisyFlower(ctx, x, y, colors, seed, t) {
-        const petalCount = 6 + Math.floor(this.seededRandom(seed, 1, 15) * 3);
-        const petalLen = 7 + this.seededRandom(seed, 2, 16) * 3;
-
-        // 花瓣
-        for (let i = 0; i < petalCount; i++) {
-            const angle = (i / petalCount) * Math.PI * 2 + t * 0.2;
-            const grad = ctx.createRadialGradient(x, y, 0, x + Math.cos(angle) * petalLen, y + Math.sin(angle) * petalLen, petalLen);
-            grad.addColorStop(0, colors[0]);
-            grad.addColorStop(1, colors[1]);
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.ellipse(
-                x + Math.cos(angle) * petalLen * 0.6,
-                y + Math.sin(angle) * petalLen * 0.6,
-                petalLen * 0.4, 2.5, angle, 0, Math.PI * 2
-            );
-            ctx.fill();
-        }
-
-        // 花心
-        ctx.fillStyle = '#ffd700';
-        ctx.beginPath();
-        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#ff8c00';
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    drawTulipFlower(ctx, x, y, colors, seed) {
-        // 郁金香杯状花瓣
-        const grad = ctx.createLinearGradient(x, y - 8, x, y + 2);
-        grad.addColorStop(0, colors[2]);
-        grad.addColorStop(0.5, colors[0]);
-        grad.addColorStop(1, colors[1]);
-        ctx.fillStyle = grad;
-
-        // 左侧花瓣
-        ctx.beginPath();
-        ctx.moveTo(x, y + 3);
-        ctx.quadraticCurveTo(x - 7, y - 2, x - 5, y - 8);
-        ctx.quadraticCurveTo(x - 2, y - 6, x, y - 4);
-        ctx.fill();
-
-        // 右侧花瓣
-        ctx.beginPath();
-        ctx.moveTo(x, y + 3);
-        ctx.quadraticCurveTo(x + 7, y - 2, x + 5, y - 8);
-        ctx.quadraticCurveTo(x + 2, y - 6, x, y - 4);
-        ctx.fill();
-
-        // 中间花瓣
-        ctx.beginPath();
-        ctx.moveTo(x, y + 3);
-        ctx.quadraticCurveTo(x - 3, y - 6, x, y - 10);
-        ctx.quadraticCurveTo(x + 3, y - 6, x, y + 3);
-        ctx.fill();
-    }
-
-    drawSunflower(ctx, x, y, colors, seed) {
-        // 向日葵大盘
-        const petalCount = 8;
-        for (let i = 0; i < petalCount; i++) {
-            const angle = (i / petalCount) * Math.PI * 2;
-            ctx.fillStyle = colors[0];
-            ctx.beginPath();
-            ctx.ellipse(
-                x + Math.cos(angle) * 5,
-                y + Math.sin(angle) * 5,
-                5, 2.5, angle, 0, Math.PI * 2
-            );
-            ctx.fill();
-        }
-
-        // 花盘
-        ctx.fillStyle = '#5a3a1a';
-        ctx.beginPath();
-        ctx.arc(x, y, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 花盘纹理
-        ctx.fillStyle = '#3a2010';
-        for (let i = 0; i < 5; i++) {
-            const ax = x + (this.seededRandom(seed, i + 70, 17) - 0.5) * 6;
-            const ay = y + (this.seededRandom(seed, i + 80, 18) - 0.5) * 6;
-            ctx.beginPath();
-            ctx.arc(ax, ay, 1, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-
-    drawLavenderFlower(ctx, x, y, colors, seed) {
-        // 穗状小花
-        const spikeHeight = 12;
-        const grad = ctx.createLinearGradient(x, y - spikeHeight, x, y);
-        grad.addColorStop(0, colors[2]);
-        grad.addColorStop(1, colors[1]);
-        ctx.fillStyle = grad;
-
-        for (let i = 0; i < 5; i++) {
-            const ly = y - i * 2.5;
-            const lx = x + Math.sin(i * 1.5) * 1.5;
-            ctx.beginPath();
-            ctx.ellipse(lx, ly, 2.5, 1.8, 0, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-
-    /**
-     * 渲染房屋（优化版）
-     */
-    renderHouse(ctx, px, py, x, y, state, isNpcHouse) {
-        const t = Date.now() / 1000;
-        const hour = state.timeOfDay || (state.time / 60);
-        const isNight = hour >= 19 || hour < 6;
-
-        // 房屋主体
-        ctx.fillStyle = isNpcHouse ? '#b08050' : '#c49558';
-        ctx.fillRect(px + 4, py + 14, TILE - 8, TILE - 16);
-
-        // 墙壁纹理（木板线条）
-        ctx.strokeStyle = 'rgba(80, 50, 20, 0.2)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 3; i++) {
-            const ly = py + 18 + i * 10;
-            ctx.beginPath();
-            ctx.moveTo(px + 4, ly);
-            ctx.lineTo(px + TILE - 4, ly);
-            ctx.stroke();
-        }
-
-        // 屋顶瓦片纹理
-        ctx.fillStyle = isNpcHouse ? '#8b4513' : '#a0522d';
-        ctx.beginPath();
-        ctx.moveTo(px + 1, py + 16);
-        ctx.lineTo(px + TILE/2, py + 2);
-        ctx.lineTo(px + TILE - 1, py + 16);
-        ctx.closePath();
-        ctx.fill();
-
-        // 瓦片线条
-        ctx.strokeStyle = 'rgba(60, 30, 10, 0.3)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 3; i++) {
-            const ry = py + 6 + i * 4;
-            const rw = (ry - (py + 2)) / (14) * (TILE - 2);
-            ctx.beginPath();
-            ctx.moveTo(px + TILE/2 - rw/2, ry);
-            ctx.lineTo(px + TILE/2 + rw/2, ry);
-            ctx.stroke();
-        }
-
-        // 烟囱
-        const chimneyX = px + TILE * 0.7;
-        const chimneyY = py + 8;
-        ctx.fillStyle = '#6a6a6a';
-        ctx.fillRect(chimneyX, chimneyY, 6, 10);
-        ctx.fillStyle = '#4a4a4a';
-        ctx.fillRect(chimneyX - 1, chimneyY - 2, 8, 3);
-
-        // 烟雾粒子
-        if (isNight || this.seededRandom(x, y, 20) > 0.3) {
-            for (let i = 0; i < 3; i++) {
-                const smokeAge = (t * 0.8 + i * 0.7) % 3;
-                const smokeX = chimneyX + 3 + Math.sin(t * 2 + i) * 3 * smokeAge;
-                const smokeY = chimneyY - 3 - smokeAge * 8;
-                const smokeSize = 2 + smokeAge * 3;
-                const smokeAlpha = 0.3 - smokeAge * 0.1;
-                ctx.fillStyle = `rgba(200, 200, 200, ${Math.max(0, smokeAlpha)})`;
-                ctx.beginPath();
-                ctx.arc(smokeX, smokeY, smokeSize, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-
+    drawHouseDetails(ctx, px, py, tx, ty, isNight, isNpc) {
         // 窗户
-        const windowColor = isNight ? '#ffd700' : '#87ceeb';
-        const windowGlow = isNight ? 'rgba(255, 215, 0, 0.3)' : null;
-
+        const windowColor = isNight ? '#ffcc80' : '#87ceeb';
         // 左窗
-        this.drawWindow(ctx, px + 10, py + 20, windowColor, windowGlow);
+        this.drawWindow(ctx, px + 10, py + 20, windowColor, isNight);
         // 右窗
-        this.drawWindow(ctx, px + 26, py + 20, windowColor, windowGlow);
+        this.drawWindow(ctx, px + 26, py + 20, windowColor, isNight);
 
         // 门
         ctx.fillStyle = '#5c3d1e';
         ctx.fillRect(px + 18, py + 30, 12, 16);
-        // 门框
-        ctx.strokeStyle = '#3a2010';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(px + 18, py + 30, 12, 16);
+        this.strokeRect(ctx, px + 18, py + 30, 12, 16);
         // 门把手
         ctx.fillStyle = '#ffd700';
-        ctx.beginPath();
-        ctx.arc(px + 27, py + 38, 1.5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(px + 27, py + 38, 2, 2);
+
+        // 夜晚窗户发光
+        if (isNight) {
+            ctx.fillStyle = 'rgba(255, 204, 128, 0.15)';
+            ctx.fillRect(px + 8, py + 18, 14, 14);
+            ctx.fillRect(px + 24, py + 18, 14, 14);
+        }
+
+        // 烟雾
+        const t = Date.now() / 1000;
+        const chimneyX = px + TILE * 0.7 + 3;
+        const chimneyY = py + 6;
+        for (let i = 0; i < 2; i++) {
+            const smokeAge = (t * 0.8 + i * 0.7) % 3;
+            const smokeX = chimneyX + Math.sin(t * 2 + i) * 3 * smokeAge;
+            const smokeY = chimneyY - smokeAge * 8;
+            const smokeSize = 2 + smokeAge * 3;
+            const smokeAlpha = 0.25 - smokeAge * 0.08;
+            ctx.fillStyle = `rgba(200, 200, 200, ${Math.max(0, smokeAlpha)})`;
+            ctx.fillRect(smokeX - smokeSize / 2, smokeY - smokeSize / 2, smokeSize, smokeSize);
+        }
     }
 
-    drawWindow(ctx, x, y, color, glowColor) {
-        if (glowColor) {
-            ctx.fillStyle = glowColor;
+    drawWindow(ctx, x, y, color, isNight) {
+        if (isNight) {
+            ctx.fillStyle = 'rgba(255, 204, 128, 0.2)';
             ctx.fillRect(x - 2, y - 2, 14, 14);
         }
         ctx.fillStyle = color;
         ctx.fillRect(x, y, 10, 10);
         // 窗框十字
         ctx.strokeStyle = '#4a3020';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(x + 5, y);
         ctx.lineTo(x + 5, y + 10);
         ctx.moveTo(x, y + 5);
         ctx.lineTo(x + 10, y + 5);
         ctx.stroke();
-        // 窗框边框
-        ctx.strokeRect(x, y, 10, 10);
+        this.strokeRect(ctx, x, y, 10, 10);
     }
 
-    /**
-     * 渲染作物
-     */
-    renderCrops(ctx, state) {
+    // ===== 作物绘制 =====
+    renderCrops(ctx, state, palette) {
         const keys = Object.keys(state.crops);
         for (const key of keys) {
             const crop = state.crops[key];
@@ -1312,24 +727,23 @@ class Renderer {
             if (!cropData) continue;
 
             // 作物阴影
-            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
             ctx.beginPath();
-            ctx.ellipse(px + TILE/2, py + TILE - 2, 10, 4, 0, 0, Math.PI * 2);
+            ctx.ellipse(px + TILE / 2, py + TILE - 2, 10, 3, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // 判断作物状态：正常、枯萎
             const isWithered = crop.water <= 0 && crop.growth < 100;
 
             if (isWithered) {
-                this.drawWitheredCrop(ctx, px, py);
+                this.drawWitheredCrop(ctx, px, py, x, y);
             } else if (crop.growth < 25) {
                 this.drawSeedling(ctx, px, py, x, y);
             } else if (crop.growth < 50) {
                 this.drawGrowingCrop(ctx, px, py, x, y, crop.growth);
             } else if (crop.growth < 100) {
-                this.drawMatureCrop(ctx, px, py, x, y, cropData, crop.growth, false);
+                this.drawMatureCrop(ctx, px, py, x, y, cropData, crop.growth, false, palette);
             } else {
-                this.drawMatureCrop(ctx, px, py, x, y, cropData, crop.growth, true);
+                this.drawMatureCrop(ctx, px, py, x, y, cropData, crop.growth, true, palette);
             }
 
             // 水分指示器
@@ -1340,738 +754,348 @@ class Renderer {
         }
     }
 
-    /**
-     * 绘制幼苗期作物
-     */
+    // 幼苗：2像素绿芽
     drawSeedling(ctx, px, py, x, y) {
         const t = Date.now() / 1000;
         const sway = Math.sin(t * 1.5 + x * 0.8 + y * 0.5) * 1;
 
-        // 土壤小土堆
+        // 土堆
         ctx.fillStyle = '#6b4423';
         ctx.beginPath();
-        ctx.ellipse(px + TILE/2, py + TILE - 4, 8, 3, 0, 0, Math.PI * 2);
+        ctx.ellipse(px + TILE / 2, py + TILE - 4, 6, 2, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // 小绿芽 - 两片子叶
-        ctx.strokeStyle = '#4db83a';
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(px + TILE/2, py + TILE - 6);
-        ctx.quadraticCurveTo(px + TILE/2 + sway, py + TILE - 12, px + TILE/2 + sway * 1.5 - 3, py + TILE - 15);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(px + TILE/2, py + TILE - 6);
-        ctx.quadraticCurveTo(px + TILE/2 - sway, py + TILE - 11, px + TILE/2 - sway * 1.5 + 3, py + TILE - 14);
-        ctx.stroke();
-
-        // 子叶小叶片
-        ctx.fillStyle = '#5acd45';
-        ctx.beginPath();
-        ctx.ellipse(px + TILE/2 + sway * 1.5 - 3, py + TILE - 15, 3, 2, -0.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(px + TILE/2 - sway * 1.5 + 3, py + TILE - 14, 3, 2, 0.5, 0, Math.PI * 2);
-        ctx.fill();
+        // 2像素绿芽
+        ctx.fillStyle = '#4caf50';
+        ctx.fillRect(px + TILE / 2 - 1 + sway, py + TILE - 10, 2, 4);
+        ctx.fillStyle = '#66bb6a';
+        ctx.fillRect(px + TILE / 2 - 1 + sway, py + TILE - 12, 2, 2);
     }
 
-    /**
-     * 绘制生长期作物
-     */
+    // 生长期：4-8像素叶子
     drawGrowingCrop(ctx, px, py, x, y, growth) {
         const t = Date.now() / 1000;
-        const progress = growth / 50; // 0~1 在生长期内
-        const sway = Math.sin(t * 1.2 + x * 0.7 + y * 0.4) * 1.5;
-        const stemHeight = 12 + progress * 10;
+        const progress = growth / 50;
+        const sway = Math.sin(t * 1.2 + x * 0.7 + y * 0.4) * 1;
+        const stemHeight = 8 + Math.floor(progress * 8);
 
-        // 主茎
-        ctx.strokeStyle = '#3d9b2e';
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(px + TILE/2, py + TILE - 4);
-        ctx.quadraticCurveTo(px + TILE/2 + sway * 0.5, py + TILE - 4 - stemHeight * 0.5, px + TILE/2 + sway, py + TILE - 4 - stemHeight);
-        ctx.stroke();
+        // 茎
+        ctx.fillStyle = '#388e3c';
+        ctx.fillRect(px + TILE / 2 - 1 + sway * 0.3, py + TILE - 4 - stemHeight, 2, stemHeight);
 
-        // 叶子展开
+        // 叶子
+        ctx.fillStyle = '#4caf50';
         const leafCount = 2 + Math.floor(progress * 2);
-        ctx.fillStyle = '#4db83a';
         for (let i = 0; i < leafCount; i++) {
-            const leafY = py + TILE - 8 - i * 6;
-            const leafSway = sway * (0.5 + i * 0.2);
+            const leafY = py + TILE - 6 - i * 5;
             const side = i % 2 === 0 ? -1 : 1;
-            const leafSize = 4 + progress * 3;
-
-            ctx.beginPath();
-            ctx.ellipse(
-                px + TILE/2 + side * (5 + progress * 3) + leafSway,
+            const leafSize = 3 + Math.floor(progress * 3);
+            ctx.fillRect(
+                px + TILE / 2 + side * (4 + progress * 2) + sway * 0.3,
                 leafY,
-                leafSize, leafSize * 0.5,
-                side * 0.4, 0, Math.PI * 2
+                leafSize, 2
             );
-            ctx.fill();
         }
-
-        // 茎顶小芽
-        ctx.fillStyle = '#5acd45';
-        ctx.beginPath();
-        ctx.ellipse(px + TILE/2 + sway, py + TILE - 4 - stemHeight, 3, 2, 0, 0, Math.PI * 2);
-        ctx.fill();
     }
 
-    /**
-     * 绘制成熟期作物
-     */
-    drawMatureCrop(ctx, px, py, x, y, cropData, growth, isFullyMature) {
+    // 成熟期
+    drawMatureCrop(ctx, px, py, x, y, cropData, growth, isFullyMature, palette) {
         const t = Date.now() / 1000;
-        const sway = Math.sin(t * 1 + x * 0.6 + y * 0.3) * 1.5;
-        const pulse = isFullyMature ? Math.sin(t * 2) * 0.03 + 1 : 1;
+        const sway = Math.sin(t * 1 + x * 0.6 + y * 0.3) * 1;
 
-        // 主茎
-        ctx.strokeStyle = '#3d9b2e';
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(px + TILE/2, py + TILE - 4);
-        ctx.quadraticCurveTo(px + TILE/2 + sway * 0.3, py + TILE - 14, px + TILE/2 + sway, py + TILE - 24);
-        ctx.stroke();
+        // 茎
+        ctx.fillStyle = '#388e3c';
+        ctx.fillRect(px + TILE / 2 - 1 + sway * 0.3, py + TILE - 20, 2, 16);
 
-        // 成熟叶子
-        ctx.fillStyle = '#4db83a';
-        const leafPositions = [
-            { y: py + TILE - 10, side: -1, size: 7 },
-            { y: py + TILE - 16, side: 1, size: 8 },
-            { y: py + TILE - 20, side: -1, size: 6 }
-        ];
-        for (const leaf of leafPositions) {
-            ctx.beginPath();
-            ctx.ellipse(
-                px + TILE/2 + leaf.side * 8 + sway * 0.3,
-                leaf.y,
-                leaf.size, leaf.size * 0.5,
-                leaf.side * 0.4, 0, Math.PI * 2
-            );
-            ctx.fill();
-        }
+        // 叶子
+        ctx.fillStyle = '#4caf50';
+        ctx.fillRect(px + TILE / 2 - 6 + sway * 0.3, py + TILE - 10, 5, 2);
+        ctx.fillRect(px + TILE / 2 + 2 + sway * 0.3, py + TILE - 14, 6, 2);
+        ctx.fillRect(px + TILE / 2 - 5 + sway * 0.3, py + TILE - 18, 4, 2);
 
-        // 根据作物类型绘制不同果实/花朵
+        // 作物图形
         const cropType = (cropData.cropId || cropData.id || 0) % 5;
-        const fruitX = px + TILE/2 + sway;
-        const fruitY = py + TILE - 26;
+        const fruitX = px + TILE / 2 + sway;
+        const fruitY = py + TILE - 22;
 
         if (cropType === 0 || cropType === 1) {
-            // 圆形果实（番茄、浆果类）
-            this.drawRoundFruit(ctx, fruitX, fruitY, cropData, pulse, isFullyMature);
+            // 圆形果实
+            const size = isFullyMature ? 5 : 4;
+            ctx.fillStyle = '#ff6347';
+            ctx.fillRect(fruitX - size, fruitY - size, size * 2, size * 2);
+            this.strokeRect(ctx, fruitX - size, fruitY - size, size * 2, size * 2);
+            ctx.fillStyle = '#ff8a65';
+            ctx.fillRect(fruitX - size + 1, fruitY - size + 1, size * 0.6, size * 0.6);
         } else if (cropType === 2) {
-            // 根茎类（胡萝卜、萝卜）
-            this.drawRootVegetable(ctx, px + TILE/2, py + TILE - 4, cropData, pulse);
+            // 根茎类
+            ctx.fillStyle = '#4caf50';
+            ctx.fillRect(px + TILE / 2 - 4, py + TILE - 10, 8, 3);
+            ctx.fillStyle = '#ff8f00';
+            ctx.fillRect(px + TILE / 2 - 3, py + TILE - 6, 6, 4);
         } else if (cropType === 3) {
             // 花朵类
-            this.drawCropFlower(ctx, fruitX, fruitY, cropData, pulse);
+            const flowerColor = palette.flower[cropType % palette.flower.length];
+            ctx.fillStyle = flowerColor;
+            ctx.fillRect(fruitX - 4, fruitY - 1, 3, 3);
+            ctx.fillRect(fruitX + 1, fruitY - 1, 3, 3);
+            ctx.fillRect(fruitX - 1, fruitY - 4, 3, 3);
+            ctx.fillRect(fruitX - 1, fruitY + 1, 3, 3);
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(fruitX - 1, fruitY - 1, 3, 3);
         } else {
-            // 谷物/穗状
-            this.drawGrainCrop(ctx, fruitX, fruitY, cropData, pulse, sway);
+            // 谷物
+            ctx.fillStyle = '#ffd54f';
+            for (let i = 0; i < 4; i++) {
+                ctx.fillRect(fruitX - 2 + i, fruitY + i * 2, 3, 2);
+            }
         }
-    }
-
-    drawRoundFruit(ctx, x, y, cropData, pulse, isFullyMature) {
-        const fruitColors = {
-            'tomato': ['#ff6347', '#ff4500', '#ffa07a'],
-            'berry': ['#9370db', '#8a2be2', '#dda0dd'],
-            'default': ['#ff8c00', '#ff6347', '#ffd700']
-        };
-        const colorSet = fruitColors[cropData.type] || fruitColors['default'];
-
-        // 果实
-        const size = (isFullyMature ? 7 : 5) * pulse;
-        const grad = ctx.createRadialGradient(x - 2, y - 2, 0, x, y, size);
-        grad.addColorStop(0, colorSet[2]);
-        grad.addColorStop(0.5, colorSet[0]);
-        grad.addColorStop(1, colorSet[1]);
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 高光
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.beginPath();
-        ctx.arc(x - 2, y - 2, size * 0.3, 0, Math.PI * 2);
-        ctx.fill();
 
         if (isFullyMature) {
-            // 成熟闪光
-            const t = Date.now() / 1000;
             const sparkleAlpha = Math.max(0, Math.sin(t * 3) * 0.3);
             ctx.fillStyle = `rgba(255, 255, 200, ${sparkleAlpha})`;
-            ctx.beginPath();
-            ctx.arc(x + 3, y - 3, 1.5, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.fillRect(fruitX + 2, fruitY - 3, 2, 2);
         }
     }
 
-    drawRootVegetable(ctx, x, y, cropData, pulse) {
-        // 露出地面的叶子
-        ctx.fillStyle = '#4db83a';
-        for (let i = 0; i < 4; i++) {
-            const angle = (i / 4) * Math.PI * 2 + 0.5;
-            ctx.beginPath();
-            ctx.ellipse(
-                x + Math.cos(angle) * 6,
-                y - 6 + Math.sin(angle) * 3,
-                5, 2.5, angle, 0, Math.PI * 2
-            );
-            ctx.fill();
-        }
-
-        // 根部小露出
-        const rootColors = ['#ff8c00', '#ffa500', '#ff6347'];
-        const rc = rootColors[(cropData.cropId || 0) % 3];
-        ctx.fillStyle = rc;
-        ctx.beginPath();
-        ctx.arc(x, y - 3, 4 * pulse, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    drawCropFlower(ctx, x, y, cropData, pulse) {
-        const petalCount = 5;
-        const petalLen = 5 * pulse;
-        const flowerColor = cropData.flowerColor || '#ff69b4';
-        const centerColor = cropData.centerColor || '#ffd700';
-
-        // 花瓣
-        ctx.fillStyle = flowerColor;
-        for (let i = 0; i < petalCount; i++) {
-            const angle = (i / petalCount) * Math.PI * 2;
-            ctx.beginPath();
-            ctx.ellipse(
-                x + Math.cos(angle) * petalLen * 0.6,
-                y + Math.sin(angle) * petalLen * 0.6,
-                petalLen * 0.5, 2, angle, 0, Math.PI * 2
-            );
-            ctx.fill();
-        }
-
-        // 花心
-        ctx.fillStyle = centerColor;
-        ctx.beginPath();
-        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    drawGrainCrop(ctx, x, y, cropData, pulse, sway) {
-        // 麦穗/谷穗
-        const grainColors = ['#ffd700', '#daa520', '#f0e68c'];
-        const gc = grainColors[(cropData.cropId || 0) % 3];
-
-        ctx.fillStyle = gc;
-        for (let i = 0; i < 6; i++) {
-            const gy = y + i * 2.5;
-            const gx = x + Math.sin(i * 0.8) * 2 + sway * 0.2;
-            ctx.beginPath();
-            ctx.ellipse(gx, gy, 3 * pulse, 1.8, 0, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // 麦芒
-        ctx.strokeStyle = '#daa520';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x + sway * 0.2, y);
-        ctx.lineTo(x + sway * 0.3, y - 4);
-        ctx.stroke();
-    }
-
-    /**
-     * 绘制枯萎作物
-     */
-    drawWitheredCrop(ctx, px, py) {
+    drawWitheredCrop(ctx, px, py, x, y) {
         const t = Date.now() / 1000;
         const sway = Math.sin(t * 0.5) * 1;
 
-        // 枯萎的茎 - 褐色弯曲
-        ctx.strokeStyle = '#8b7355';
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(px + TILE/2, py + TILE - 4);
-        ctx.quadraticCurveTo(px + TILE/2 + sway, py + TILE - 12, px + TILE/2 + sway * 2, py + TILE - 16);
-        ctx.stroke();
+        // 枯萎茎
+        ctx.fillStyle = '#8b7355';
+        ctx.fillRect(px + TILE / 2 - 1 + sway, py + TILE - 12, 2, 8);
 
-        // 枯萎下垂的叶子
+        // 枯叶
         ctx.fillStyle = '#a08060';
-        ctx.beginPath();
-        ctx.ellipse(px + TILE/2 - 5, py + TILE - 10, 4, 2, -0.8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(px + TILE/2 + 5, py + TILE - 8, 3, 1.5, 0.8, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 枯叶尖端
-        ctx.fillStyle = '#6b5344';
-        ctx.beginPath();
-        ctx.ellipse(px + TILE/2 + sway * 2, py + TILE - 16, 2, 1.5, 0, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(px + TILE / 2 - 5 + sway, py + TILE - 10, 4, 2);
+        ctx.fillRect(px + TILE / 2 + 2 + sway, py + TILE - 8, 3, 2);
     }
 
-    /**
-     * 渲染 NPC
-     */
+    // ===== NPC绘制 =====
     renderNPCs(ctx, state) {
         for (const npc of state.npcs) {
             const px = npc.x;
             const py = npc.y;
 
-            // 只渲染屏幕内的NPC
             if (px < state.cameraX - TILE || px > state.cameraX + this.screenW + TILE ||
                 py < state.cameraY - TILE || py > state.cameraY + this.screenH + TILE) continue;
 
-            // NPC 阴影
-            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            // 阴影
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
             ctx.beginPath();
-            ctx.ellipse(px + TILE/2, py + TILE - 2, 14, 5, 0, 0, Math.PI * 2);
+            ctx.ellipse(px + TILE / 2, py + TILE - 2, 12, 4, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // NPC 身体
-            ctx.fillStyle = '#4a90d9';
-            ctx.fillRect(px + 12, py + 10, 24, 28);
+            // 身体 - 简单矩形衣服
+            ctx.fillStyle = npc.color || '#4a90d9';
+            ctx.fillRect(px + 14, py + 14, 20, 22);
+            this.strokeRect(ctx, px + 14, py + 14, 20, 22);
 
-            // NPC 头
+            // 头 - 圆形，肤色
             ctx.fillStyle = '#ffd5a0';
-            ctx.fillRect(px + 16, py + 4, 16, 14);
+            ctx.beginPath();
+            ctx.arc(px + TILE / 2, py + 12, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#3d2817';
+            ctx.lineWidth = 1;
+            ctx.stroke();
 
-            // NPC emoji
-            ctx.font = '18px serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(npc.emoji, px + TILE/2, py - 4);
+            // 头发覆盖顶部
+            ctx.fillStyle = '#5d4037';
+            ctx.beginPath();
+            ctx.arc(px + TILE / 2, py + 10, 10, Math.PI, 0);
+            ctx.fill();
+            ctx.fillRect(px + TILE / 2 - 10, py + 8, 4, 8);
+            ctx.fillRect(px + TILE / 2 + 6, py + 8, 4, 8);
 
-            // NPC 名字
+            // 眼睛
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(px + TILE / 2 - 4, py + 12, 2, 2);
+            ctx.fillRect(px + TILE / 2 + 2, py + 12, 2, 2);
+
+            // NPC名字
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 10px sans-serif';
             ctx.textAlign = 'center';
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 2;
-            ctx.strokeText(npc.name, px + TILE/2, py - 14);
-            ctx.fillText(npc.name, px + TILE/2, py - 14);
+            ctx.strokeText(npc.name, px + TILE / 2, py - 6);
+            ctx.fillText(npc.name, px + TILE / 2, py - 6);
         }
     }
 
-    /**
-     * 渲染玩家角色
-     */
+    // ===== 玩家角色绘制 (16x24像素比例，Q版) =====
     renderPlayer(ctx, state) {
         const px = state.playerX;
         const py = state.playerY;
-        const dir = state.playerDir || 0; // 0=down 1=up 2=left 3=right
+        const dir = state.playerDir || 0;
         const moving = state.playerMoving;
-        const now = Date.now();
 
-        // 动画时间
         const walkCycle = moving ? state.moveTimer * 10 : 0;
         const sinWalk = Math.sin(walkCycle);
-        const cosWalk = Math.cos(walkCycle);
+        const bobY = moving ? Math.abs(sinWalk) * 1 : 0;
 
-        // 动态阴影 (根据太阳角度)
-        const shadowOffsetX = Math.cos(this.sunAngle) * 8;
-        const shadowOffsetY = Math.sin(this.sunAngle) * 4 + 4;
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        // 阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.beginPath();
-        ctx.ellipse(px + TILE/2 + shadowOffsetX, py + TILE - 2 + shadowOffsetY, 16, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(px + TILE / 2, py + TILE - 2, 14, 4, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // 角色本体
-        const dirNames = ['Down', 'Up', 'Left', 'Right'];
-        const dirName = dirNames[dir] || 'Down';
-        const animType = moving ? 'Walk' : 'Idle';
-        const sheetKey = `char${animType}${dirName}`;
-        const sheet = AssetsLoader.assets[sheetKey];
+        const cx = px + TILE / 2;
+        const cy = py + TILE / 2 + 4 - bobY;
+        const facingLeft = dir === 2;
+        const facingRight = dir === 3;
+        const facingUp = dir === 1;
+        const facingDown = dir === 0;
 
-        if (sheet) {
-            const frameH = sheet.height;
-            const frameW = sheet.width / Math.max(1, Math.round(sheet.width / Math.max(1, frameH)));
-            const totalFrames = Math.round(sheet.width / Math.max(1, frameW));
+        // 身体颜色
+        const bodyColor = facingUp ? '#b0352a' : (facingLeft || facingRight ? '#c44d33' : '#d94e41');
 
-            let frame;
-            if (moving) {
-                frame = Math.floor(state.moveTimer * 8) % totalFrames;
-            } else {
-                frame = 0;
-            }
-
-            const scale = TILE / Math.max(frameW, frameH);
-            const drawW = frameW * scale;
-            const drawH = frameH * scale;
-            const drawX = px + (TILE - drawW) / 2;
-            const drawY = py + TILE - drawH;
-
-            ctx.drawImage(sheet, frame * frameW, 0, frameW, frameH, drawX, drawY, drawW, drawH);
+        // 腿部 - 2-3像素宽线条
+        const legW = 4;
+        const legH = 8;
+        const legY = cy + 10;
+        ctx.fillStyle = '#34495e';
+        if (facingDown || facingUp) {
+            const leftLegX = cx - 5 + (moving ? sinWalk * 2 : 0);
+            const rightLegX = cx + 5 - (moving ? sinWalk * 2 : 0);
+            ctx.fillRect(leftLegX - legW / 2, legY, legW, legH);
+            ctx.fillRect(rightLegX - legW / 2, legY, legW, legH);
+            this.strokeRect(ctx, leftLegX - legW / 2, legY, legW, legH);
+            this.strokeRect(ctx, rightLegX - legW / 2, legY, legW, legH);
         } else {
-            // === 精致像素风角色绘制 (Fallback 视觉升级版) ===
-            const cx = px + TILE / 2;
-            const cy = py + TILE / 2 + 4;
-            const facingLeft = dir === 2;
-            const facingRight = dir === 3;
-            const facingUp = dir === 1;
-            const facingDown = dir === 0;
+            const frontLegX = cx + (facingRight ? 4 : -4) + sinWalk * 2;
+            const backLegX = cx + (facingRight ? -2 : 2) - sinWalk * 2;
+            ctx.fillRect(backLegX - legW / 2, legY + 1, legW, legH);
+            ctx.fillRect(frontLegX - legW / 2, legY - 1, legW, legH);
+        }
 
-            // 身体颜色根据方向微调 - 使用更和谐的配色
-            const bodyColors = {
-                front: '#d94e41', // 下 - 稍柔和的砖红
-                back:  '#b0352a', // 上 (稍暗)
-                side:  '#c44d33'  // 左右
-            };
-            let bodyColor = bodyColors.front;
-            if (facingUp) bodyColor = bodyColors.back;
-            if (facingLeft || facingRight) bodyColor = bodyColors.side;
+        // 身体 - 简单矩形衣服
+        const bodyW = 16;
+        const bodyH = 14;
+        const bodyY = cy - 4;
+        ctx.fillStyle = bodyColor;
+        ctx.fillRect(cx - bodyW / 2, bodyY, bodyW, bodyH);
+        this.strokeRect(ctx, cx - bodyW / 2, bodyY, bodyW, bodyH);
 
-            // 摆动幅度与移动相关
-            const limbSwing = moving ? sinWalk * 6 : 0;
-            const bobY = moving ? Math.abs(sinWalk) * 2 : 0;
+        // 手臂
+        const armW = 3;
+        const armH = 10;
+        const armY = bodyY + 2;
+        ctx.fillStyle = '#f5cba7';
+        if (facingDown || facingUp) {
+            const leftArmX = cx - 10 - (moving ? sinWalk * 1.5 : 0);
+            const rightArmX = cx + 10 + (moving ? sinWalk * 1.5 : 0);
+            ctx.fillRect(leftArmX - armW / 2, armY, armW, armH);
+            ctx.fillRect(rightArmX - armW / 2, armY, armW, armH);
+            this.strokeRect(ctx, leftArmX - armW / 2, armY, armW, armH);
+            this.strokeRect(ctx, rightArmX - armW / 2, armY, armW, armH);
+            // 袖口
+            ctx.fillStyle = bodyColor;
+            ctx.fillRect(leftArmX - armW / 2 - 0.5, armY, armW + 1, 2);
+            ctx.fillRect(rightArmX - armW / 2 - 0.5, armY, armW + 1, 2);
+        } else {
+            const frontArmX = cx + (facingRight ? 10 : -10) + sinWalk * 1.5;
+            const backArmX = cx + (facingRight ? -6 : 6) - sinWalk;
+            ctx.fillStyle = '#f5cba7';
+            ctx.fillRect(backArmX - armW / 2, armY + 1, armW, armH);
+            ctx.fillRect(frontArmX - armW / 2, armY - 1, armW, armH);
+            ctx.fillStyle = bodyColor;
+            ctx.fillRect(backArmX - armW / 2 - 0.5, armY + 1, armW + 1, 2);
+            ctx.fillRect(frontArmX - armW / 2 - 0.5, armY - 1, armW + 1, 2);
+        }
 
-            // === 鞋子绘制 ===
-            const shoeW = 7;
-            const shoeH = 4;
-            const shoeY = cy + 18 - bobY;
-            ctx.fillStyle = '#3e2723'; // 深棕色鞋子
-            if (facingDown || facingUp) {
-                const leftShoeX = cx - 6 + (moving ? sinWalk * 3 : 0);
-                const rightShoeX = cx + 6 - (moving ? sinWalk * 3 : 0);
-                this.drawRoundRect(ctx, leftShoeX - shoeW/2, shoeY, shoeW, shoeH, 1.5);
-                this.drawRoundRect(ctx, rightShoeX - shoeW/2, shoeY, shoeW, shoeH, 1.5);
-                // 鞋头高光
-                ctx.fillStyle = '#5d4037';
-                ctx.fillRect(leftShoeX - shoeW/2 + 1, shoeY + 1, shoeW * 0.5, 2);
-                ctx.fillRect(rightShoeX - shoeW/2 + 1, shoeY + 1, shoeW * 0.5, 2);
-            } else {
-                const frontShoeX = cx + (facingRight ? 5 : -5) + limbSwing * 0.6;
-                const backShoeX = cx + (facingRight ? -3 : 3) - limbSwing * 0.6;
-                ctx.fillStyle = '#3e2723';
-                this.drawRoundRect(ctx, backShoeX - shoeW/2, shoeY + 1, shoeW, shoeH, 1.5);
-                this.drawRoundRect(ctx, frontShoeX - shoeW/2, shoeY - 1, shoeW, shoeH, 1.5);
-                ctx.fillStyle = '#5d4037';
-                ctx.fillRect(frontShoeX - shoeW/2 + 1, shoeY, shoeW * 0.5, 2);
-            }
+        // 头部 - 圆形，肤色，头身比约1:1
+        const headSize = 10;
+        const headY = bodyY - 8;
+        ctx.fillStyle = '#f5cba7';
+        ctx.beginPath();
+        ctx.arc(cx, headY, headSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-            // 腿部 (在身体下方绘制)
-            const legW = 6;
-            const legH = 10;
-            const legY = cy + 10 - bobY;
-            ctx.fillStyle = '#34495e'; // 裤子颜色 - 更协调的深蓝灰
-
-            if (facingDown || facingUp) {
-                // 前后视角：两条腿分开
-                const leftLegX = cx - 6 + (moving ? sinWalk * 3 : 0);
-                const rightLegX = cx + 6 - (moving ? sinWalk * 3 : 0);
-                this.drawRoundRect(ctx, leftLegX - legW/2, legY, legW, legH, 2);
-                this.drawRoundRect(ctx, rightLegX - legW/2, legY, legW, legH, 2);
-            } else {
-                // 左右视角：一条腿在前一条在后
-                const frontLegX = cx + (facingRight ? 4 : -4) + limbSwing;
-                const backLegX = cx + (facingRight ? -2 : 2) - limbSwing;
-                this.drawRoundRect(ctx, backLegX - legW/2, legY + 1, legW, legH, 2);
-                this.drawRoundRect(ctx, frontLegX - legW/2, legY - 1, legW, legH, 2);
-            }
-
-            // 身体 (圆角矩形) - 比例微调更协调
-            const bodyW = 20;
-            const bodyH = 18;
-            const bodyY = cy - 6 - bobY;
-            // 身体使用轻微渐变
-            const bodyGrad = ctx.createLinearGradient(cx - bodyW/2, bodyY, cx + bodyW/2, bodyY + bodyH);
-            bodyGrad.addColorStop(0, bodyColor);
-            bodyGrad.addColorStop(0.5, this.lightenColor(bodyColor, 10));
-            bodyGrad.addColorStop(1, this.darkenColor(bodyColor, 15));
-            ctx.fillStyle = bodyGrad;
-            this.drawRoundRect(ctx, cx - bodyW/2, bodyY, bodyW, bodyH, 4);
-
-            // 衣服褶皱细节
-            ctx.fillStyle = 'rgba(0,0,0,0.12)';
-            ctx.fillRect(cx - 1, bodyY + 3, 2, bodyH - 6);
-            // 腰部褶皱
-            ctx.fillStyle = 'rgba(0,0,0,0.08)';
-            ctx.fillRect(cx - bodyW/2 + 3, bodyY + 10, bodyW - 6, 1.5);
-            // 侧边阴影
-            ctx.fillStyle = 'rgba(0,0,0,0.10)';
-            ctx.fillRect(cx - bodyW/2, bodyY + 2, 3, bodyH - 4);
-            ctx.fillRect(cx + bodyW/2 - 3, bodyY + 2, 3, bodyH - 4);
-
-            // 手臂
-            const armW = 5;
-            const armH = 12;
-            const armY = bodyY + 2;
-            ctx.fillStyle = '#f5cba7'; // 肤色
-
-            if (facingDown || facingUp) {
-                const leftArmX = cx - 12 - (moving ? sinWalk * 2 : 0);
-                const rightArmX = cx + 12 + (moving ? sinWalk * 2 : 0);
-                this.drawRoundRect(ctx, leftArmX - armW/2, armY, armW, armH, 2);
-                this.drawRoundRect(ctx, rightArmX - armW/2, armY, armW, armH, 2);
-                // 袖口
-                ctx.fillStyle = bodyColor;
-                ctx.fillRect(leftArmX - armW/2 - 0.5, armY, armW + 1, 3);
-                ctx.fillRect(rightArmX - armW/2 - 0.5, armY, armW + 1, 3);
-            } else {
-                // 左右视角：一只手臂在前，一只在后
-                const frontArmX = cx + (facingRight ? 12 : -12) + limbSwing * 0.8;
-                const backArmX = cx + (facingRight ? -8 : 8) - limbSwing * 0.5;
-                ctx.fillStyle = '#f5cba7';
-                this.drawRoundRect(ctx, backArmX - armW/2, armY + 1, armW, armH, 2);
-                this.drawRoundRect(ctx, frontArmX - armW/2, armY - 1, armW, armH, 2);
-                // 袖口
-                ctx.fillStyle = bodyColor;
-                ctx.fillRect(backArmX - armW/2 - 0.5, armY + 1, armW + 1, 3);
-                ctx.fillRect(frontArmX - armW/2 - 0.5, armY - 1, armW + 1, 3);
-            }
-
-            // 头部 - 比例微调
-            const headSize = 13;
-            const headY = bodyY - 9 - bobY;
-            ctx.fillStyle = '#f5cba7'; // 肤色
+        // 头发覆盖顶部
+        const hairBase = '#4e342e';
+        ctx.fillStyle = hairBase;
+        if (facingDown) {
             ctx.beginPath();
-            ctx.arc(cx, headY, headSize, 0, Math.PI * 2);
+            ctx.arc(cx, headY - 2, headSize + 1, Math.PI, 0);
             ctx.fill();
-            // 脸部阴影（下巴处）
-            ctx.fillStyle = 'rgba(200, 160, 130, 0.3)';
+            ctx.fillRect(cx - headSize - 1, headY - 4, 3, 8);
+            ctx.fillRect(cx + headSize - 2, headY - 4, 3, 8);
+        } else if (facingUp) {
             ctx.beginPath();
-            ctx.arc(cx, headY + 3, headSize * 0.7, 0, Math.PI);
+            ctx.arc(cx, headY - 3, headSize, Math.PI, 0);
             ctx.fill();
+            ctx.fillRect(cx - headSize, headY - 4, 2, 6);
+            ctx.fillRect(cx + headSize - 2, headY - 4, 2, 6);
+        } else if (facingLeft) {
+            ctx.beginPath();
+            ctx.arc(cx - 2, headY - 2, headSize + 1, Math.PI * 0.7, Math.PI * 1.9);
+            ctx.fill();
+            ctx.fillRect(cx - headSize - 2, headY - 6, 5, 12);
+        } else if (facingRight) {
+            ctx.beginPath();
+            ctx.arc(cx + 2, headY - 2, headSize + 1, Math.PI * 0.1, Math.PI * 1.3);
+            ctx.fill();
+            ctx.fillRect(cx + headSize - 3, headY - 6, 5, 12);
+        }
 
-            // 头发 - 增加高光
-            const hairBase = '#4e342e';
-            const hairHighlight = '#6d4c41';
-            if (facingDown) {
-                // 前面头发：刘海
-                ctx.fillStyle = hairBase;
-                ctx.beginPath();
-                ctx.arc(cx, headY - 2, headSize + 2, Math.PI, 0);
-                ctx.fill();
-                // 两侧
-                ctx.fillRect(cx - headSize - 2, headY - 4, 4, 10);
-                ctx.fillRect(cx + headSize - 2, headY - 4, 4, 10);
-                // 头发高光
-                ctx.fillStyle = hairHighlight;
-                ctx.beginPath();
-                ctx.arc(cx - 3, headY - 6, 4, Math.PI * 1.1, Math.PI * 1.6);
-                ctx.fill();
-            } else if (facingUp) {
-                // 后面：只有头顶和两侧一点点
-                ctx.fillStyle = hairBase;
-                ctx.beginPath();
-                ctx.arc(cx, headY - 4, headSize + 1, Math.PI, 0);
-                ctx.fill();
-                ctx.fillRect(cx - headSize - 1, headY - 4, 3, 6);
-                ctx.fillRect(cx + headSize - 2, headY - 4, 3, 6);
-                // 头发高光
-                ctx.fillStyle = hairHighlight;
-                ctx.beginPath();
-                ctx.arc(cx - 2, headY - 7, 4, Math.PI * 1.1, Math.PI * 1.6);
-                ctx.fill();
-            } else if (facingLeft) {
-                // 左侧：头发偏左
-                ctx.fillStyle = hairBase;
-                ctx.beginPath();
-                ctx.arc(cx - 2, headY - 2, headSize + 2, Math.PI * 0.7, Math.PI * 1.9);
-                ctx.fill();
-                ctx.fillRect(cx - headSize - 2, headY - 6, 6, 14);
-                // 头发高光
-                ctx.fillStyle = hairHighlight;
-                ctx.beginPath();
-                ctx.arc(cx - 5, headY - 5, 4, Math.PI * 1.0, Math.PI * 1.5);
-                ctx.fill();
-            } else if (facingRight) {
-                // 右侧：头发偏右
-                ctx.fillStyle = hairBase;
-                ctx.beginPath();
-                ctx.arc(cx + 2, headY - 2, headSize + 2, Math.PI * 0.1, Math.PI * 1.3);
-                ctx.fill();
-                ctx.fillRect(cx + headSize - 4, headY - 6, 6, 14);
-                // 头发高光
-                ctx.fillStyle = hairHighlight;
-                ctx.beginPath();
-                ctx.arc(cx + 3, headY - 5, 4, Math.PI * 1.5, Math.PI * 2.0);
-                ctx.fill();
-            }
-
-            // 眼睛 (小黑点，有眨眼动画) - 增加眼白
-            if (!facingUp) {
-                const blink = (now % 3000) < 150; // 每3秒眨眼150ms
-                if (!blink) {
-                    // 眼白
-                    ctx.fillStyle = '#fff';
-                    if (facingDown) {
-                        ctx.beginPath(); ctx.arc(cx - 5, headY + 1, 2.5, 0, Math.PI * 2); ctx.fill();
-                        ctx.beginPath(); ctx.arc(cx + 5, headY + 1, 2.5, 0, Math.PI * 2); ctx.fill();
-                    } else if (facingLeft) {
-                        ctx.beginPath(); ctx.arc(cx - 6, headY + 1, 2.5, 0, Math.PI * 2); ctx.fill();
-                    } else if (facingRight) {
-                        ctx.beginPath(); ctx.arc(cx + 6, headY + 1, 2.5, 0, Math.PI * 2); ctx.fill();
-                    }
-                    // 瞳孔
-                    ctx.fillStyle = '#1a1a1a';
-                    if (facingDown) {
-                        ctx.beginPath(); ctx.arc(cx - 5, headY + 1, 1.5, 0, Math.PI * 2); ctx.fill();
-                        ctx.beginPath(); ctx.arc(cx + 5, headY + 1, 1.5, 0, Math.PI * 2); ctx.fill();
-                    } else if (facingLeft) {
-                        ctx.beginPath(); ctx.arc(cx - 6, headY + 1, 1.5, 0, Math.PI * 2); ctx.fill();
-                    } else if (facingRight) {
-                        ctx.beginPath(); ctx.arc(cx + 6, headY + 1, 1.5, 0, Math.PI * 2); ctx.fill();
-                    }
-                    // 眼睛高光
-                    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-                    if (facingDown) {
-                        ctx.beginPath(); ctx.arc(cx - 5.5, headY + 0.5, 0.6, 0, Math.PI * 2); ctx.fill();
-                        ctx.beginPath(); ctx.arc(cx + 4.5, headY + 0.5, 0.6, 0, Math.PI * 2); ctx.fill();
-                    } else if (facingLeft) {
-                        ctx.beginPath(); ctx.arc(cx - 6.5, headY + 0.5, 0.6, 0, Math.PI * 2); ctx.fill();
-                    } else if (facingRight) {
-                        ctx.beginPath(); ctx.arc(cx + 5.5, headY + 0.5, 0.6, 0, Math.PI * 2); ctx.fill();
-                    }
-                } else {
-                    // 闭眼：一条短线
-                    ctx.strokeStyle = '#1a1a1a';
-                    ctx.lineWidth = 1.5;
-                    if (facingDown) {
-                        ctx.beginPath();
-                        ctx.moveTo(cx - 7, headY + 1);
-                        ctx.lineTo(cx - 3, headY + 1);
-                        ctx.stroke();
-                        ctx.beginPath();
-                        ctx.moveTo(cx + 3, headY + 1);
-                        ctx.lineTo(cx + 7, headY + 1);
-                        ctx.stroke();
-                    } else if (facingLeft) {
-                        ctx.beginPath();
-                        ctx.moveTo(cx - 8, headY + 1);
-                        ctx.lineTo(cx - 4, headY + 1);
-                        ctx.stroke();
-                    } else if (facingRight) {
-                        ctx.beginPath();
-                        ctx.moveTo(cx + 4, headY + 1);
-                        ctx.lineTo(cx + 8, headY + 1);
-                        ctx.stroke();
-                    }
+        // 眼睛
+        if (!facingUp) {
+            const now = Date.now();
+            const blink = (now % 3000) < 150;
+            if (!blink) {
+                ctx.fillStyle = '#fff';
+                if (facingDown) {
+                    ctx.fillRect(cx - 5, headY, 3, 3);
+                    ctx.fillRect(cx + 2, headY, 3, 3);
+                } else if (facingLeft) {
+                    ctx.fillRect(cx - 6, headY, 3, 3);
+                } else if (facingRight) {
+                    ctx.fillRect(cx + 3, headY, 3, 3);
+                }
+                ctx.fillStyle = '#1a1a1a';
+                if (facingDown) {
+                    ctx.fillRect(cx - 4, headY + 1, 2, 2);
+                    ctx.fillRect(cx + 3, headY + 1, 2, 2);
+                } else if (facingLeft) {
+                    ctx.fillRect(cx - 5, headY + 1, 2, 2);
+                } else if (facingRight) {
+                    ctx.fillRect(cx + 4, headY + 1, 2, 2);
+                }
+            } else {
+                ctx.strokeStyle = '#1a1a1a';
+                ctx.lineWidth = 1;
+                if (facingDown) {
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 5, headY + 1);
+                    ctx.lineTo(cx - 2, headY + 1);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(cx + 2, headY + 1);
+                    ctx.lineTo(cx + 5, headY + 1);
+                    ctx.stroke();
+                } else if (facingLeft) {
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 6, headY + 1);
+                    ctx.lineTo(cx - 3, headY + 1);
+                    ctx.stroke();
+                } else if (facingRight) {
+                    ctx.beginPath();
+                    ctx.moveTo(cx + 3, headY + 1);
+                    ctx.lineTo(cx + 6, headY + 1);
+                    ctx.stroke();
                 }
             }
         }
 
-        // === 工具视觉表现 ===
-        const toolColors = ['#c4a96a', '#4a9bd5', '#4db83a', '#ff8c00', '#8b7355'];
-        const toolColor = toolColors[state.currentTool] || '#c4a96a';
-        if (state.currentTool >= 0 && state.currentTool <= 4) {
-            // 工具位置根据方向和行走动画微调
-            let tx = px + TILE / 2;
-            let ty = py + TILE / 2;
-            let toolOffsetX = 0;
-            let toolOffsetY = 0;
+        // 工具
+        this.renderTool(ctx, px, py, dir, moving, sinWalk, state);
 
-            if (dir === 0) { // 下
-                toolOffsetX = 14;
-                toolOffsetY = 4;
-            } else if (dir === 1) { // 上
-                toolOffsetX = -14;
-                toolOffsetY = 4;
-            } else if (dir === 2) { // 左
-                toolOffsetX = -16;
-                toolOffsetY = 2;
-            } else if (dir === 3) { // 右
-                toolOffsetX = 16;
-                toolOffsetY = 2;
-            }
-
-            // 行走时工具轻微摆动
-            if (moving) {
-                toolOffsetY += sinWalk * 2;
-            }
-
-            // 使用工具时的简单挥动动画 (interact 后 300ms 内)
-            const timeSinceInteract = now - (state.lastInteractTime || 0);
-            const isSwinging = timeSinceInteract < 300;
-            let swingAngle = 0;
-            if (isSwinging) {
-                const swingProgress = timeSinceInteract / 300;
-                swingAngle = Math.sin(swingProgress * Math.PI) * 0.8;
-                if (dir === 2) swingAngle = -swingAngle;
-            }
-
-            ctx.save();
-            ctx.translate(tx + toolOffsetX, ty + toolOffsetY);
-            ctx.rotate(swingAngle);
-            ctx.strokeStyle = toolColor;
-            ctx.fillStyle = toolColor;
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            // 绘制工具图标（简约矢量风格）
-            switch (state.currentTool) {
-                case 0: // 锄头
-                    ctx.beginPath();
-                    ctx.moveTo(-4, -6);
-                    ctx.lineTo(4, 6);
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.moveTo(2, 6);
-                    ctx.lineTo(6, 6);
-                    ctx.lineTo(5, 2);
-                    ctx.stroke();
-                    break;
-                case 1: // 水壶
-                    ctx.beginPath();
-                    ctx.moveTo(-3, -4);
-                    ctx.lineTo(-3, 4);
-                    ctx.lineTo(3, 4);
-                    ctx.lineTo(3, -2);
-                    ctx.lineTo(0, -4);
-                    ctx.closePath();
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.moveTo(3, -1);
-                    ctx.lineTo(6, -4);
-                    ctx.stroke();
-                    break;
-                case 2: // 种子
-                    ctx.beginPath();
-                    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.moveTo(0, -3);
-                    ctx.lineTo(-2, -7);
-                    ctx.moveTo(0, -3);
-                    ctx.lineTo(2, -7);
-                    ctx.stroke();
-                    break;
-                case 3: // 收获篮子
-                    ctx.beginPath();
-                    ctx.moveTo(-4, -2);
-                    ctx.lineTo(-4, 4);
-                    ctx.lineTo(4, 4);
-                    ctx.lineTo(4, -2);
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.moveTo(-4, -2);
-                    ctx.quadraticCurveTo(0, -6, 4, -2);
-                    ctx.stroke();
-                    break;
-                case 4: // 铲除铲子
-                    ctx.beginPath();
-                    ctx.moveTo(0, -6);
-                    ctx.lineTo(0, 2);
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.moveTo(-3, 2);
-                    ctx.lineTo(3, 2);
-                    ctx.lineTo(2, 6);
-                    ctx.lineTo(-2, 6);
-                    ctx.closePath();
-                    ctx.stroke();
-                    break;
-            }
-            ctx.restore();
-        }
-
-        // === 玩家名字标签 ===
+        // 玩家名字
         const nameText = state.playerName || '';
         if (nameText) {
             ctx.font = 'bold 11px sans-serif';
@@ -2080,39 +1104,108 @@ class Renderer {
             const textMetrics = ctx.measureText(nameText);
             const textW = textMetrics.width;
             const padX = 6;
-            const padY = 3;
             const nameX = px + TILE / 2;
-            const nameY = py - 14;
+            const nameY = py - 10;
 
-            // 半透明白色底框
-            ctx.fillStyle = 'rgba(255,255,255,0.85)';
-            this.drawRoundRect(ctx, nameX - textW/2 - padX, nameY - 12 - padY, textW + padX*2, 14 + padY*2, 6);
-
-            // 名字文字 (深色，更清晰)
-            ctx.fillStyle = '#2c3e50';
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(nameX - textW / 2 - padX, nameY - 12, textW + padX * 2, 14);
+            ctx.fillStyle = '#fff';
             ctx.fillText(nameText, nameX, nameY);
         }
     }
 
-    /**
-     * 渲染其他玩家 (简化版角色)
-     */
+    renderTool(ctx, px, py, dir, moving, sinWalk, state) {
+        const toolColors = ['#c4a96a', '#4a9bd5', '#4db83a', '#ff8c00', '#8b7355'];
+        const toolColor = toolColors[state.currentTool] || '#c4a96a';
+        if (state.currentTool < 0 || state.currentTool > 4) return;
+
+        let tx = px + TILE / 2;
+        let ty = py + TILE / 2;
+        let toolOffsetX = 0;
+        let toolOffsetY = 0;
+
+        if (dir === 0) { toolOffsetX = 14; toolOffsetY = 4; }
+        else if (dir === 1) { toolOffsetX = -14; toolOffsetY = 4; }
+        else if (dir === 2) { toolOffsetX = -16; toolOffsetY = 2; }
+        else if (dir === 3) { toolOffsetX = 16; toolOffsetY = 2; }
+
+        if (moving) toolOffsetY += sinWalk * 2;
+
+        const now = Date.now();
+        const timeSinceInteract = now - (state.lastInteractTime || 0);
+        const isSwinging = timeSinceInteract < 300;
+        let swingAngle = 0;
+        if (isSwinging) {
+            const swingProgress = timeSinceInteract / 300;
+            swingAngle = Math.sin(swingProgress * Math.PI) * 0.8;
+            if (dir === 2) swingAngle = -swingAngle;
+        }
+
+        ctx.save();
+        ctx.translate(tx + toolOffsetX, ty + toolOffsetY);
+        ctx.rotate(swingAngle);
+        ctx.strokeStyle = toolColor;
+        ctx.fillStyle = toolColor;
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        switch (state.currentTool) {
+            case 0: // 锄头
+                ctx.beginPath();
+                ctx.moveTo(-4, -6);
+                ctx.lineTo(4, 6);
+                ctx.stroke();
+                ctx.strokeRect(2, 4, 5, 4);
+                break;
+            case 1: // 水壶
+                ctx.strokeRect(-3, -4, 6, 8);
+                ctx.beginPath();
+                ctx.moveTo(3, -2);
+                ctx.lineTo(6, -5);
+                ctx.stroke();
+                break;
+            case 2: // 种子
+                ctx.fillRect(-2, -2, 4, 4);
+                ctx.beginPath();
+                ctx.moveTo(0, -2);
+                ctx.lineTo(-2, -6);
+                ctx.moveTo(0, -2);
+                ctx.lineTo(2, -6);
+                ctx.stroke();
+                break;
+            case 3: // 收获篮子
+                ctx.strokeRect(-4, -2, 8, 6);
+                ctx.beginPath();
+                ctx.moveTo(-4, -2);
+                ctx.quadraticCurveTo(0, -6, 4, -2);
+                ctx.stroke();
+                break;
+            case 4: // 铲除铲子
+                ctx.beginPath();
+                ctx.moveTo(0, -6);
+                ctx.lineTo(0, 2);
+                ctx.stroke();
+                ctx.strokeRect(-3, 2, 6, 4);
+                break;
+        }
+        ctx.restore();
+    }
+
+    // ===== 其他玩家（简化版） =====
     renderOtherPlayers(ctx, state) {
         const now = Date.now();
         for (const [peerId, player] of state.otherPlayers) {
-            if (now - player.lastUpdate > 10000) continue; // 超过10秒未更新不显示
+            if (now - player.lastUpdate > 10000) continue;
 
             const px = player.x;
             const py = player.y;
             const dir = player.dir || 0;
             const color = player.color || '#ff6b6b';
 
-            // 动态阴影
-            const shadowOffsetX = Math.cos(this.sunAngle) * 6;
-            const shadowOffsetY = Math.sin(this.sunAngle) * 3 + 3;
-            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
             ctx.beginPath();
-            ctx.ellipse(px + TILE / 2 + shadowOffsetX, py + TILE - 2 + shadowOffsetY, 14, 5, 0, 0, Math.PI * 2);
+            ctx.ellipse(px + TILE / 2, py + TILE - 2, 12, 4, 0, 0, Math.PI * 2);
             ctx.fill();
 
             const cx = px + TILE / 2;
@@ -2121,169 +1214,76 @@ class Renderer {
             const facingRight = dir === 3;
             const facingUp = dir === 1;
 
-            // 腿部
-            const legW = 5;
-            const legH = 9;
-            const legY = cy + 10;
+            // 腿
             ctx.fillStyle = '#2c3e50';
-            if (facingUp || dir === 0) {
-                const leftLegX = cx - 5;
-                const rightLegX = cx + 5;
-                this.drawRoundRect(ctx, leftLegX - legW / 2, legY, legW, legH, 2);
-                this.drawRoundRect(ctx, rightLegX - legW / 2, legY, legW, legH, 2);
-            } else {
-                const frontLegX = cx + (facingRight ? 3 : -3);
-                const backLegX = cx + (facingRight ? -2 : 2);
-                this.drawRoundRect(ctx, backLegX - legW / 2, legY + 1, legW, legH, 2);
-                this.drawRoundRect(ctx, frontLegX - legW / 2, legY - 1, legW, legH, 2);
-            }
+            ctx.fillRect(cx - 5, cy + 10, 4, 8);
+            ctx.fillRect(cx + 1, cy + 10, 4, 8);
 
-            // 身体 (使用玩家指定颜色)
-            const bodyW = 18;
-            const bodyH = 16;
-            const bodyY = cy - 6;
+            // 身体
             ctx.fillStyle = color;
-            this.drawRoundRect(ctx, cx - bodyW / 2, bodyY, bodyW, bodyH, 4);
+            ctx.fillRect(cx - 8, cy - 4, 16, 14);
+            this.strokeRect(ctx, cx - 8, cy - 4, 16, 14);
 
-            // 手臂
-            const armW = 4;
-            const armH = 11;
-            const armY = bodyY + 2;
-            ctx.fillStyle = '#f5cba7';
-            if (facingUp || dir === 0) {
-                const leftArmX = cx - 11;
-                const rightArmX = cx + 11;
-                this.drawRoundRect(ctx, leftArmX - armW / 2, armY, armW, armH, 2);
-                this.drawRoundRect(ctx, rightArmX - armW / 2, armY, armW, armH, 2);
-            } else {
-                const frontArmX = cx + (facingRight ? 11 : -11);
-                const backArmX = cx + (facingRight ? -7 : 7);
-                this.drawRoundRect(ctx, backArmX - armW / 2, armY + 1, armW, armH, 2);
-                this.drawRoundRect(ctx, frontArmX - armW / 2, armY - 1, armW, armH, 2);
-            }
-
-            // 头部
-            const headSize = 12;
-            const headY = bodyY - 9;
+            // 头
             ctx.fillStyle = '#f5cba7';
             ctx.beginPath();
-            ctx.arc(cx, headY, headSize, 0, Math.PI * 2);
+            ctx.arc(cx, cy - 10, 9, 0, Math.PI * 2);
             ctx.fill();
+            ctx.strokeStyle = '#3d2817';
+            ctx.lineWidth = 1;
+            ctx.stroke();
 
             // 头发
             ctx.fillStyle = '#5d4037';
             if (!facingUp) {
                 ctx.beginPath();
-                ctx.arc(cx, headY - 2, headSize + 1, Math.PI, 0);
+                ctx.arc(cx, cy - 12, 9, Math.PI, 0);
                 ctx.fill();
-                ctx.fillRect(cx - headSize - 1, headY - 3, 3, 8);
-                ctx.fillRect(cx + headSize - 2, headY - 3, 3, 8);
+                ctx.fillRect(cx - 9, cy - 12, 3, 6);
+                ctx.fillRect(cx + 6, cy - 12, 3, 6);
             } else {
                 ctx.beginPath();
-                ctx.arc(cx, headY - 3, headSize, Math.PI, 0);
+                ctx.arc(cx, cy - 13, 8, Math.PI, 0);
                 ctx.fill();
             }
 
-            // 眼睛 (不朝上看时显示)
+            // 眼睛
             if (!facingUp) {
                 ctx.fillStyle = '#1a1a1a';
                 if (dir === 0) {
-                    ctx.beginPath();
-                    ctx.arc(cx - 4, headY + 1, 1.5, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.arc(cx + 4, headY + 1, 1.5, 0, Math.PI * 2);
-                    ctx.fill();
+                    ctx.fillRect(cx - 3, cy - 10, 2, 2);
+                    ctx.fillRect(cx + 1, cy - 10, 2, 2);
                 } else if (facingLeft) {
-                    ctx.beginPath();
-                    ctx.arc(cx - 5, headY + 1, 1.5, 0, Math.PI * 2);
-                    ctx.fill();
+                    ctx.fillRect(cx - 4, cy - 10, 2, 2);
                 } else if (facingRight) {
-                    ctx.beginPath();
-                    ctx.arc(cx + 5, headY + 1, 1.5, 0, Math.PI * 2);
-                    ctx.fill();
+                    ctx.fillRect(cx + 2, cy - 10, 2, 2);
                 }
             }
 
-            // 玩家名字标签
+            // 名字
             const nameText = player.name || '玩家';
             ctx.font = 'bold 10px sans-serif';
             ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            const textMetrics = ctx.measureText(nameText);
-            const textW = textMetrics.width;
-            const padX = 5;
-            const padY = 2;
-            const nameX = px + TILE / 2;
-            const nameY = py - 10;
-
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            this.drawRoundRect(ctx, nameX - textW / 2 - padX, nameY - 10 - padY, textW + padX * 2, 12 + padY * 2, 5);
-
+            const textW = ctx.measureText(nameText).width;
+            ctx.fillRect(cx - textW / 2 - 4, py - 20, textW + 8, 12);
             ctx.fillStyle = '#fff';
-            ctx.fillText(nameText, nameX, nameY);
+            ctx.fillText(nameText, cx, py - 10);
         }
     }
 
-    /**
-     * 辅助：颜色变亮
-     */
-    lightenColor(hex, percent) {
-        const num = parseInt(hex.replace('#', ''), 16);
-        const amt = Math.round(2.55 * percent);
-        const R = Math.min(255, (num >> 16) + amt);
-        const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
-        const B = Math.min(255, (num & 0x0000FF) + amt);
-        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
-    }
-
-    /**
-     * 辅助：颜色变暗
-     */
-    darkenColor(hex, percent) {
-        const num = parseInt(hex.replace('#', ''), 16);
-        const amt = Math.round(2.55 * percent);
-        const R = Math.max(0, (num >> 16) - amt);
-        const G = Math.max(0, ((num >> 8) & 0x00FF) - amt);
-        const B = Math.max(0, (num & 0x0000FF) - amt);
-        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
-    }
-
-    /**
-     * 辅助：绘制圆角矩形
-     */
-    drawRoundRect(ctx, x, y, w, h, r) {
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
-        ctx.closePath();
-        ctx.fill();
-    }
-
-    /**
-     * 渲染粒子效果
-     */
+    // ===== 粒子 =====
     renderParticles(ctx, state) {
         for (const p of state.particles) {
             ctx.fillStyle = p.color || '#fff';
             ctx.globalAlpha = p.life;
-            ctx.font = `${p.size}px serif`;
-            ctx.textAlign = 'center';
-            ctx.fillText(p.emoji || '•', p.x, p.y);
+            const size = p.size || 4;
+            ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
         }
         ctx.globalAlpha = 1;
     }
 
-    /**
-     * 渲染浮动文字
-     */
+    // ===== 浮动文字 =====
     renderFloatingTexts(ctx, state) {
         for (const ft of state.floatingTexts) {
             ctx.fillStyle = ft.color;
@@ -2296,9 +1296,7 @@ class Renderer {
         }
     }
 
-    /**
-     * 渲染钓鱼进度条
-     */
+    // ===== 钓鱼进度条 =====
     renderFishingBar(ctx, state) {
         if (!state.fishing) return;
 
@@ -2307,165 +1305,74 @@ class Renderer {
         const barX = (this.screenW - barWidth) / 2;
         const barY = this.screenH - 120;
 
-        // 背景
         ctx.fillStyle = 'rgba(0,0,0,0.8)';
         ctx.fillRect(barX - 10, barY - 30, barWidth + 20, barHeight + 50);
 
-        // 标题
         ctx.fillStyle = '#ffd93d';
         ctx.font = 'bold 14px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('🎣 钓鱼！按空格停下', this.screenW / 2, barY - 10);
+        ctx.fillText('钓鱼！按空格停下', this.screenW / 2, barY - 10);
 
-        // 进度条背景
         ctx.fillStyle = '#333';
         ctx.fillRect(barX, barY, barWidth, barHeight);
 
-        // 目标区域 (绿色)
         const targetStart = state.fishTarget - state.fishTargetSize / 2;
-        const targetEnd = state.fishTarget + state.fishTargetSize / 2;
         ctx.fillStyle = 'rgba(76, 175, 80, 0.6)';
         ctx.fillRect(barX + targetStart * barWidth, barY, state.fishTargetSize * barWidth, barHeight);
 
-        // 移动指示器
         const indicatorX = barX + state.fishBarPos * barWidth;
         ctx.fillStyle = '#ff4444';
         ctx.fillRect(indicatorX - 3, barY - 4, 6, barHeight + 8);
 
-        // 边框
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
 
-        // 剩余时间
         const remaining = Math.max(0, 10 - state.fishProgress);
         ctx.fillStyle = '#aaa';
         ctx.font = '12px sans-serif';
         ctx.fillText(`${remaining.toFixed(1)}s`, this.screenW / 2, barY + barHeight + 16);
     }
 
-    /**
-     * 全局光影效果
-     */
+    // ===== 全局光影效果 =====
     renderGlobalLighting(ctx, state, sc) {
         const hour = state.timeOfDay || (state.time / 60);
-        let overlayColor = null;
-        let overlayAlpha = 0;
-        let warmth = 0;
-        let coolness = 0;
 
         if (hour >= 20 || hour < 5) {
-            // 夜晚 - 月光色调（偏蓝紫）
-            overlayColor = '#1a1a4e';
-            overlayAlpha = 0.45;
-            coolness = 0.6;
-        } else if (hour >= 18) {
-            // 傍晚 - 暖橙过渡
-            overlayColor = '#ff6b35';
-            overlayAlpha = (hour - 18) / 2 * 0.30;
-            warmth = (hour - 18) / 2;
-        } else if (hour < 7) {
-            // 清晨 - 冷蓝过渡
-            overlayColor = '#87ceeb';
-            overlayAlpha = (7 - hour) / 2 * 0.18;
-            coolness = (7 - hour) / 7;
-        } else if (hour >= 12 && hour < 15) {
-            // 正午 - 轻微暖白
-            overlayColor = '#fff8e7';
-            overlayAlpha = 0.06;
-        }
-
-        if (overlayColor) {
-            ctx.fillStyle = overlayColor;
-            ctx.globalAlpha = overlayAlpha;
+            // 夜晚：深蓝覆盖层 alpha 0.4 + 星星
+            ctx.fillStyle = 'rgba(26, 35, 126, 0.4)';
             ctx.fillRect(0, 0, this.screenW, this.screenH);
-            ctx.globalAlpha = 1;
-        }
 
-        // 傍晚暖色覆盖
-        if (warmth > 0) {
-            ctx.fillStyle = '#ffaa44';
-            ctx.globalAlpha = warmth * 0.12;
-            ctx.fillRect(0, 0, this.screenW, this.screenH);
-            ctx.globalAlpha = 1;
-        }
-
-        // 清晨/夜晚冷色覆盖
-        if (coolness > 0) {
-            ctx.fillStyle = '#4466aa';
-            ctx.globalAlpha = coolness * 0.08;
-            ctx.fillRect(0, 0, this.screenW, this.screenH);
-            ctx.globalAlpha = 1;
-        }
-
-        // 全局色彩校正 - 让画面更温暖/更冷
-        if (hour >= 6 && hour < 18) {
-            // 白天：轻微暖色调校正
-            ctx.fillStyle = '#ffddaa';
-            ctx.globalAlpha = 0.03;
-            ctx.fillRect(0, 0, this.screenW, this.screenH);
-            ctx.globalAlpha = 1;
-        } else {
-            // 夜晚：冷色调校正 + 月光蓝
-            ctx.fillStyle = '#6688cc';
-            ctx.globalAlpha = 0.04;
-            ctx.fillRect(0, 0, this.screenW, this.screenH);
-            ctx.globalAlpha = 1;
-        }
-
-        // 夜晚星星
-        if (hour >= 19 || hour < 6) {
-            const starAlpha = hour >= 20 || hour < 5 ? 1 : 0.5;
+            // 星星
             const twinklePhase = Date.now() / 1000;
             for (const star of this.stars) {
                 const sx = star.nx * this.screenW;
                 const sy = star.ny * this.screenH;
                 const twinkle = Math.sin(twinklePhase + star.twinkle) * 0.3 + 0.7;
-                ctx.fillStyle = `rgba(255,255,255,${starAlpha * twinkle})`;
+                ctx.fillStyle = `rgba(255,255,255,${twinkle})`;
                 ctx.fillRect(sx, sy, star.size, star.size);
             }
-        }
-
-        // 月光效果 (夜晚)
-        if (hour >= 20 || hour < 5) {
-            const moonIntensity = (hour >= 20 || hour < 5) ? 0.08 : 0.04;
-            const moonGrad = ctx.createRadialGradient(
-                this.screenW * 0.7, this.screenH * 0.2, 0,
-                this.screenW * 0.7, this.screenH * 0.2, this.screenH * 0.6
-            );
-            moonGrad.addColorStop(0, `rgba(180, 200, 255, ${moonIntensity})`);
-            moonGrad.addColorStop(0.5, `rgba(180, 200, 255, ${moonIntensity * 0.3})`);
-            moonGrad.addColorStop(1, 'rgba(180, 200, 255, 0)');
-            ctx.fillStyle = moonGrad;
+        } else if (hour >= 18) {
+            // 傍晚：橙黄覆盖层 alpha 0.15
+            const alpha = (hour - 18) / 2 * 0.15;
+            ctx.fillStyle = `rgba(255, 167, 38, ${alpha})`;
+            ctx.fillRect(0, 0, this.screenW, this.screenH);
+        } else if (hour < 7) {
+            // 清晨：淡蓝覆盖层 alpha 0.1
+            const alpha = (7 - hour) / 2 * 0.1;
+            ctx.fillStyle = `rgba(144, 202, 249, ${alpha})`;
             ctx.fillRect(0, 0, this.screenW, this.screenH);
         }
 
-        // 阳光射线效果 (清晨和傍晚)
-        if ((hour >= 6 && hour < 9) || (hour >= 16 && hour < 19)) {
-            const sunIntensity = hour < 9 ? (9 - hour) / 3 : (hour - 16) / 3;
-            const grad = ctx.createLinearGradient(0, 0, this.screenW, this.screenH);
-            grad.addColorStop(0, `rgba(255,220,150,${sunIntensity * 0.08})`);
-            grad.addColorStop(0.5, 'rgba(255,220,150,0)');
-            grad.addColorStop(1, 'rgba(255,220,150,0)');
-            ctx.fillStyle = grad;
+        // 室内灯光效果（夜晚时）
+        if (hour >= 19 || hour < 6) {
+            // 简单的暖黄发光效果 - 在屏幕中心附近模拟
+            ctx.fillStyle = 'rgba(255, 204, 128, 0.05)';
             ctx.fillRect(0, 0, this.screenW, this.screenH);
         }
-
-        // 暗角效果 (Vignette) - 更柔和
-        const vignetteGrad = ctx.createRadialGradient(
-            this.screenW / 2, this.screenH / 2, this.screenH * 0.35,
-            this.screenW / 2, this.screenH / 2, this.screenH * 0.85
-        );
-        vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        vignetteGrad.addColorStop(0.6, 'rgba(0,0,0,0.03)');
-        vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
-        ctx.fillStyle = vignetteGrad;
-        ctx.fillRect(0, 0, this.screenW, this.screenH);
     }
 
-    /**
-     * 渲染小地图
-     */
+    // ===== 小地图 =====
     renderMinimap(state, sc) {
         if (!state.showMinimap) return;
 
@@ -2479,7 +1386,6 @@ class Renderer {
         ctx.fillStyle = 'rgba(0,0,0,0.7)';
         ctx.fillRect(mmX - 5, mmY - 5, mmSize + 10, mmSize + 10);
 
-        // 小地图只渲染已生成的区块 (优化)
         for (const chunkKey of state.generatedChunks) {
             const [cx, cy] = chunkKey.split(',').map(Number);
             const startX = cx * CHUNK_SIZE;
@@ -2492,80 +1398,29 @@ class Renderer {
                     const tile = state.map[y][x];
                     let color;
                     switch (tile) {
-                        case T.GRASS:     color = sc.grass; break;
-                        case T.DIRT:      color = '#8b6d3f'; break;
-                        case T.TILLED:    color = '#6b4423'; break;
-                        case T.WATERED:   color = '#5a3a1a'; break;
-                        case T.PATH:      color = '#c4a96a'; break;
-                        case T.FENCE:     color = '#8b6914'; break;
-                        case T.WATER:     color = '#3a7bd5'; break;
-                        case T.FLOWER:    color = '#ff69b4'; break;
-                        case T.HOUSE:     color = '#d4a76a'; break;
-                        case T.DOOR:      color = '#8b4513'; break;
-                        case T.STONE:     color = '#888'; break;
-                        case T.TREE:      color = '#2d5a1e'; break;
+                        case T.GRASS: color = sc.grass; break;
+                        case T.DIRT: color = '#8b6d3f'; break;
+                        case T.TILLED: color = '#6b4423'; break;
+                        case T.WATERED: color = '#5a3a1a'; break;
+                        case T.PATH: color = '#c4a96a'; break;
+                        case T.FENCE: color = '#8b6914'; break;
+                        case T.WATER: color = '#3a7bd5'; break;
+                        case T.FLOWER: color = '#ff69b4'; break;
+                        case T.HOUSE: color = '#d4a76a'; break;
+                        case T.DOOR: color = '#8b4513'; break;
+                        case T.STONE: color = '#888'; break;
+                        case T.TREE: color = '#2d5a1e'; break;
                         case T.ROCK_MINE: color = '#6a6058'; break;
                         case T.FISH_SPOT: color = '#4a9bd5'; break;
                         case T.WILD_CROP: color = '#7bc67b'; break;
                         case T.NPC_HOUSE: color = '#b08050'; break;
-                        default:          color = '#4a6741';
+                        default: color = '#4a6741';
                     }
                     ctx.fillStyle = color;
                     ctx.fillRect(mmX + x * scaleX, mmY + y * scaleY, Math.max(scaleX, 1), Math.max(scaleY, 1));
                 }
             }
         }
-
-        // 未生成区域显示为暗色
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(mmX, mmY, mmSize, mmSize);
-
-        // 重新绘制已生成区域覆盖暗色
-        for (const chunkKey of state.generatedChunks) {
-            const [cx, cy] = chunkKey.split(',').map(Number);
-            const startX = cx * CHUNK_SIZE;
-            const startY = cy * CHUNK_SIZE;
-            const endX = Math.min(startX + CHUNK_SIZE, MAP_W);
-            const endY = Math.min(startY + CHUNK_SIZE, MAP_H);
-
-            for (let y = startY; y < endY; y++) {
-                for (let x = startX; x < endX; x++) {
-                    const tile = state.map[y][x];
-                    let color;
-                    switch (tile) {
-                        case T.GRASS:     color = sc.grass; break;
-                        case T.DIRT:      color = '#8b6d3f'; break;
-                        case T.TILLED:    color = '#6b4423'; break;
-                        case T.WATERED:   color = '#5a3a1a'; break;
-                        case T.PATH:      color = '#c4a96a'; break;
-                        case T.FENCE:     color = '#8b6914'; break;
-                        case T.WATER:     color = '#3a7bd5'; break;
-                        case T.FLOWER:    color = '#ff69b4'; break;
-                        case T.HOUSE:     color = '#d4a76a'; break;
-                        case T.DOOR:      color = '#8b4513'; break;
-                        case T.STONE:     color = '#888'; break;
-                        case T.TREE:      color = '#2d5a1e'; break;
-                        case T.ROCK_MINE: color = '#6a6058'; break;
-                        case T.FISH_SPOT: color = '#4a9bd5'; break;
-                        case T.WILD_CROP: color = '#7bc67b'; break;
-                        case T.NPC_HOUSE: color = '#b08050'; break;
-                        default:          color = '#4a6741';
-                    }
-                    ctx.fillStyle = color;
-                    ctx.fillRect(mmX + x * scaleX, mmY + y * scaleY, Math.max(scaleX, 1), Math.max(scaleY, 1));
-                }
-            }
-        }
-
-        // 区域标签
-        ctx.font = '8px sans-serif';
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.fillText('农场', mmX + 100 * scaleX, mmY + 100 * scaleY);
-        ctx.fillText('小镇', mmX + 130 * scaleX, mmY + 150 * scaleY);
-        ctx.fillText('森林', mmX + 35 * scaleX, mmY + 35 * scaleY);
-        ctx.fillText('矿区', mmX + 170 * scaleX, mmY + 30 * scaleY);
-        ctx.fillText('湖畔', mmX + 25 * scaleX, mmY + 155 * scaleY);
 
         // 玩家位置
         ctx.fillStyle = '#ff0000';
@@ -2575,25 +1430,14 @@ class Renderer {
             4, 4
         );
 
-        // 其他玩家位置
+        // 其他玩家
         const now = Date.now();
         for (const [peerId, player] of state.otherPlayers) {
-            if (now - player.lastUpdate > 10000) continue; // 超过10秒未更新不显示
-
+            if (now - player.lastUpdate > 10000) continue;
             const opx = mmX + (player.x / TILE) * scaleX;
             const opy = mmY + (player.y / TILE) * scaleY;
-
-            // 绘制小圆点
             ctx.fillStyle = player.color || '#ff6b6b';
-            ctx.beginPath();
-            ctx.arc(opx, opy, 3, 0, Math.PI * 2);
-            ctx.fill();
-
-            // 绘制玩家名字
-            ctx.font = '8px sans-serif';
-            ctx.fillStyle = '#fff';
-            ctx.textAlign = 'center';
-            ctx.fillText(player.name || '玩家', opx, opy - 5);
+            ctx.fillRect(opx - 2, opy - 2, 4, 4);
         }
 
         // 视野范围

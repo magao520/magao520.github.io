@@ -24,43 +24,59 @@ const TOOLS = ['hoe', 'water', 'seed', 'harvest', 'remove'];
 
 // ===== 季节颜色 =====
 const SEASON_COLORS = {
-    spring: { grass: '#5da843', grassDark: '#4a8c36', tree: '#3d8b37', flower: '#ff69b4' },
-    summer: { grass: '#4caf50', grassDark: '#388e3c', tree: '#2e7d32', flower: '#ffeb3b' },
-    fall:   { grass: '#c68a3f', grassDark: '#a67330', tree: '#d4552a', flower: '#ff9800' },
-    winter: { grass: '#d0d8e0', grassDark: '#b0b8c0', tree: '#607080', flower: '#e0e8f0' }
+    spring: {
+        grass: '#7cb342', grassDark: '#558b2f', tree: '#4caf50',
+        dirt: '#8d6e63', water: '#4fc3f7', sky: '#e3f2fd',
+        flower: '#f48fb1', wood: '#8d6e63', stone: '#9e9e9e'
+    },
+    summer: {
+        grass: '#66bb6a', grassDark: '#43a047', tree: '#2e7d32',
+        dirt: '#795548', water: '#29b6f6', sky: '#fff3e0',
+        flower: '#ffee58', wood: '#6d4c41', stone: '#757575'
+    },
+    fall: {
+        grass: '#d84315', grassDark: '#bf360c', tree: '#e65100',
+        dirt: '#5d4037', water: '#81d4fa', sky: '#fce4ec',
+        flower: '#ff9800', wood: '#4e342e', stone: '#616161'
+    },
+    winter: {
+        grass: '#b0bec5', grassDark: '#90a4ae', tree: '#78909c',
+        dirt: '#546e7a', water: '#b3e5fc', sky: '#eceff1',
+        flower: '#e1f5fe', wood: '#37474f', stone: '#455a64'
+    }
 };
 
 // ===== NPC 类型 =====
 const NPC_TYPES = [
-    { name: '皮埃尔', role: '种子商人', house: [120, 140], emoji: '👨‍🌾' },
-    { name: '克林特', role: '铁匠', house: [130, 140], emoji: '👨‍🔧' },
-    { name: '玛妮', role: '杂货商', house: [140, 140], emoji: '👩‍🦰' },
-    { name: '威利', role: '渔夫', house: [150, 140], emoji: '👴' },
+    { name: '皮埃尔', role: '种子商人', house: [120, 140], color: '#e74c3c' },
+    { name: '克林特', role: '铁匠', house: [130, 140], color: '#3498db' },
+    { name: '玛妮', role: '杂货商', house: [140, 140], color: '#e91e63' },
+    { name: '威利', role: '渔夫', house: [150, 140], color: '#ff9800' },
 ];
 
 // ===== 鱼类数据 =====
 const FISH_TYPES = [
-    { name: '鲤鱼', emoji: '🐟', value: 10, weight: 40 },
-    { name: '鲈鱼', emoji: '🐠', value: 25, weight: 30 },
-    { name: '金枪鱼', emoji: '🐡', value: 50, weight: 20 },
-    { name: '传说鱼', emoji: '🦈', value: 200, weight: 10 },
+    { name: '鲤鱼', value: 10, weight: 40, color: '#8d6e63' },
+    { name: '鲈鱼', value: 25, weight: 30, color: '#4caf50' },
+    { name: '金枪鱼', value: 50, weight: 20, color: '#2196f3' },
+    { name: '传说鱼', value: 200, weight: 10, color: '#ff9800' },
 ];
 
 // ===== 矿物数据 =====
 const MINE_RESULTS = [
-    { name: '石头', emoji: '🪨', value: 5, weight: 35 },
-    { name: '铜矿', emoji: '🟤', value: 20, weight: 30 },
-    { name: '铁矿', emoji: '⬛', value: 50, weight: 20 },
-    { name: '金矿', emoji: '🟡', value: 100, weight: 12 },
-    { name: '钻石', emoji: '💎', value: 500, weight: 3 },
+    { name: '石头', value: 5, weight: 35, color: '#9e9e9e' },
+    { name: '铜矿', value: 20, weight: 30, color: '#d84315' },
+    { name: '铁矿', value: 50, weight: 20, color: '#607d8b' },
+    { name: '金矿', value: 100, weight: 12, color: '#ffc107' },
+    { name: '钻石', value: 500, weight: 3, color: '#00bcd4' },
 ];
 
 // ===== 采集物数据 =====
 const FORAGE_ITEMS = [
-    { name: '木材', emoji: '🪵', value: 3, weight: 30, fromTree: true },
-    { name: '蘑菇', emoji: '🍄', value: 15, weight: 25, fromTree: false },
-    { name: '浆果', emoji: '🫐', value: 10, weight: 25, fromTree: false },
-    { name: '野花', emoji: '🌸', value: 5, weight: 20, fromTree: false },
+    { name: '木材', value: 3, weight: 30, fromTree: true, color: '#8d6e63' },
+    { name: '蘑菇', value: 15, weight: 25, fromTree: false, color: '#ff5722' },
+    { name: '浆果', value: 10, weight: 25, fromTree: false, color: '#9c27b0' },
+    { name: '野花', value: 5, weight: 20, fromTree: false, color: '#e91e63' },
 ];
 
 // ===== 品质系统 =====
@@ -73,18 +89,18 @@ const QUALITY = [
 // ===== 商店物品 =====
 const SHOP_ITEMS = [
     // 种子 (索引对应 CONFIG.CROPS)
-    { type: 'seed', cropIndex: 0, name: '胡萝卜种子', emoji: '🥕', price: 10, desc: '生长快，适合新手' },
-    { type: 'seed', cropIndex: 1, name: '番茄种子', emoji: '🍅', price: 20, desc: '产量稳定' },
-    { type: 'seed', cropIndex: 2, name: '玉米种子', emoji: '🌽', price: 30, desc: '高价值作物' },
-    { type: 'seed', cropIndex: 3, name: '茄子种子', emoji: '🍆', price: 40, desc: '需要耐心' },
-    { type: 'seed', cropIndex: 4, name: '南瓜种子', emoji: '🎃', price: 50, desc: '秋季明星' },
-    { type: 'seed', cropIndex: 5, name: '草莓种子', emoji: '🍓', price: 60, desc: '甜美多汁' },
-    { type: 'seed', cropIndex: 6, name: '西瓜种子', emoji: '🍉', price: 80, desc: '夏日消暑' },
-    { type: 'seed', cropIndex: 7, name: '向日葵种子', emoji: '🌻', price: 100, desc: '价值最高' },
+    { type: 'seed', cropIndex: 0, name: '胡萝卜种子', price: 10, desc: '生长快，适合新手' },
+    { type: 'seed', cropIndex: 1, name: '番茄种子', price: 20, desc: '产量稳定' },
+    { type: 'seed', cropIndex: 2, name: '玉米种子', price: 30, desc: '高价值作物' },
+    { type: 'seed', cropIndex: 3, name: '茄子种子', price: 40, desc: '需要耐心' },
+    { type: 'seed', cropIndex: 4, name: '南瓜种子', price: 50, desc: '秋季明星' },
+    { type: 'seed', cropIndex: 5, name: '草莓种子', price: 60, desc: '甜美多汁' },
+    { type: 'seed', cropIndex: 6, name: '西瓜种子', price: 80, desc: '夏日消暑' },
+    { type: 'seed', cropIndex: 7, name: '向日葵种子', price: 100, desc: '价值最高' },
     // 鱼饵
-    { type: 'bait', name: '鱼饵', emoji: '🪱', price: 10, desc: '提高钓鱼成功率' },
+    { type: 'bait', name: '鱼饵', price: 10, desc: '提高钓鱼成功率' },
     // 矿镐升级
-    { type: 'upgrade', name: '矿镐升级', emoji: '⛏️', price: 200, desc: '挖矿效率翻倍' },
+    { type: 'upgrade', name: '矿镐升级', price: 200, desc: '挖矿效率翻倍' },
 ];
 
 // ===== 区域定义 =====

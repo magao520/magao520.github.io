@@ -4,15 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>快乐农场 - 星露谷风格大世界</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background: #1a1a2e;
+            background: #2d1f0e;
             overflow: hidden;
-            font-family: 'ZCOOL KuaiLe', cursive;
+            font-family: 'Press Start 2P', cursive;
             width: 100vw;
             height: 100vh;
         }
@@ -31,12 +30,12 @@
         }
 
         /* ========================================
-           登录界面 - 精致像素风设计
+           登录界面 - 星露谷像素风
            ======================================== */
         #login-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(180deg, #87ceeb 0%, #b8e6ff 30%, #e8d5a3 50%, #4a7c3f 50%, #3d6b35 100%);
+            background: linear-gradient(180deg, #87ceeb 0%, #b8e6ff 35%, #e8d5a3 50%, #4a7c3f 50%, #3d6b35 70%, #2d5a25 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -44,62 +43,45 @@
             flex-direction: column;
         }
 
-        /* 登录背景动画 - 浮动粒子 */
+        /* 云朵装饰 */
         #login-overlay::before {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background:
-                radial-gradient(2px 2px at 10% 20%, rgba(255,255,255,0.4) 50%, transparent 50%),
-                radial-gradient(2px 2px at 30% 60%, rgba(255,255,255,0.3) 50%, transparent 50%),
-                radial-gradient(3px 3px at 50% 30%, rgba(255,255,255,0.35) 50%, transparent 50%),
-                radial-gradient(2px 2px at 70% 70%, rgba(255,255,255,0.3) 50%, transparent 50%),
-                radial-gradient(2px 2px at 90% 40%, rgba(255,255,255,0.4) 50%, transparent 50%),
-                radial-gradient(3px 3px at 20% 80%, rgba(255,255,255,0.25) 50%, transparent 50%),
-                radial-gradient(2px 2px at 80% 15%, rgba(255,255,255,0.3) 50%, transparent 50%);
-            animation: loginFloat 8s ease-in-out infinite;
+                radial-gradient(ellipse 60px 30px at 15% 15%, rgba(255,255,255,0.7) 50%, transparent 50%),
+                radial-gradient(ellipse 80px 35px at 45% 10%, rgba(255,255,255,0.6) 50%, transparent 50%),
+                radial-gradient(ellipse 50px 25px at 75% 18%, rgba(255,255,255,0.65) 50%, transparent 50%),
+                radial-gradient(ellipse 70px 30px at 85% 8%, rgba(255,255,255,0.5) 50%, transparent 50%);
             pointer-events: none;
-        }
-
-        @keyframes loginFloat {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
         }
 
         .login-box {
             background: #f4e8c1;
             border: 4px solid #5c3d1e;
-            padding: 32px 40px;
-            box-shadow:
-                8px 8px 0 rgba(0,0,0,0.3),
-                inset 2px 2px 0 rgba(255,255,255,0.5),
-                inset -2px -2px 0 rgba(0,0,0,0.1);
+            padding: 32px 36px;
+            box-shadow: 8px 8px 0 rgba(0,0,0,0.35);
             text-align: center;
-            max-width: 420px;
+            max-width: 440px;
             width: 90%;
             position: relative;
             z-index: 1;
-            animation: loginBoxIn 0.5s ease-out;
-            border-radius: 8px;
-        }
-
-        @keyframes loginBoxIn {
-            from { transform: translateY(30px) scale(0.95); opacity: 0; }
-            to { transform: translateY(0) scale(1); opacity: 1; }
+            border-radius: 2px;
         }
 
         .login-box h1 {
-            font-size: 38px;
-            color: #5c3d1e;
-            text-shadow: 2px 2px 0 #c4a96a, 0 0 10px rgba(255,217,61,0.3);
-            margin-bottom: 4px;
+            font-size: 28px;
+            color: #ffd93d;
+            text-shadow: 3px 3px 0 #5c3d1e;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
         }
 
         .login-box .subtitle {
             color: #8b6d3f;
-            font-size: 14px;
-            margin-bottom: 22px;
-            letter-spacing: 2px;
+            font-size: 10px;
+            margin-bottom: 24px;
+            letter-spacing: 1px;
         }
 
         .login-box input[type="text"] {
@@ -107,84 +89,100 @@
             padding: 12px 14px;
             border: 3px solid #5c3d1e;
             background: #fff8e7;
-            font-family: 'ZCOOL KuaiLe', cursive;
-            font-size: 16px;
-            color: #5c3d1e;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            color: #3d2817;
             margin-bottom: 12px;
             outline: none;
-            transition: box-shadow 0.2s, border-color 0.2s;
-            border-radius: 6px;
+            border-radius: 0;
         }
 
         .login-box input[type="text"]:focus {
-            box-shadow: inset 0 0 0 2px #c4a96a, 0 0 8px rgba(255,217,61,0.3);
-            border-color: #c4a96a;
+            background: #fff;
+            border-color: #8b6d3f;
         }
 
+        /* 像素风复选框 */
         .login-box .remember-row {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            margin-bottom: 12px;
-            color: #8b6d3f;
-            font-size: 14px;
+            gap: 8px;
+            margin-bottom: 14px;
+            color: #5c3d1e;
+            font-size: 10px;
             cursor: pointer;
         }
 
         .login-box .remember-row input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: #c0392b;
+            appearance: none;
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #fff8e7;
+            border: 2px solid #5c3d1e;
             cursor: pointer;
+            position: relative;
+            border-radius: 0;
+        }
+
+        .login-box .remember-row input[type="checkbox"]:checked::after {
+            content: 'x';
+            position: absolute;
+            top: -2px;
+            left: 2px;
+            color: #4caf50;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 12px;
+            font-weight: bold;
         }
 
         .login-box button {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(180deg, #e74c3c 0%, #c0392b 100%);
+            background: #4caf50;
             border: 3px solid #5c3d1e;
             color: #fff;
-            font-family: 'ZCOOL KuaiLe', cursive;
-            font-size: 22px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 12px;
             cursor: pointer;
-            box-shadow: 4px 4px 0 #5c3d1e, inset 0 1px 0 rgba(255,255,255,0.3);
+            box-shadow: 4px 4px 0 #3d2817;
             transition: all 0.1s;
             margin-top: 8px;
-            letter-spacing: 2px;
-            border-radius: 6px;
+            letter-spacing: 1px;
+            border-radius: 0;
         }
 
         .login-box button:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #5c3d1e, inset 0 1px 0 rgba(255,255,255,0.3);
+            background: #5cbf60;
         }
 
         .login-box button:active {
             transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 #5c3d1e, inset 0 1px 0 rgba(255,255,255,0.3);
+            box-shadow: 2px 2px 0 #3d2817;
+            background: #3d8b40;
         }
 
         .login-box .hint {
             color: #8b6d3f;
-            font-size: 12px;
+            font-size: 8px;
             margin-top: 16px;
-            line-height: 1.6;
+            line-height: 2;
         }
 
         .login-box details {
-            margin-top: 12px;
+            margin-top: 10px;
             text-align: left;
         }
 
         .login-box details summary {
             color: #8b6d3f;
-            font-size: 13px;
+            font-size: 9px;
             cursor: pointer;
         }
 
         /* ========================================
-           HUD - 全面重做
+           HUD - 星露谷风格
            ======================================== */
         #hud {
             position: fixed;
@@ -192,7 +190,7 @@
             display: none;
             justify-content: space-between;
             align-items: flex-start;
-            padding: 10px 15px;
+            padding: 10px 12px;
             pointer-events: none;
             z-index: 50;
         }
@@ -200,23 +198,20 @@
         #hud.active { display: flex; }
 
         .hud-box {
-            background: rgba(20, 15, 10, 0.65);
-            border: 2px solid rgba(196, 169, 106, 0.6);
-            padding: 6px 12px;
+            background: #3d2817;
+            border: 2px solid #5c3d1e;
+            padding: 6px 10px;
             color: #f4e8c1;
-            font-size: 14px;
+            font-size: 9px;
             pointer-events: auto;
             display: flex;
             align-items: center;
             gap: 6px;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            border-radius: 0;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
         }
 
-        .hud-box .icon { font-size: 18px; }
-        .hud-box .value { color: #ffd93d; font-weight: bold; }
+        .hud-box .value { color: #ffd93d; }
 
         .hud-left, .hud-right { display: flex; flex-direction: column; gap: 5px; }
 
@@ -225,114 +220,104 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            background: rgba(20, 15, 10, 0.65);
-            border: 2px solid rgba(196, 169, 106, 0.6);
-            padding: 6px 12px;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            background: #3d2817;
+            border: 2px solid #5c3d1e;
+            padding: 6px 10px;
+            border-radius: 0;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
             pointer-events: auto;
         }
 
         #stamina-bar {
-            width: 100px;
-            height: 12px;
-            background: #3d2b1f;
-            border: 1px solid #5c3d1e;
-            border-radius: 6px;
+            width: 80px;
+            height: 10px;
+            background: #2d1f0e;
+            border: 2px solid #5c3d1e;
+            border-radius: 0;
             overflow: hidden;
         }
 
         #stamina-bar-fill {
             height: 100%;
             width: 100%;
-            background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+            background: #4caf50;
             transition: width 0.3s;
-            border-radius: 6px;
         }
 
         #stamina-bar-fill.low {
-            background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
+            background: #e74c3c;
         }
 
         #stamina-text {
             color: #f4e8c1;
-            font-size: 11px;
-            min-width: 50px;
+            font-size: 8px;
+            min-width: 45px;
         }
 
         /* 时间大字显示 */
         #time-display {
-            font-size: 22px !important;
+            font-size: 18px !important;
             color: #ffd93d !important;
-            text-shadow: 0 0 8px rgba(255,217,61,0.4);
-            letter-spacing: 2px;
+            text-shadow: 2px 2px 0 #5c3d1e;
+            letter-spacing: 1px;
         }
 
         /* ========================================
-           工具栏 - 底部居中 (桌面端)
+           工具栏 - 底部居中
            ======================================== */
         #toolbar {
             position: fixed;
-            bottom: 70px;
+            bottom: 60px;
             left: 50%;
             transform: translateX(-50%);
             display: none;
-            gap: 4px;
+            gap: 2px;
             z-index: 55;
-            background: rgba(20, 15, 10, 0.65);
-            border: 2px solid rgba(196, 169, 106, 0.6);
-            padding: 6px 10px;
-            border-radius: 14px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            background: #3d2817;
+            border: 3px solid #5c3d1e;
+            padding: 6px 8px;
+            border-radius: 0;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
         }
 
         #toolbar.active { display: flex; }
 
         .tool-item {
-            width: 50px;
-            height: 50px;
-            background: rgba(61, 43, 31, 0.7);
-            border: 2px solid rgba(92, 61, 30, 0.8);
+            width: 40px;
+            height: 40px;
+            background: #2d1f0e;
+            border: 2px solid #5c3d1e;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 10px;
+            color: #c4a96a;
             cursor: pointer;
-            transition: all 0.2s ease;
-            border-radius: 10px;
+            transition: all 0.1s;
+            border-radius: 0;
             position: relative;
         }
 
-        .tool-item:hover { background: rgba(92, 61, 30, 0.8); }
+        .tool-item:hover { background: #3d2817; }
         .tool-item.active {
             border-color: #ffd93d;
-            background: rgba(92, 61, 30, 0.9);
-            box-shadow: 0 0 16px rgba(255, 217, 61, 0.6), inset 0 0 8px rgba(255, 217, 61, 0.2);
-            animation: toolPulse 1.5s ease-in-out infinite;
-        }
-
-        @keyframes toolPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.06); }
+            background: #3d2817;
+            box-shadow: inset 0 0 0 1px #ffd93d;
         }
 
         .tool-item .tool-label {
             position: absolute;
-            bottom: -16px;
-            font-size: 9px;
+            bottom: -14px;
+            font-size: 7px;
             color: #c4a96a;
             white-space: nowrap;
+            font-family: 'Press Start 2P', cursive;
         }
 
         .tool-separator {
             width: 2px;
-            background: rgba(92, 61, 30, 0.6);
-            margin: 4px 2px;
-            border-radius: 1px;
+            background: #5c3d1e;
+            margin: 2px 1px;
         }
 
         /* ========================================
@@ -340,89 +325,83 @@
            ======================================== */
         #hotbar {
             position: fixed;
-            bottom: 70px;
-            left: calc(50% + 200px);
+            bottom: 60px;
+            left: calc(50% + 210px);
             display: none;
-            gap: 3px;
+            gap: 2px;
             z-index: 55;
-            background: rgba(20, 15, 10, 0.65);
-            border: 2px solid rgba(196, 169, 106, 0.6);
+            background: #3d2817;
+            border: 3px solid #5c3d1e;
             padding: 6px 8px;
-            border-radius: 12px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            border-radius: 0;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
         }
 
         #hotbar.active { display: flex; }
 
         .hotbar-slot {
-            width: 44px;
-            height: 44px;
-            background: rgba(61, 43, 31, 0.7);
-            border: 2px solid rgba(92, 61, 30, 0.8);
+            width: 40px;
+            height: 40px;
+            background: #2d1f0e;
+            border: 2px solid #5c3d1e;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
+            border-radius: 0;
             position: relative;
         }
 
-        .hotbar-emoji { font-size: 18px; line-height: 1; }
-        .hotbar-count { font-size: 9px; color: #ffd93d; line-height: 1; }
-        .hotbar-empty { width: 8px; height: 8px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+        .hotbar-emoji { font-size: 14px; line-height: 1; }
+        .hotbar-count { font-size: 8px; color: #ffd93d; line-height: 1; }
+        .hotbar-empty { width: 8px; height: 8px; background: #5c3d1e; border-radius: 0; }
 
         /* ========================================
-           对话框 - 像素风 + 打字机效果
+           对话框 - 星露谷风格
            ======================================== */
         #dialog-box {
             position: fixed;
-            bottom: 180px;
+            bottom: 140px;
             left: 50%;
             transform: translateX(-50%);
-            width: 640px;
+            width: 600px;
             max-width: 92vw;
-            background: rgba(20, 15, 10, 0.82);
-            border: 3px solid rgba(196, 169, 106, 0.8);
-            padding: 18px 22px;
-            color: #f4e8c1;
-            font-size: 16px;
+            background: #f4e8c1;
+            border: 4px solid #5c3d1e;
+            padding: 16px 20px;
+            color: #3d2817;
+            font-size: 10px;
             z-index: 65;
             display: none;
-            line-height: 1.7;
-            border-radius: 16px;
-            box-shadow:
-                0 8px 32px rgba(0,0,0,0.5),
-                0 0 0 1px rgba(196, 169, 106, 0.2),
-                inset 0 1px 0 rgba(255,255,255,0.06);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            line-height: 1.8;
+            border-radius: 0;
+            box-shadow: 6px 6px 0 rgba(0,0,0,0.3);
         }
 
         #dialog-box.active { display: block; }
 
         #dialog-speaker {
-            color: #ffd93d;
+            color: #5c3d1e;
             font-weight: bold;
-            font-size: 15px;
+            font-size: 10px;
             margin-bottom: 6px;
             padding-bottom: 4px;
-            border-bottom: 1px solid rgba(196, 169, 106, 0.3);
+            border-bottom: 2px solid #d4a574;
         }
 
         #dialog-text {
             min-height: 24px;
+            color: #3d2817;
         }
 
         /* 对话框闪烁提示箭头 */
         #dialog-box.active::after {
-            content: '▼';
+            content: 'v';
             position: absolute;
-            bottom: 8px;
-            right: 14px;
-            color: #ffd93d;
-            font-size: 12px;
+            bottom: 6px;
+            right: 12px;
+            color: #5c3d1e;
+            font-size: 10px;
             animation: dialogBlink 1s infinite;
         }
 
@@ -441,58 +420,54 @@
             transform: translate(-50%, -50%);
             width: 460px;
             max-width: 92vw;
-            background: rgba(20, 15, 10, 0.85);
-            border: 3px solid rgba(196, 169, 106, 0.8);
+            background: #f4e8c1;
+            border: 4px solid #5c3d1e;
             padding: 20px;
             z-index: 75;
             display: none;
-            border-radius: 16px;
-            box-shadow:
-                0 12px 40px rgba(0,0,0,0.6),
-                0 0 0 1px rgba(196, 169, 106, 0.15),
-                inset 0 1px 0 rgba(255,255,255,0.06);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            border-radius: 0;
+            box-shadow: 8px 8px 0 rgba(0,0,0,0.3);
         }
 
         #backpack-panel.active { display: block; }
 
         #backpack-panel h3 {
-            color: #ffd93d;
-            font-size: 18px;
-            margin-bottom: 12px;
+            color: #5c3d1e;
+            font-size: 12px;
+            margin-bottom: 14px;
             text-align: center;
+            border-bottom: 2px solid #d4a574;
+            padding-bottom: 8px;
         }
 
         #backpack-grid {
             display: grid;
-            grid-template-columns: repeat(8, 48px);
-            gap: 4px;
+            grid-template-columns: repeat(8, 44px);
+            gap: 3px;
             justify-content: center;
             position: relative;
         }
 
         .backpack-cell {
-            width: 48px;
-            height: 48px;
-            background: rgba(61, 43, 31, 0.7);
-            border: 2px solid rgba(92, 61, 30, 0.8);
+            width: 44px;
+            height: 44px;
+            background: #2d1f0e;
+            border: 2px solid #5c3d1e;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
-            border-radius: 8px;
+            font-size: 16px;
+            border-radius: 0;
         }
 
         #backpack-cursor {
             position: absolute;
-            width: 48px;
-            height: 48px;
+            width: 44px;
+            height: 44px;
             border: 2px solid #ffd93d;
-            box-shadow: 0 0 12px rgba(255, 217, 61, 0.5);
             pointer-events: none;
             transition: left 0.1s, top 0.1s;
-            border-radius: 8px;
+            border-radius: 0;
         }
 
         /* ========================================
@@ -505,50 +480,47 @@
             transform: translate(-50%, -50%);
             width: 400px;
             max-width: 90vw;
-            background: rgba(20, 15, 10, 0.85);
-            border: 3px solid rgba(196, 169, 106, 0.8);
+            background: #f4e8c1;
+            border: 4px solid #5c3d1e;
             padding: 20px;
             z-index: 75;
             display: none;
-            border-radius: 16px;
-            box-shadow:
-                0 12px 40px rgba(0,0,0,0.6),
-                0 0 0 1px rgba(196, 169, 106, 0.15),
-                inset 0 1px 0 rgba(255,255,255,0.06);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            border-radius: 0;
+            box-shadow: 8px 8px 0 rgba(0,0,0,0.3);
         }
 
         #shop-panel.active { display: block; }
 
         #shop-panel h3 {
-            color: #ffd93d;
-            font-size: 18px;
-            margin-bottom: 12px;
+            color: #5c3d1e;
+            font-size: 12px;
+            margin-bottom: 14px;
             text-align: center;
+            border-bottom: 2px solid #d4a574;
+            padding-bottom: 8px;
         }
 
         #shop-list {
-            max-height: 300px;
+            max-height: 280px;
             overflow-y: auto;
         }
 
         .shop-item {
-            padding: 10px 14px;
-            color: #f4e8c1;
-            font-size: 15px;
-            border-bottom: 1px solid rgba(196, 169, 106, 0.2);
+            padding: 10px 12px;
+            color: #3d2817;
+            font-size: 9px;
+            border-bottom: 2px solid #d4a574;
             cursor: pointer;
             transition: background 0.1s;
-            border-radius: 6px;
+            border-radius: 0;
         }
 
-        .shop-item:hover { background: rgba(255, 217, 61, 0.1); }
+        .shop-item:hover { background: #e8d5a3; }
 
         .shop-item.selected {
-            background: rgba(255, 217, 61, 0.2);
-            border-left: 3px solid #ffd93d;
-            color: #ffd93d;
+            background: #d4a574;
+            border-left: 4px solid #ffd93d;
+            color: #3d2817;
         }
 
         /* ========================================
@@ -560,40 +532,36 @@
             right: 10px;
             width: 150px;
             height: 150px;
-            background: rgba(20, 15, 10, 0.65);
-            border: 2px solid rgba(196, 169, 106, 0.6);
+            background: #3d2817;
+            border: 3px solid #5c3d1e;
             z-index: 50;
             display: none;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            border-radius: 0;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
         }
 
         #minimap.active { display: block; }
 
         /* ========================================
-           Toast - 精致像素风提示
+           Toast - 像素风提示
            ======================================== */
         #toast {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(20, 15, 10, 0.88);
-            border: 2px solid rgba(255, 217, 61, 0.7);
-            color: #f4e8c1;
-            padding: 12px 28px;
-            font-size: 18px;
+            background: #f4e8c1;
+            border: 4px solid #5c3d1e;
+            color: #3d2817;
+            padding: 14px 24px;
+            font-size: 10px;
             z-index: 200;
             opacity: 0;
             transition: opacity 0.3s;
             pointer-events: none;
             text-align: center;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            border-radius: 0;
+            box-shadow: 6px 6px 0 rgba(0,0,0,0.3);
         }
 
         #toast.show { opacity: 1; }
@@ -605,36 +573,33 @@
             position: fixed;
             top: 10px;
             left: 10px;
-            background: rgba(20, 15, 10, 0.65);
-            border: 1px solid rgba(92, 61, 30, 0.6);
-            padding: 10px 14px;
-            color: #8b7355;
-            font-size: 11px;
+            background: #3d2817;
+            border: 2px solid #5c3d1e;
+            padding: 10px 12px;
+            color: #c4a96a;
+            font-size: 8px;
             z-index: 45;
             display: none;
-            line-height: 1.9;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            line-height: 2;
+            border-radius: 0;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
         }
 
         #controls-hint.active { display: block; }
 
         #controls-hint kbd {
-            background: rgba(61, 43, 31, 0.7);
-            border: 1px solid rgba(92, 61, 30, 0.8);
-            padding: 1px 6px;
-            color: #c4a96a;
-            font-family: monospace;
-            border-radius: 4px;
-            font-size: 10px;
+            background: #2d1f0e;
+            border: 2px solid #5c3d1e;
+            padding: 1px 5px;
+            color: #f4e8c1;
+            font-family: 'Press Start 2P', cursive;
+            border-radius: 0;
+            font-size: 8px;
         }
 
         /* ========================================
            设备类型媒体查询
            ======================================== */
-        /* 桌面端：显示 #toolbar，隐藏 #touch-toolbar */
         @media (hover: hover) and (pointer: fine) {
             #toolbar {
                 display: none;
@@ -650,7 +615,6 @@
             }
         }
 
-        /* 移动端/触摸设备：显示 #touch-toolbar，隐藏 #toolbar */
         @media (hover: none) and (pointer: coarse) {
             #touch-controls {
                 display: flex !important;
@@ -662,11 +626,11 @@
                 display: none !important;
             }
             #hotbar {
-                bottom: 160px;
-                left: calc(50% + 180px);
+                bottom: 150px;
+                left: calc(50% + 160px);
             }
             #dialog-box {
-                bottom: 200px;
+                bottom: 180px;
             }
             #minimap {
                 display: none !important;
@@ -683,60 +647,60 @@
             z-index: 80;
         }
 
-        /* 虚拟摇杆 - 更大更好按 */
+        /* 虚拟摇杆 */
         #joystick-zone {
             position: fixed;
             bottom: 20px;
             left: 20px;
-            width: 170px;
-            height: 170px;
+            width: 160px;
+            height: 160px;
             pointer-events: auto;
             touch-action: none;
         }
 
         #joystick-base {
             position: absolute;
-            width: 170px;
-            height: 170px;
+            width: 160px;
+            height: 160px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            border: 3px solid rgba(255, 255, 255, 0.2);
-            box-shadow: inset 0 0 24px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.2);
-            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+            background: rgba(61, 40, 23, 0.6);
+            border: 3px solid #5c3d1e;
+            box-shadow: inset 0 0 16px rgba(0,0,0,0.3);
+            transition: background 0.2s, border-color 0.2s;
         }
 
         #joystick-base.active {
-            background: rgba(255, 255, 255, 0.18);
-            border-color: rgba(255, 217, 61, 0.5);
-            box-shadow: inset 0 0 24px rgba(0,0,0,0.2), 0 4px 16px rgba(255, 217, 61, 0.15);
+            background: rgba(61, 40, 23, 0.8);
+            border-color: #ffd93d;
         }
 
         #joystick-thumb {
             position: absolute;
-            width: 68px;
-            height: 68px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.4);
-            border: 2px solid rgba(255, 255, 255, 0.6);
+            background: #d4a574;
+            border: 3px solid #5c3d1e;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             transition: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
         }
 
-        /* 互动按钮 - 更大 */
+        /* 互动按钮 */
         #touch-interact {
             position: fixed;
             bottom: 40px;
             right: 20px;
-            width: 90px;
-            height: 90px;
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
-            background: rgba(255, 217, 61, 0.3);
-            border: 3px solid rgba(255, 217, 61, 0.6);
-            color: #ffd93d;
-            font-size: 34px;
+            background: #4caf50;
+            border: 3px solid #5c3d1e;
+            color: #fff;
+            font-size: 14px;
+            font-family: 'Press Start 2P', cursive;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -744,27 +708,28 @@
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
             transition: transform 0.1s, background 0.2s;
         }
 
         #touch-interact:active {
-            background: rgba(255, 217, 61, 0.6);
+            background: #3d8b40;
             transform: scale(0.93);
         }
 
-        /* 背包触控按钮 - 新增 */
+        /* 背包触控按钮 */
         #touch-backpack {
             position: fixed;
-            bottom: 150px;
+            bottom: 140px;
             right: 20px;
-            width: 64px;
-            height: 64px;
-            border-radius: 14px;
-            background: rgba(20, 15, 10, 0.75);
-            border: 2px solid rgba(92, 61, 30, 0.8);
+            width: 56px;
+            height: 56px;
+            border-radius: 0;
+            background: #3d2817;
+            border: 3px solid #5c3d1e;
             color: #f4e8c1;
-            font-size: 28px;
+            font-size: 10px;
+            font-family: 'Press Start 2P', cursive;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -772,56 +737,52 @@
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
             transition: transform 0.1s;
         }
 
         #touch-backpack:active {
-            background: rgba(255, 217, 61, 0.3);
+            background: #5c3d1e;
             border-color: #ffd93d;
             transform: scale(0.93);
         }
 
-        /* 触控工具栏 - 按钮更大 */
+        /* 触控工具栏 */
         #touch-toolbar {
             position: fixed;
-            bottom: 200px;
+            bottom: 180px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 10px;
+            gap: 6px;
             pointer-events: auto;
             touch-action: none;
             z-index: 70;
         }
 
         .touch-tool-btn {
-            width: 64px;
-            height: 64px;
-            border-radius: 16px;
-            background: rgba(20, 15, 10, 0.75);
-            border: 2px solid rgba(92, 61, 30, 0.8);
+            width: 52px;
+            height: 52px;
+            border-radius: 0;
+            background: #3d2817;
+            border: 3px solid #5c3d1e;
             color: #f4e8c1;
-            font-size: 28px;
+            font-size: 10px;
+            font-family: 'Press Start 2P', cursive;
             display: flex;
             align-items: center;
             justify-content: center;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
             transition: all 0.15s ease;
         }
 
         .touch-tool-btn.active {
             border-color: #ffd93d;
-            background: rgba(255, 217, 61, 0.25);
-            box-shadow: 0 0 16px rgba(255, 217, 61, 0.4), inset 0 1px 0 rgba(255,255,255,0.1);
-            transform: scale(1.08);
+            background: #5c3d1e;
+            box-shadow: inset 0 0 0 1px #ffd93d, 4px 4px 0 rgba(0,0,0,0.3);
         }
 
         .touch-tool-btn:active {
@@ -838,7 +799,7 @@
     <div id="login-overlay">
         <div class="login-box">
             <h1>快乐农场</h1>
-            <p class="subtitle">星露谷风格 · 大世界种菜冒险</p>
+            <p class="subtitle">星露谷风格 大世界种菜冒险</p>
             <input type="text" id="player-name" placeholder="输入你的名字" maxlength="12">
             <input type="text" id="room-id" placeholder="房间号 (留空创建新房)">
             <label class="remember-row">
@@ -852,8 +813,8 @@
             </details>
             <button id="start-btn">开始种田</button>
             <p class="hint">
-                WASD 移动 · 空格 互动 · 1-5 工具<br>
-                B 背包 · E NPC · Q 使用 · Tab 种子 · F 钓鱼
+                WASD 移动  空格 互动  1-5 工具<br>
+                B 背包  E NPC  Q 使用  Tab 种子  F 钓鱼
             </p>
         </div>
     </div>
@@ -862,23 +823,23 @@
     <div id="hud">
         <div class="hud-left">
             <div class="hud-box">
-                <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c4a96a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                <span>[P]</span>
                 <span id="hud-name">农场主</span>
             </div>
             <div id="stamina-bar-container">
-                <span style="display:flex;align-items:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="#4ade80" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+                <span style="color:#4caf50;">[+]</span>
                 <div id="stamina-bar">
                     <div id="stamina-bar-fill"></div>
                 </div>
                 <span id="stamina-text">100/100</span>
             </div>
             <div class="hud-box">
-                <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffd93d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+                <span style="color:#ffd93d;">$</span>
                 <span class="value" id="coins-display">500</span>
             </div>
             <div class="hud-box">
-                <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c4a96a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-                <span id="day-display">第 1 天 · 春</span>
+                <span>[C]</span>
+                <span id="day-display">第 1 天 春</span>
             </div>
         </div>
         <div class="hud-right">
@@ -886,7 +847,7 @@
                 <span id="time-display">06:00</span>
             </div>
             <div class="hud-box">
-                <span id="weather-display">晴朗</span>
+                <span id="weather-display">晴</span>
             </div>
             <div class="hud-box">
                 <span id="area-display">农场</span>
@@ -896,14 +857,14 @@
 
     <!-- ===== 工具栏 ===== -->
     <div id="toolbar">
-        <div class="tool-item active" data-tool="0" title="锄头 [1]"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c4a96a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13l-2 8"/><path d="M8 21l4-2"/><path d="M16 13l2 8"/><path d="M18 21l-4-2"/></svg><span class="tool-label">锄头</span></div>
-        <div class="tool-item" data-tool="1" title="水壶 [2]"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c4a96a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg><span class="tool-label">水壶</span></div>
-        <div class="tool-item" data-tool="2" title="种子袋 [3]"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c4a96a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span class="tool-label">种子</span></div>
-        <div class="tool-item" data-tool="3" title="收获 [4]"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c4a96a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg><span class="tool-label">收获</span></div>
-        <div class="tool-item" data-tool="4" title="铲除 [5]"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c4a96a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-4.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg><span class="tool-label">铲除</span></div>
+        <div class="tool-item active" data-tool="0" title="锄头 [1]">锄<span class="tool-label">锄</span></div>
+        <div class="tool-item" data-tool="1" title="水壶 [2]">水<span class="tool-label">水</span></div>
+        <div class="tool-item" data-tool="2" title="种子袋 [3]">种<span class="tool-label">种</span></div>
+        <div class="tool-item" data-tool="3" title="收获 [4]">收<span class="tool-label">收</span></div>
+        <div class="tool-item" data-tool="4" title="铲除 [5]">铲<span class="tool-label">铲</span></div>
         <div class="tool-separator"></div>
-        <div class="tool-item" data-tool="5" title="背包 [B]"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c4a96a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M8 21v-5a2 2 0 0 1 4 0v5"/><path d="M16 21v-5a2 2 0 0 0-4 0v5"/></svg><span class="tool-label">背包</span></div>
-        <div class="tool-item" data-tool="6" title="地图 [M]"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c4a96a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg><span class="tool-label">地图</span></div>
+        <div class="tool-item" data-tool="5" title="背包 [B]">包<span class="tool-label">包</span></div>
+        <div class="tool-item" data-tool="6" title="地图 [M]">图<span class="tool-label">图</span></div>
     </div>
 
     <!-- ===== 快捷物品栏 ===== -->
@@ -922,18 +883,18 @@
 
     <!-- ===== 背包面板 ===== -->
     <div id="backpack-panel">
-        <h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffd93d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M8 21v-5a2 2 0 0 1 4 0v5"/><path d="M16 21v-5a2 2 0 0 0-4 0v5"/></svg>背包</h3>
+        <h3>[背包]</h3>
         <div id="backpack-grid">
             <div id="backpack-cursor"></div>
         </div>
-        <p style="color:#8b7355; font-size:11px; text-align:center; margin-top:10px;">方向键移动 · 空格使用 · Esc/B 关闭</p>
+        <p style="color:#8b6d3f; font-size:8px; text-align:center; margin-top:10px;">方向键移动  空格使用  Esc/B 关闭</p>
     </div>
 
     <!-- ===== 商店面板 ===== -->
     <div id="shop-panel">
-        <h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffd93d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>商店</h3>
+        <h3>[商店]</h3>
         <div id="shop-list"></div>
-        <p style="color:#8b7355; font-size:11px; text-align:center; margin-top:10px;">上下选择 · 空格/Enter 购买 · Esc/B 关闭</p>
+        <p style="color:#8b6d3f; font-size:8px; text-align:center; margin-top:10px;">上下选择  空格/Enter 购买  Esc/B 关闭</p>
     </div>
 
     <!-- ===== 小地图 ===== -->
@@ -953,14 +914,14 @@
         <!-- 互动按钮 -->
         <div id="touch-interact">A</div>
         <!-- 背包按钮 -->
-        <div id="touch-backpack"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f4e8c1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M8 21v-5a2 2 0 0 1 4 0v5"/><path d="M16 21v-5a2 2 0 0 0-4 0v5"/></svg></div>
+        <div id="touch-backpack">包</div>
         <!-- 工具切换 -->
         <div id="touch-toolbar">
-            <div class="touch-tool-btn active" data-tool="0"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f4e8c1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13l-2 8"/><path d="M8 21l4-2"/><path d="M16 13l2 8"/><path d="M18 21l-4-2"/></svg></div>
-            <div class="touch-tool-btn" data-tool="1"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f4e8c1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg></div>
-            <div class="touch-tool-btn" data-tool="2"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f4e8c1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg></div>
-            <div class="touch-tool-btn" data-tool="3"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f4e8c1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
-            <div class="touch-tool-btn" data-tool="4"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f4e8c1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-4.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg></div>
+            <div class="touch-tool-btn active" data-tool="0">锄</div>
+            <div class="touch-tool-btn" data-tool="1">水</div>
+            <div class="touch-tool-btn" data-tool="2">种</div>
+            <div class="touch-tool-btn" data-tool="3">收</div>
+            <div class="touch-tool-btn" data-tool="4">铲</div>
         </div>
     </div>
 
@@ -969,9 +930,9 @@
         <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动<br>
         <kbd>空格</kbd> 互动<br>
         <kbd>1</kbd>-<kbd>5</kbd> 切换工具<br>
-        <kbd>B</kbd> 背包 · <kbd>E</kbd> NPC对话<br>
-        <kbd>Q</kbd> 使用物品 · <kbd>Tab</kbd> 切换种子<br>
-        <kbd>F</kbd> 钓鱼 · <kbd>M</kbd> 地图
+        <kbd>B</kbd> 背包  <kbd>E</kbd> NPC对话<br>
+        <kbd>Q</kbd> 使用物品  <kbd>Tab</kbd> 切换种子<br>
+        <kbd>F</kbd> 钓鱼  <kbd>M</kbd> 地图
     </div>
 
     <!-- ===== JS 引用 (保持 8 个脚本顺序不变) ===== -->
@@ -1016,7 +977,7 @@
         const joystickThumb = document.getElementById('joystick-thumb');
         const joystickBase = document.getElementById('joystick-base');
         let joystickActive = false;
-        const joystickRadius = 45; // 更大的摇杆半径
+        const joystickRadius = 45;
 
         function getInput() {
             return (typeof input !== 'undefined') ? input : (window.input || null);
