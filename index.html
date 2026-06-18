@@ -1,1266 +1,502 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>快乐农场 - 星露谷风格大世界</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            background: #2d1f0e;
-            overflow: hidden;
-            font-family: 'Press Start 2P', cursive;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        #game-wrapper {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        canvas {
-            display: block;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
-            touch-action: none;
-        }
-
-        /* ========================================
-           登录界面 - 星露谷像素风
-           ======================================== */
-        #login-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(180deg, #87ceeb 0%, #b8e6ff 35%, #e8d5a3 50%, #4a7c3f 50%, #3d6b35 70%, #2d5a25 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            flex-direction: column;
-        }
-
-        /* 云朵装饰 */
-        #login-overlay::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background:
-                radial-gradient(ellipse 60px 30px at 15% 15%, rgba(255,255,255,0.7) 50%, transparent 50%),
-                radial-gradient(ellipse 80px 35px at 45% 10%, rgba(255,255,255,0.6) 50%, transparent 50%),
-                radial-gradient(ellipse 50px 25px at 75% 18%, rgba(255,255,255,0.65) 50%, transparent 50%),
-                radial-gradient(ellipse 70px 30px at 85% 8%, rgba(255,255,255,0.5) 50%, transparent 50%);
-            pointer-events: none;
-        }
-
-        .login-box {
-            background: #f4e8c1;
-            border: 4px solid #5c3d1e;
-            padding: 32px 36px;
-            box-shadow: 8px 8px 0 rgba(0,0,0,0.35);
-            text-align: center;
-            max-width: 440px;
-            width: 90%;
-            position: relative;
-            z-index: 1;
-            border-radius: 2px;
-        }
-
-        .login-box h1 {
-            font-size: 36px;
-            color: #ffd93d;
-            text-shadow: 3px 3px 0 #5c3d1e;
-            margin-bottom: 8px;
-            letter-spacing: 2px;
-        }
-
-        .login-box .subtitle {
-            color: #d4c4a0;
-            font-size: 10px;
-            margin-bottom: 24px;
-            letter-spacing: 1px;
-        }
-
-        .login-box input[type="text"] {
-            width: 100%;
-            padding: 12px 14px;
-            border: 3px solid #5c3d1e;
-            background: #fff8e7;
-            font-family: 'Press Start 2P', cursive;
-            font-size: 10px;
-            color: #3d2817;
-            margin-bottom: 12px;
-            outline: none;
-            border-radius: 0;
-        }
-
-        .login-box input[type="text"]:focus {
-            background: #fff;
-            border-color: #8b6d3f;
-        }
-
-        /* 像素风复选框 */
-        .login-box .remember-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-bottom: 14px;
-            color: #5c3d1e;
-            font-size: 10px;
-            cursor: pointer;
-        }
-
-        .login-box .remember-row input[type="checkbox"] {
-            appearance: none;
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            background: #fff8e7;
-            border: 2px solid #5c3d1e;
-            cursor: pointer;
-            position: relative;
-            border-radius: 0;
-        }
-
-        .login-box .remember-row input[type="checkbox"]:checked::after {
-            content: 'x';
-            position: absolute;
-            top: -2px;
-            left: 2px;
-            color: #4caf50;
-            font-family: 'Press Start 2P', cursive;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .login-box button {
-            width: 100%;
-            padding: 14px;
-            background: #4caf50;
-            border: 3px solid #5c3d1e;
-            color: #fff;
-            font-family: 'Press Start 2P', cursive;
-            font-size: 12px;
-            cursor: pointer;
-            box-shadow: 4px 4px 0 #3d2817;
-            transition: all 0.1s;
-            margin-top: 8px;
-            letter-spacing: 1px;
-            border-radius: 0;
-        }
-
-        .login-box button:hover {
-            background: #5cbf60;
-        }
-
-        .login-box button:active {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 #3d2817;
-            background: #3d8b40;
-        }
-
-        .login-box .hint {
-            color: #8b6d3f;
-            font-size: 8px;
-            margin-top: 16px;
-            line-height: 2;
-        }
-
-        .login-box details {
-            margin-top: 10px;
-            text-align: left;
-        }
-
-        .login-box details summary {
-            color: #8b6d3f;
-            font-size: 9px;
-            cursor: pointer;
-        }
-
-        /* ========================================
-           HUD - 星露谷风格
-           ======================================== */
-        #hud {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            display: none;
-            justify-content: space-between;
-            align-items: flex-start;
-            padding: 10px 12px;
-            pointer-events: none;
-            z-index: 50;
-        }
-
-        #hud.active { display: flex; }
-
-        .hud-box {
-            background: #3d2817;
-            border: 2px solid #5c3d1e;
-            padding: 6px 10px;
-            color: #f4e8c1;
-            font-size: 9px;
-            pointer-events: auto;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            border-radius: 0;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-        }
-
-        .hud-box .value { color: #ffd93d; }
-
-        .hud-left, .hud-right { display: flex; flex-direction: column; gap: 5px; }
-
-        /* 体力条 */
-        #stamina-bar-container {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: #3d2817;
-            border: 2px solid #5c3d1e;
-            padding: 6px 10px;
-            border-radius: 0;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-            pointer-events: auto;
-        }
-
-        #stamina-bar {
-            width: 80px;
-            height: 10px;
-            background: #2d1f0e;
-            border: 2px solid #5c3d1e;
-            border-radius: 0;
-            overflow: hidden;
-        }
-
-        #stamina-bar-fill {
-            height: 100%;
-            width: 100%;
-            background: #4caf50;
-            transition: width 0.3s;
-        }
-
-        #stamina-bar-fill.low {
-            background: #e74c3c;
-        }
-
-        #stamina-text {
-            color: #f4e8c1;
-            font-size: 8px;
-            min-width: 45px;
-        }
-
-        /* 时间大字显示 */
-        #time-display {
-            font-size: 22px !important;
-            color: #ffd93d !important;
-            text-shadow: 2px 2px 0 #5c3d1e;
-            letter-spacing: 1px;
-        }
-
-        /* 金币图标 */
-        .coin-icon {
-            width: 10px;
-            height: 10px;
-            background: #ffd93d;
-            border: 2px solid #c4a96a;
-            border-radius: 50%;
-            display: inline-block;
-            box-shadow: inset -1px -1px 0 #c4a96a;
-        }
-
-        /* HP标签 */
-        .hp-label {
-            color: #4caf50;
-            font-size: 9px;
-            font-weight: bold;
-            letter-spacing: 1px;
-        }
-
-        /* ========================================
-           工具栏 - 底部居中
-           ======================================== */
-        #toolbar {
-            position: fixed;
-            bottom: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: none;
-            gap: 4px;
-            z-index: 55;
-            background: #3d2817;
-            border: 3px solid #5c3d1e;
-            padding: 6px 8px;
-            border-radius: 0;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-        }
-
-        #toolbar.active { display: flex; }
-
-        .tool-item {
-            width: 48px;
-            height: 44px;
-            background: #2d1f0e;
-            border: 2px solid #5c3d1e;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.1s;
-            border-radius: 0;
-            position: relative;
-        }
-
-        .tool-item:hover { background: #3d2817; }
-        .tool-item.active {
-            border-color: #ffd93d;
-            background: #3d2817;
-            box-shadow: inset 0 0 0 1px #ffd93d;
-        }
-
-        .tool-item svg {
-            display: block;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
-            flex-shrink: 0;
-        }
-
-        .tool-item .tool-label {
-            font-size: 7px;
-            color: #c4a96a;
-            white-space: nowrap;
-            font-family: 'Press Start 2P', cursive;
-            line-height: 1;
-            margin-top: 2px;
-        }
-
-        .tool-separator {
-            width: 2px;
-            background: #5c3d1e;
-            margin: 2px 1px;
-        }
-
-        /* ========================================
-           快捷物品栏 - 工具栏右侧
-           ======================================== */
-        #hotbar {
-            position: fixed;
-            bottom: 60px;
-            left: calc(50% + 210px);
-            display: none;
-            gap: 2px;
-            z-index: 55;
-            background: #3d2817;
-            border: 3px solid #5c3d1e;
-            padding: 6px 8px;
-            border-radius: 0;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-        }
-
-        #hotbar.active { display: flex; }
-
-        .hotbar-slot {
-            width: 40px;
-            height: 40px;
-            background: #2d1f0e;
-            border: 2px solid #5c3d1e;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            border-radius: 0;
-            position: relative;
-        }
-
-        .hotbar-emoji { font-size: 14px; line-height: 1; }
-        .hotbar-count { font-size: 8px; color: #ffd93d; line-height: 1; }
-        .hotbar-empty { width: 8px; height: 8px; background: #5c3d1e; border-radius: 0; }
-
-        /* ========================================
-           对话框 - 星露谷风格
-           ======================================== */
-        #dialog-box {
-            position: fixed;
-            bottom: 140px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 600px;
-            max-width: 92vw;
-            background: #f4e8c1;
-            border: 4px solid #5c3d1e;
-            padding: 16px 20px;
-            color: #3d2817;
-            font-size: 10px;
-            z-index: 65;
-            display: none;
-            line-height: 1.8;
-            border-radius: 0;
-            box-shadow: 6px 6px 0 rgba(0,0,0,0.3);
-        }
-
-        #dialog-box.active { display: block; }
-
-        #dialog-speaker {
-            color: #5c3d1e;
-            font-weight: bold;
-            font-size: 10px;
-            margin-bottom: 6px;
-            padding-bottom: 4px;
-            border-bottom: 2px solid #d4a574;
-        }
-
-        #dialog-text {
-            min-height: 24px;
-            color: #3d2817;
-        }
-
-        /* 对话框闪烁提示箭头 */
-        #dialog-box.active::after {
-            content: 'v';
-            position: absolute;
-            bottom: 6px;
-            right: 12px;
-            color: #5c3d1e;
-            font-size: 10px;
-            animation: dialogBlink 1s infinite;
-        }
-
-        @keyframes dialogBlink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.2; }
-        }
-
-        /* ========================================
-           背包面板
-           ======================================== */
-        #backpack-panel {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 460px;
-            max-width: 92vw;
-            background: #f4e8c1;
-            border: 4px solid #5c3d1e;
-            padding: 20px;
-            z-index: 75;
-            display: none;
-            border-radius: 0;
-            box-shadow: 8px 8px 0 rgba(0,0,0,0.3);
-        }
-
-        #backpack-panel.active { display: block; }
-
-        #backpack-panel h3 {
-            color: #5c3d1e;
-            font-size: 12px;
-            margin-bottom: 14px;
-            text-align: center;
-            border-bottom: 2px solid #d4a574;
-            padding-bottom: 8px;
-        }
-
-        #backpack-grid {
-            display: grid;
-            grid-template-columns: repeat(8, 44px);
-            gap: 3px;
-            justify-content: center;
-            position: relative;
-        }
-
-        .backpack-cell {
-            width: 44px;
-            height: 44px;
-            background: #2d1f0e;
-            border: 2px solid #5c3d1e;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            border-radius: 0;
-        }
-
-        #backpack-cursor {
-            position: absolute;
-            width: 44px;
-            height: 44px;
-            border: 2px solid #ffd93d;
-            pointer-events: none;
-            transition: left 0.1s, top 0.1s;
-            border-radius: 0;
-        }
-
-        /* ========================================
-           商店面板
-           ======================================== */
-        #shop-panel {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 400px;
-            max-width: 90vw;
-            background: #f4e8c1;
-            border: 4px solid #5c3d1e;
-            padding: 20px;
-            z-index: 75;
-            display: none;
-            border-radius: 0;
-            box-shadow: 8px 8px 0 rgba(0,0,0,0.3);
-        }
-
-        #shop-panel.active { display: block; }
-
-        #shop-panel h3 {
-            color: #5c3d1e;
-            font-size: 12px;
-            margin-bottom: 14px;
-            text-align: center;
-            border-bottom: 2px solid #d4a574;
-            padding-bottom: 8px;
-        }
-
-        #shop-list {
-            max-height: 280px;
-            overflow-y: auto;
-        }
-
-        .shop-item {
-            padding: 10px 12px;
-            color: #3d2817;
-            font-size: 9px;
-            border-bottom: 2px solid #d4a574;
-            cursor: pointer;
-            transition: background 0.1s;
-            border-radius: 0;
-        }
-
-        .shop-item:hover { background: #e8d5a3; }
-
-        .shop-item.selected {
-            background: #d4a574;
-            border-left: 4px solid #ffd93d;
-            color: #3d2817;
-        }
-
-        /* ========================================
-           小地图
-           ======================================== */
-        #minimap {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            width: 120px;
-            height: 120px;
-            background: #3d2817;
-            border: 3px solid #5c3d1e;
-            z-index: 50;
-            display: block;
-            border-radius: 0;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-        }
-
-        #minimap.hidden { display: none; }
-
-        /* ========================================
-           Toast - 像素风提示
-           ======================================== */
-        #toast {
-            position: fixed;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-20px);
-            background: #f4e8c1;
-            border: 4px solid #5c3d1e;
-            color: #3d2817;
-            padding: 14px 24px;
-            font-size: 10px;
-            z-index: 200;
-            opacity: 0;
-            transition: opacity 0.4s ease, transform 0.4s ease;
-            pointer-events: none;
-            text-align: center;
-            border-radius: 0;
-            box-shadow: 6px 6px 0 rgba(0,0,0,0.3);
-        }
-
-        #toast.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-
-        /* ========================================
-           控制提示
-           ======================================== */
-        #controls-hint {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: #3d2817;
-            border: 2px solid #5c3d1e;
-            padding: 10px 12px;
-            color: #c4a96a;
-            font-size: 8px;
-            z-index: 45;
-            display: none;
-            line-height: 2;
-            border-radius: 0;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-        }
-
-        #controls-hint.active { display: block; }
-
-        #controls-hint kbd {
-            background: #2d1f0e;
-            border: 2px solid #5c3d1e;
-            padding: 1px 5px;
-            color: #f4e8c1;
-            font-family: 'Press Start 2P', cursive;
-            border-radius: 0;
-            font-size: 8px;
-        }
-
-        /* ========================================
-           设备类型媒体查询
-           ======================================== */
-        @media (hover: hover) and (pointer: fine) {
-            #toolbar {
-                display: none;
-            }
-            #toolbar.active {
-                display: flex;
-            }
-            #touch-toolbar {
-                display: none !important;
-            }
-            #touch-controls {
-                display: none !important;
-            }
-        }
-
-        @media (hover: none) and (pointer: coarse) {
-            #touch-controls {
-                display: flex !important;
-            }
-            #controls-hint {
-                display: none !important;
-            }
-            #toolbar {
-                display: none !important;
-            }
-            #hotbar {
-                bottom: 150px;
-                left: calc(50% + 160px);
-            }
-            #dialog-box {
-                bottom: 180px;
-            }
-            #minimap {
-                display: none !important;
-            }
-        }
-
-        #touch-controls {
-            display: none;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            pointer-events: none;
-            z-index: 80;
-        }
-
-        /* 虚拟摇杆 */
-        #joystick-zone {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            width: 160px;
-            height: 160px;
-            pointer-events: auto;
-            touch-action: none;
-        }
-
-        #joystick-base {
-            position: absolute;
-            width: 160px;
-            height: 160px;
-            border-radius: 50%;
-            background: rgba(61, 40, 23, 0.6);
-            border: 3px solid #5c3d1e;
-            box-shadow: inset 0 0 16px rgba(0,0,0,0.3);
-            transition: background 0.2s, border-color 0.2s;
-        }
-
-        #joystick-base.active {
-            background: rgba(61, 40, 23, 0.8);
-            border-color: #ffd93d;
-        }
-
-        #joystick-thumb {
-            position: absolute;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: #d4a574;
-            border: 3px solid #5c3d1e;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            transition: none;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }
-
-        /* 互动按钮 */
-        #touch-interact {
-            position: fixed;
-            bottom: 40px;
-            right: 20px;
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: #4caf50;
-            border: 3px solid #5c3d1e;
-            color: #fff;
-            font-size: 14px;
-            font-family: 'Press Start 2P', cursive;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: auto;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-            transition: transform 0.1s, background 0.2s;
-        }
-
-        #touch-interact:active {
-            background: #3d8b40;
-            transform: scale(0.93);
-        }
-
-        /* 背包触控按钮 */
-        #touch-backpack {
-            position: fixed;
-            bottom: 140px;
-            right: 20px;
-            width: 56px;
-            height: 56px;
-            border-radius: 0;
-            background: #3d2817;
-            border: 3px solid #5c3d1e;
-            color: #f4e8c1;
-            font-size: 10px;
-            font-family: 'Press Start 2P', cursive;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: auto;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-            transition: transform 0.1s;
-        }
-
-        #touch-backpack:active {
-            background: #5c3d1e;
-            border-color: #ffd93d;
-            transform: scale(0.93);
-        }
-
-        /* 触控工具栏 */
-        #touch-toolbar {
-            position: fixed;
-            bottom: 180px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 6px;
-            pointer-events: auto;
-            touch-action: none;
-            z-index: 70;
-        }
-
-        .touch-tool-btn {
-            width: 52px;
-            height: 52px;
-            border-radius: 0;
-            background: #3d2817;
-            border: 3px solid #5c3d1e;
-            color: #f4e8c1;
-            font-size: 10px;
-            font-family: 'Press Start 2P', cursive;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-            transition: all 0.15s ease;
-        }
-
-        .touch-tool-btn svg {
-            display: block;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
-            flex-shrink: 0;
-        }
-
-        .touch-tool-btn .tool-label {
-            font-size: 7px;
-            color: #f4e8c1;
-            white-space: nowrap;
-            font-family: 'Press Start 2P', cursive;
-            line-height: 1;
-            margin-top: 2px;
-        }
-
-        .touch-tool-btn.active {
-            border-color: #ffd93d;
-            background: #5c3d1e;
-            box-shadow: inset 0 0 0 1px #ffd93d, 4px 4px 0 rgba(0,0,0,0.3);
-        }
-
-        .touch-tool-btn:active {
-            transform: scale(0.93);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>星露谷 - 像素农场</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    background: #1a1a2e;
+    overflow: hidden;
+    font-family: 'ZCOOL QingKe HuangYou', sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  #gameCanvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  /* ===== HUD 顶部信息栏 ===== */
+  #hud {
+    position: fixed;
+    top: 12px; left: 12px; right: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .hud-panel {
+    background: rgba(30, 20, 10, 0.85);
+    border: 2px solid #8B6914;
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: #E8D5A3;
+    font-size: 14px;
+    pointer-events: auto;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    line-height: 1.6;
+  }
+
+  .hud-panel .label { color: #A89060; font-size: 12px; }
+  .hud-panel .value { color: #FFD700; font-size: 16px; }
+
+  #hud-left { min-width: 140px; }
+  #hud-right { text-align: right; min-width: 120px; }
+
+  /* ===== 工具栏 底部 ===== */
+  #toolbar {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    background: rgba(30, 20, 10, 0.9);
+    border: 2px solid #8B6914;
+    border-radius: 10px;
+    padding: 6px 10px;
+    z-index: 10;
+  }
+
+  .tool-slot {
+    width: 52px; height: 52px;
+    background: rgba(60, 40, 20, 0.7);
+    border: 2px solid #5A4020;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s;
+  }
+
+  .tool-slot:hover { border-color: #8B6914; }
+  .tool-slot.active {
+    border-color: #FFD700;
+    background: rgba(100, 70, 30, 0.8);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+  }
+
+  .tool-slot canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  .tool-slot .tool-name {
+    position: absolute;
+    bottom: -18px;
+    font-size: 10px;
+    color: #E8D5A3;
+    white-space: nowrap;
+    text-shadow: 1px 1px 2px #000;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .tool-slot.active .tool-name,
+  .tool-slot:hover .tool-name { opacity: 1; }
+
+  .tool-slot .hotkey {
+    position: absolute;
+    top: 2px; right: 4px;
+    font-size: 9px;
+    color: #8B6914;
+  }
+
+  /* ===== 背包面板 ===== */
+  #inventory {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(30, 20, 10, 0.95);
+    border: 3px solid #8B6914;
+    border-radius: 12px;
+    padding: 20px;
+    z-index: 100;
+    display: none;
+    min-width: 360px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  #inventory.open { display: block; }
+
+  #inventory h2 {
+    color: #FFD700;
+    font-size: 20px;
+    margin-bottom: 12px;
+    text-align: center;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  }
+
+  #inv-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 48px);
+    gap: 4px;
+    justify-content: center;
+  }
+
+  .inv-slot {
+    width: 48px; height: 48px;
+    background: rgba(60, 40, 20, 0.6);
+    border: 1px solid #5A4020;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .inv-slot:hover { border-color: #8B6914; }
+
+  .inv-slot .count {
+    position: absolute;
+    bottom: 1px; right: 3px;
+    font-size: 10px;
+    color: #FFD700;
+    text-shadow: 1px 1px 1px #000;
+  }
+
+  .inv-slot .item-name {
+    position: absolute;
+    bottom: -16px;
+    font-size: 9px;
+    color: #E8D5A3;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .inv-slot:hover .item-name { opacity: 1; }
+
+  /* ===== 对话框 ===== */
+  #dialog {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(600px, calc(100vw - 40px));
+    background: rgba(30, 20, 10, 0.95);
+    border: 3px solid #8B6914;
+    border-radius: 10px;
+    padding: 16px 20px;
+    z-index: 50;
+    display: none;
+    color: #E8D5A3;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  #dialog.open { display: block; }
+
+  #dialog .speaker {
+    color: #FFD700;
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+
+  #dialog .text { min-height: 40px; }
+
+  #dialog .hint {
+    color: #8B6914;
+    font-size: 11px;
+    text-align: right;
+    margin-top: 6px;
+  }
+
+  /* ===== 小地图 ===== */
+  #minimap-container {
+    position: fixed;
+    bottom: 80px;
+    right: 12px;
+    z-index: 10;
+    border: 2px solid #8B6914;
+    border-radius: 6px;
+    overflow: hidden;
+    opacity: 0.85;
+  }
+
+  #minimap {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  /* ===== Toast 提示 ===== */
+  .toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(30, 20, 10, 0.9);
+    border: 2px solid #FFD700;
+    border-radius: 8px;
+    padding: 10px 20px;
+    color: #FFD700;
+    font-size: 16px;
+    z-index: 200;
+    animation: toastAnim 2s ease-out forwards;
+    pointer-events: none;
+  }
+
+  @keyframes toastAnim {
+    0% { opacity: 0; transform: translate(-50%, -40%); }
+    15% { opacity: 1; transform: translate(-50%, -50%); }
+    70% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -60%); }
+  }
+
+  /* ===== 加载画面 ===== */
+  #loading {
+    position: fixed;
+    inset: 0;
+    background: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    color: #E8D5A3;
+    font-size: 24px;
+  }
+
+  #loading .title {
+    font-size: 36px;
+    color: #FFD700;
+    margin-bottom: 20px;
+    text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+  }
+
+  #load-bar-outer {
+    width: 300px;
+    height: 16px;
+    background: rgba(60, 40, 20, 0.8);
+    border: 2px solid #8B6914;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 16px;
+  }
+
+  #load-bar {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #4CAF50, #8BC34A);
+    border-radius: 6px;
+    transition: width 0.3s;
+  }
+
+  #load-text {
+    margin-top: 8px;
+    font-size: 14px;
+    color: #A89060;
+  }
+
+  /* ===== 触摸控制 (仅移动端) ===== */
+  #touch-controls {
+    position: fixed;
+    bottom: 80px;
+    left: 16px;
+    z-index: 10;
+    display: none;
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    #touch-controls { display: block; }
+    #toolbar { bottom: 10px; }
+    .tool-slot { width: 44px; height: 44px; }
+    #minimap-container { bottom: 70px; right: 8px; }
+  }
+
+  .dpad {
+    width: 120px; height: 120px;
+    position: relative;
+  }
+
+  .dpad-btn {
+    position: absolute;
+    width: 40px; height: 40px;
+    background: rgba(30, 20, 10, 0.7);
+    border: 2px solid #8B6914;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #E8D5A3;
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  .dpad-btn:active { background: rgba(100, 70, 30, 0.8); }
+  .dpad-up { top: 0; left: 40px; }
+  .dpad-down { bottom: 0; left: 40px; }
+  .dpad-left { top: 40px; left: 0; }
+  .dpad-right { top: 40px; right: 0; }
+
+  /* ===== 商店面板 ===== */
+  #shop {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(30, 20, 10, 0.95);
+    border: 3px solid #8B6914;
+    border-radius: 12px;
+    padding: 20px;
+    z-index: 100;
+    display: none;
+    min-width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+    color: #E8D5A3;
+  }
+
+  #shop.open { display: block; }
+
+  #shop h2 {
+    color: #FFD700;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .shop-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid #5A4020;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .shop-item:hover { background: rgba(100, 70, 30, 0.4); }
+
+  .shop-item .item-icon { width: 32px; height: 32px; margin-right: 10px; }
+  .shop-item .item-info { flex: 1; }
+  .shop-item .item-name { color: #E8D5A3; font-size: 14px; }
+  .shop-item .item-desc { color: #8B6914; font-size: 11px; }
+  .shop-item .item-price { color: #FFD700; font-size: 14px; white-space: nowrap; }
+
+  /* ===== 季节/天气指示器 ===== */
+  #season-badge {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 20, 10, 0.85);
+    border: 2px solid #8B6914;
+    border-radius: 20px;
+    padding: 4px 16px;
+    color: #FFD700;
+    font-size: 14px;
+    z-index: 10;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+  }
+
+  /* ===== 浮动文字 ===== */
+  .float-text {
+    position: fixed;
+    color: #FFD700;
+    font-size: 14px;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px #000;
+    pointer-events: none;
+    z-index: 50;
+    animation: floatUp 1.5s ease-out forwards;
+  }
+
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-40px); }
+  }
+
+  /* ===== 滚动条美化 ===== */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: rgba(30, 20, 10, 0.5); }
+  ::-webkit-scrollbar-thumb { background: #8B6914; border-radius: 3px; }
+</style>
 </head>
 <body>
-    <div id="game-wrapper">
-        <canvas id="gameCanvas"></canvas>
-    </div>
 
-    <!-- ===== 登录界面 ===== -->
-    <div id="login-overlay">
-        <div class="login-box">
-            <h1>快乐农场</h1>
-            <p class="subtitle">星露谷风格 大世界种菜冒险</p>
-            <input type="text" id="player-name" placeholder="输入你的名字" maxlength="12">
-            <input type="text" id="room-id" placeholder="房间号 (留空创建新房)">
-            <label class="remember-row">
-                <input type="checkbox" id="remember-me" checked>
-                <span>记住我</span>
-            </label>
-            <details>
-                <summary>GitHub 配置</summary>
-                <input type="text" id="github-token" placeholder="Personal Access Token">
-                <input type="text" id="github-repo" placeholder="用户名/仓库名">
-            </details>
-            <button id="start-btn">开始种田</button>
-            <p class="hint">
-                WASD 移动  空格 互动  1-5 工具<br>
-                B 背包  E NPC  Q 使用  Tab 种子  F 钓鱼
-            </p>
-        </div>
-    </div>
+<!-- 加载画面 -->
+<div id="loading">
+  <div class="title">星露谷物语</div>
+  <div style="color:#A89060;font-size:14px;margin-bottom:8px;">像素农场</div>
+  <div id="load-bar-outer"><div id="load-bar"></div></div>
+  <div id="load-text">正在加载素材...</div>
+</div>
 
-    <!-- ===== HUD ===== -->
-    <div id="hud">
-        <div class="hud-left">
-            <div class="hud-box">
-                <span id="hud-name">农场主</span>
-            </div>
-            <div class="hud-box" id="current-tool-box">
-                <span id="current-tool-name">锄头</span>
-            </div>
-            <div id="stamina-bar-container">
-                <span class="hp-label">HP</span>
-                <div id="stamina-bar">
-                    <div id="stamina-bar-fill"></div>
-                </div>
-                <span id="stamina-text">100/100</span>
-            </div>
-            <div class="hud-box">
-                <span class="coin-icon"></span>
-                <span class="value" id="coins-display">500</span>
-            </div>
-        </div>
-        <div class="hud-right">
-            <div class="hud-box">
-                <span id="time-display">06:00</span>
-            </div>
-            <div class="hud-box">
-                <span id="day-display">第 1 天 春</span>
-            </div>
-            <div class="hud-box">
-                <span id="weather-display">晴</span>
-                <span id="area-display">农场</span>
-            </div>
-        </div>
-    </div>
+<!-- 游戏画布 -->
+<canvas id="gameCanvas"></canvas>
 
-    <!-- ===== 工具栏 ===== -->
-    <div id="toolbar">
-        <div class="tool-item active" data-tool="0" title="锄头 [1]">
-            <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                <!-- 锄头：横刃 + 竖柄 -->
-                <rect x="3" y="2" width="8" height="2" fill="#a0a0a0"/>
-                <rect x="3" y="2" width="2" height="2" fill="#c0c0c0"/>
-                <rect x="7" y="4" width="2" height="10" fill="#8B4513"/>
-                <rect x="7" y="4" width="1" height="10" fill="#a0522d"/>
-            </svg>
-            <span class="tool-label">锄</span>
-        </div>
-        <div class="tool-item" data-tool="1" title="水壶 [2]">
-            <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                <!-- 水壶：壶身 + 壶嘴 + 柄 -->
-                <rect x="5" y="4" width="6" height="7" fill="#4a90d9"/>
-                <rect x="5" y="4" width="6" height="1" fill="#5ba0e9"/>
-                <rect x="11" y="6" width="3" height="2" fill="#4a90d9"/>
-                <rect x="13" y="7" width="1" height="1" fill="#3a80c9"/>
-                <rect x="3" y="5" width="2" height="4" fill="#8B4513"/>
-                <rect x="6" y="11" width="4" height="1" fill="#3a80c9"/>
-                <rect x="7" y="12" width="2" height="1" fill="#3a80c9"/>
-                <rect x="8" y="13" width="1" height="1" fill="#2a70b9"/>
-            </svg>
-            <span class="tool-label">水</span>
-        </div>
-        <div class="tool-item" data-tool="2" title="种子袋 [3]">
-            <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                <!-- 种子袋：袋身 + 绿芽 -->
-                <rect x="4" y="5" width="8" height="9" fill="#a0522d"/>
-                <rect x="4" y="5" width="8" height="2" fill="#8B4513"/>
-                <rect x="5" y="7" width="6" height="1" fill="#c4a96a"/>
-                <rect x="7" y="2" width="2" height="4" fill="#4caf50"/>
-                <rect x="9" y="3" width="2" height="2" fill="#66bb6a"/>
-                <rect x="5" y="3" width="2" height="2" fill="#66bb6a"/>
-            </svg>
-            <span class="tool-label">种</span>
-        </div>
-        <div class="tool-item" data-tool="3" title="收获 [4]">
-            <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                <!-- 篮子：梯形篮 + 提手 -->
-                <rect x="3" y="7" width="10" height="1" fill="#a0522d"/>
-                <rect x="4" y="8" width="8" height="6" fill="#c4a96a"/>
-                <rect x="4" y="8" width="8" height="1" fill="#d4b97a"/>
-                <rect x="5" y="10" width="6" height="1" fill="#a0522d"/>
-                <rect x="5" y="12" width="6" height="1" fill="#a0522d"/>
-                <rect x="5" y="4" width="6" height="1" fill="#8B4513"/>
-                <rect x="5" y="5" width="1" height="2" fill="#8B4513"/>
-                <rect x="10" y="5" width="1" height="2" fill="#8B4513"/>
-            </svg>
-            <span class="tool-label">收</span>
-        </div>
-        <div class="tool-item" data-tool="4" title="铲除 [5]">
-            <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                <!-- 铲子：竖柄 + V形铲头 -->
-                <rect x="7" y="1" width="2" height="8" fill="#8B4513"/>
-                <rect x="7" y="1" width="1" height="8" fill="#a0522d"/>
-                <rect x="4" y="9" width="8" height="2" fill="#a0a0a0"/>
-                <rect x="4" y="9" width="8" height="1" fill="#c0c0c0"/>
-                <rect x="5" y="11" width="6" height="2" fill="#a0a0a0"/>
-                <rect x="5" y="11" width="6" height="1" fill="#c0c0c0"/>
-                <rect x="6" y="13" width="4" height="2" fill="#a0a0a0"/>
-                <rect x="6" y="13" width="4" height="1" fill="#c0c0c0"/>
-            </svg>
-            <span class="tool-label">铲</span>
-        </div>
-        <div class="tool-separator"></div>
-        <div class="tool-item" data-tool="5" title="背包 [B]">
-            <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                <!-- 背包：方形包 + 翻盖 + 扣带 -->
-                <rect x="3" y="5" width="10" height="9" fill="#a0522d"/>
-                <rect x="3" y="5" width="10" height="3" fill="#8B4513"/>
-                <rect x="3" y="5" width="10" height="1" fill="#c4a96a"/>
-                <rect x="6" y="3" width="4" height="3" fill="#8B4513"/>
-                <rect x="6" y="3" width="4" height="1" fill="#a0522d"/>
-                <rect x="7" y="9" width="2" height="2" fill="#ffd93d"/>
-                <rect x="5" y="12" width="6" height="1" fill="#8B4513"/>
-            </svg>
-            <span class="tool-label">包</span>
-        </div>
-        <div class="tool-item" data-tool="6" title="地图 [M]">
-            <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                <!-- 地图：卷轴 + 红色标记 -->
-                <rect x="3" y="3" width="10" height="10" fill="#f4e8c1"/>
-                <rect x="3" y="3" width="10" height="1" fill="#d4c4a0"/>
-                <rect x="3" y="12" width="10" height="1" fill="#d4c4a0"/>
-                <rect x="2" y="2" width="2" height="12" fill="#c4a96a"/>
-                <rect x="12" y="2" width="2" height="12" fill="#c4a96a"/>
-                <rect x="2" y="2" width="12" height="2" fill="#a0522d"/>
-                <rect x="2" y="12" width="12" height="2" fill="#a0522d"/>
-                <rect x="7" y="6" width="2" height="2" fill="#e74c3c"/>
-                <rect x="6" y="7" width="4" height="1" fill="#e74c3c"/>
-                <rect x="7" y="5" width="1" height="1" fill="#ff6b6b"/>
-            </svg>
-            <span class="tool-label">图</span>
-        </div>
-    </div>
+<!-- HUD -->
+<div id="hud" style="display:none;">
+  <div class="hud-panel" id="hud-left">
+    <div><span class="label">时间 </span><span class="value" id="hud-time">6:00</span></div>
+    <div><span class="label">日期 </span><span class="value" id="hud-day">第 1 天</span></div>
+    <div><span class="label">金币 </span><span class="value" id="hud-gold">500G</span></div>
+  </div>
+  <div class="hud-panel" id="hud-right">
+    <div><span class="label">区域 </span><span class="value" id="hud-area">农场</span></div>
+    <div><span class="label">体力 </span><span class="value" id="hud-energy">100</span></div>
+  </div>
+</div>
 
-    <!-- ===== 快捷物品栏 ===== -->
-    <div id="hotbar">
-        <div class="hotbar-slot"><span class="hotbar-empty"></span></div>
-        <div class="hotbar-slot"><span class="hotbar-empty"></span></div>
-        <div class="hotbar-slot"><span class="hotbar-empty"></span></div>
-        <div class="hotbar-slot"><span class="hotbar-empty"></span></div>
-    </div>
+<!-- 季节 -->
+<div id="season-badge" style="display:none;">
+  <span id="season-icon">🌸</span> <span id="season-name">春天</span> · <span id="year-num">第 1 年</span>
+</div>
 
-    <!-- ===== 对话框 ===== -->
-    <div id="dialog-box">
-        <div id="dialog-speaker"></div>
-        <div id="dialog-text"></div>
-    </div>
+<!-- 工具栏 -->
+<div id="toolbar" style="display:none;"></div>
 
-    <!-- ===== 背包面板 ===== -->
-    <div id="backpack-panel">
-        <h3>[背包]</h3>
-        <div id="backpack-grid">
-            <div id="backpack-cursor"></div>
-        </div>
-        <p style="color:#8b6d3f; font-size:8px; text-align:center; margin-top:10px;">方向键移动  空格使用  Esc/B 关闭</p>
-    </div>
+<!-- 小地图 -->
+<div id="minimap-container" style="display:none;">
+  <canvas id="minimap" width="120" height="120"></canvas>
+</div>
 
-    <!-- ===== 商店面板 ===== -->
-    <div id="shop-panel">
-        <h3>[商店]</h3>
-        <div id="shop-list"></div>
-        <p style="color:#8b6d3f; font-size:8px; text-align:center; margin-top:10px;">上下选择  空格/Enter 购买  Esc/B 关闭</p>
-    </div>
+<!-- 对话框 -->
+<div id="dialog">
+  <div class="speaker" id="dialog-speaker"></div>
+  <div class="text" id="dialog-text"></div>
+  <div class="hint">按 空格键 继续</div>
+</div>
 
-    <!-- ===== 小地图 ===== -->
-    <canvas id="minimap" width="120" height="120"></canvas>
+<!-- 背包 -->
+<div id="inventory">
+  <h2>背包</h2>
+  <div id="inv-grid"></div>
+</div>
 
-    <!-- ===== Toast ===== -->
-    <div id="toast"></div>
+<!-- 商店 -->
+<div id="shop">
+  <h2 id="shop-title">皮埃尔杂货店</h2>
+  <div id="shop-list"></div>
+  <div style="text-align:center;margin-top:10px;color:#8B6914;font-size:12px;">按 ESC 关闭</div>
+</div>
 
-    <!-- ===== 触控控件 (仅触摸设备显示) ===== -->
-    <div id="touch-controls">
-        <!-- 虚拟摇杆 -->
-        <div id="joystick-zone">
-            <div id="joystick-base">
-                <div id="joystick-thumb"></div>
-            </div>
-        </div>
-        <!-- 互动按钮 -->
-        <div id="touch-interact">A</div>
-        <!-- 背包按钮 -->
-        <div id="touch-backpack">包</div>
-        <!-- 工具切换 -->
-        <div id="touch-toolbar">
-            <div class="touch-tool-btn active" data-tool="0">
-                <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                    <rect x="3" y="2" width="8" height="2" fill="#a0a0a0"/>
-                    <rect x="3" y="2" width="2" height="2" fill="#c0c0c0"/>
-                    <rect x="7" y="4" width="2" height="10" fill="#8B4513"/>
-                    <rect x="7" y="4" width="1" height="10" fill="#a0522d"/>
-                </svg>
-                <span class="tool-label">锄</span>
-            </div>
-            <div class="touch-tool-btn" data-tool="1">
-                <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                    <rect x="5" y="4" width="6" height="7" fill="#4a90d9"/>
-                    <rect x="5" y="4" width="6" height="1" fill="#5ba0e9"/>
-                    <rect x="11" y="6" width="3" height="2" fill="#4a90d9"/>
-                    <rect x="13" y="7" width="1" height="1" fill="#3a80c9"/>
-                    <rect x="3" y="5" width="2" height="4" fill="#8B4513"/>
-                    <rect x="6" y="11" width="4" height="1" fill="#3a80c9"/>
-                    <rect x="7" y="12" width="2" height="1" fill="#3a80c9"/>
-                    <rect x="8" y="13" width="1" height="1" fill="#2a70b9"/>
-                </svg>
-                <span class="tool-label">水</span>
-            </div>
-            <div class="touch-tool-btn" data-tool="2">
-                <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                    <rect x="4" y="5" width="8" height="9" fill="#a0522d"/>
-                    <rect x="4" y="5" width="8" height="2" fill="#8B4513"/>
-                    <rect x="5" y="7" width="6" height="1" fill="#c4a96a"/>
-                    <rect x="7" y="2" width="2" height="4" fill="#4caf50"/>
-                    <rect x="9" y="3" width="2" height="2" fill="#66bb6a"/>
-                    <rect x="5" y="3" width="2" height="2" fill="#66bb6a"/>
-                </svg>
-                <span class="tool-label">种</span>
-            </div>
-            <div class="touch-tool-btn" data-tool="3">
-                <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                    <rect x="3" y="7" width="10" height="1" fill="#a0522d"/>
-                    <rect x="4" y="8" width="8" height="6" fill="#c4a96a"/>
-                    <rect x="4" y="8" width="8" height="1" fill="#d4b97a"/>
-                    <rect x="5" y="10" width="6" height="1" fill="#a0522d"/>
-                    <rect x="5" y="12" width="6" height="1" fill="#a0522d"/>
-                    <rect x="5" y="4" width="6" height="1" fill="#8B4513"/>
-                    <rect x="5" y="5" width="1" height="2" fill="#8B4513"/>
-                    <rect x="10" y="5" width="1" height="2" fill="#8B4513"/>
-                </svg>
-                <span class="tool-label">收</span>
-            </div>
-            <div class="touch-tool-btn" data-tool="4">
-                <svg width="20" height="20" viewBox="0 0 16 16" style="image-rendering:pixelated">
-                    <rect x="7" y="1" width="2" height="8" fill="#8B4513"/>
-                    <rect x="7" y="1" width="1" height="8" fill="#a0522d"/>
-                    <rect x="4" y="9" width="8" height="2" fill="#a0a0a0"/>
-                    <rect x="4" y="9" width="8" height="1" fill="#c0c0c0"/>
-                    <rect x="5" y="11" width="6" height="2" fill="#a0a0a0"/>
-                    <rect x="5" y="11" width="6" height="1" fill="#c0c0c0"/>
-                    <rect x="6" y="13" width="4" height="2" fill="#a0a0a0"/>
-                    <rect x="6" y="13" width="4" height="1" fill="#c0c0c0"/>
-                </svg>
-                <span class="tool-label">铲</span>
-            </div>
-        </div>
-    </div>
+<!-- 触摸控制 -->
+<div id="touch-controls">
+  <div class="dpad">
+    <div class="dpad-btn dpad-up" data-dir="up">▲</div>
+    <div class="dpad-btn dpad-down" data-dir="down">▼</div>
+    <div class="dpad-btn dpad-left" data-dir="left">◀</div>
+    <div class="dpad-btn dpad-right" data-dir="right">▶</div>
+  </div>
+</div>
 
-    <!-- ===== 控制提示 ===== -->
-    <div id="controls-hint">
-        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动<br>
-        <kbd>空格</kbd> 互动<br>
-        <kbd>1</kbd>-<kbd>5</kbd> 切换工具<br>
-        <kbd>B</kbd> 背包  <kbd>E</kbd> NPC对话<br>
-        <kbd>Q</kbd> 使用物品  <kbd>Tab</kbd> 切换种子<br>
-        <kbd>F</kbd> 钓鱼  <kbd>M</kbd> 地图
-    </div>
-
-    <!-- ===== JS 引用 (保持 8 个脚本顺序不变) ===== -->
-    <script src="js/config.js?v=7"></script>
-    <script src="js/github-backend.js?v=7"></script>
-    <script src="js/webrtc.js?v=7"></script>
-    <script src="js/assets-loader.js?v=7"></script>
-    <script src="js/game-engine.js?v=7"></script>
-    <script src="js/renderer.js?v=7"></script>
-    <script src="js/input.js?v=7"></script>
-    <script src="js/main.js?v=7"></script>
-
-    <!-- ===== 触控控件初始化 ===== -->
-    <script>
-    // 登录界面：读取 localStorage 记住的名字
-    (function() {
-        const savedName = localStorage.getItem('farm_player_name');
-        if (savedName) {
-            document.getElementById('player-name').value = savedName;
-        }
-        const rememberCheckbox = document.getElementById('remember-me');
-        // 绑定开始按钮保存逻辑
-        const startBtn = document.getElementById('start-btn');
-        const originalOnClick = startBtn.onclick;
-        startBtn.addEventListener('click', function() {
-            const nameInput = document.getElementById('player-name');
-            const name = nameInput.value.trim();
-            if (rememberCheckbox.checked && name) {
-                localStorage.setItem('farm_player_name', name);
-            } else {
-                localStorage.removeItem('farm_player_name');
-            }
-        });
-    })();
-
-    // 触控事件处理器 - 在 main.js 的 startGame() 创建 input 后自动绑定
-    window._touchInit = function() {
-        if (window._touchInitialized) return;
-        window._touchInitialized = true;
-
-        const joystickZone = document.getElementById('joystick-zone');
-        const joystickThumb = document.getElementById('joystick-thumb');
-        const joystickBase = document.getElementById('joystick-base');
-        let joystickActive = false;
-        const joystickRadius = 45;
-
-        function getInput() {
-            return (typeof input !== 'undefined') ? input : (window.input || null);
-        }
-
-        function handleJoystickStart(e) {
-            e.preventDefault();
-            joystickActive = true;
-            joystickBase.classList.add('active');
-            handleJoystickMove(e);
-        }
-
-        function handleJoystickMove(e) {
-            if (!joystickActive) return;
-            e.preventDefault();
-
-            const touch = e.touches ? e.touches[0] : e;
-            const rect = joystickBase.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-
-            let dx = touch.clientX - centerX;
-            let dy = touch.clientY - centerY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist > joystickRadius) {
-                dx = (dx / dist) * joystickRadius;
-                dy = (dy / dist) * joystickRadius;
-            }
-
-            joystickThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-
-            const deadzone = 10;
-            const inp = getInput();
-            if (inp) {
-                if (dist > deadzone) {
-                    inp.setJoystickDir(dx / joystickRadius, dy / joystickRadius);
-                } else {
-                    inp.setJoystickDir(0, 0);
-                }
-            }
-        }
-
-        function handleJoystickEnd(e) {
-            e.preventDefault();
-            joystickActive = false;
-            joystickBase.classList.remove('active');
-            joystickThumb.style.transform = 'translate(-50%, -50%)';
-            const inp = getInput();
-            if (inp) {
-                inp.setJoystickDir(0, 0);
-                inp.joystickActive = false;
-            }
-        }
-
-        joystickZone.addEventListener('touchstart', handleJoystickStart, { passive: false });
-        joystickZone.addEventListener('touchmove', handleJoystickMove, { passive: false });
-        joystickZone.addEventListener('touchend', handleJoystickEnd, { passive: false });
-        joystickZone.addEventListener('touchcancel', handleJoystickEnd, { passive: false });
-
-        // 鼠标支持 (调试用)
-        joystickZone.addEventListener('mousedown', handleJoystickStart);
-        window.addEventListener('mousemove', handleJoystickMove);
-        window.addEventListener('mouseup', handleJoystickEnd);
-
-        // ===== 互动按钮 =====
-        const interactBtn = document.getElementById('touch-interact');
-        interactBtn.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            const inp = getInput();
-            if (inp) inp.triggerInteract();
-        }, { passive: false });
-
-        // ===== 背包按钮 =====
-        const backpackBtn = document.getElementById('touch-backpack');
-        backpackBtn.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            const inp = getInput();
-            if (inp) inp.toggleBackpack();
-        }, { passive: false });
-
-        // ===== 工具切换按钮 =====
-        document.querySelectorAll('.touch-tool-btn').forEach(function(btn) {
-            btn.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                const tool = parseInt(btn.dataset.tool);
-                const inp = getInput();
-                if (inp) {
-                    inp.setTool(tool);
-                }
-                document.querySelectorAll('.touch-tool-btn').forEach(function(b) {
-                    b.classList.remove('active');
-                });
-                btn.classList.add('active');
-            }, { passive: false });
-        });
-
-        console.log('[Touch] 触控事件已绑定到 input');
-    };
-    </script>
+<script src="js/game.js?v=1"></script>
 </body>
 </html>
