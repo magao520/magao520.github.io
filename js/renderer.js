@@ -28,6 +28,98 @@ class Renderer {
 
         // 伪随机种子缓存
         this._seedCache = new Map();
+
+        // 森林 Tileset 映射 (16x16 CC0 素材，放大3倍绘制)
+        // grass.png: 64x64 -> 4x4 格子，每格 16x16
+        // grass_dirt.png: 224x64 -> 14x4 格子，每格 16x16
+        // grass_deep_water.png: 224x256 -> 14x16 格子，每格 16x16
+        // bushes.png: 32x32 -> 2x2 格子，每格 16x16
+        // stones.png: 48x32 -> 3x2 格子，每格 16x16
+        // trees.png: 64x128 -> 4x8 格子，每格 16x16
+        this.forestTileMap = {
+            // 草地变体 - 从 grass.png 的 4x4 格子中取
+            grass:     { sheet: 'forestGrass',         sx: 0,  sy: 0,  sw: 16, sh: 16 },
+            grassAlt1: { sheet: 'forestGrass',         sx: 16, sy: 0,  sw: 16, sh: 16 },
+            grassAlt2: { sheet: 'forestGrass',         sx: 32, sy: 0,  sw: 16, sh: 16 },
+            grassAlt3: { sheet: 'forestGrass',         sx: 48, sy: 0,  sw: 16, sh: 16 },
+            // 花草变体
+            grassFlower1: { sheet: 'forestGrass',      sx: 0,  sy: 16, sw: 16, sh: 16 },
+            grassFlower2: { sheet: 'forestGrass',      sx: 16, sy: 16, sw: 16, sh: 16 },
+            grassFlower3: { sheet: 'forestGrass',      sx: 32, sy: 16, sw: 16, sh: 16 },
+            grassFlower4: { sheet: 'forestGrass',      sx: 48, sy: 16, sw: 16, sh: 16 },
+            // 草地-泥土过渡
+            grassDirtTL: { sheet: 'forestGrass',       sx: 0,  sy: 32, sw: 16, sh: 16 },
+            grassDirtT:  { sheet: 'forestGrass',       sx: 16, sy: 32, sw: 16, sh: 16 },
+            grassDirtTR: { sheet: 'forestGrass',       sx: 32, sy: 32, sw: 16, sh: 16 },
+            grassDirtL:  { sheet: 'forestGrass',       sx: 0,  sy: 48, sw: 16, sh: 16 },
+            dirt:        { sheet: 'forestGrass',       sx: 16, sy: 48, sw: 16, sh: 16 },
+            grassDirtR:  { sheet: 'forestGrass',       sx: 32, sy: 48, sw: 16, sh: 16 },
+            // 泥土路径变体 - 从 grass_dirt.png
+            dirtPath1:   { sheet: 'forestGrassDirt',   sx: 0,  sy: 0,  sw: 16, sh: 16 },
+            dirtPath2:   { sheet: 'forestGrassDirt',   sx: 16, sy: 0,  sw: 16, sh: 16 },
+            dirtPath3:   { sheet: 'forestGrassDirt',   sx: 32, sy: 0,  sw: 16, sh: 16 },
+            dirtPath4:   { sheet: 'forestGrassDirt',   sx: 48, sy: 0,  sw: 16, sh: 16 },
+            dirtPath5:   { sheet: 'forestGrassDirt',   sx: 64, sy: 0,  sw: 16, sh: 16 },
+            dirtPath6:   { sheet: 'forestGrassDirt',   sx: 80, sy: 0,  sw: 16, sh: 16 },
+            dirtPath7:   { sheet: 'forestGrassDirt',   sx: 96, sy: 0,  sw: 16, sh: 16 },
+            dirtPath8:   { sheet: 'forestGrassDirt',   sx: 112,sy: 0,  sw: 16, sh: 16 },
+            dirtPath9:   { sheet: 'forestGrassDirt',   sx: 128,sy: 0,  sw: 16, sh: 16 },
+            dirtPath10:  { sheet: 'forestGrassDirt',   sx: 144,sy: 0,  sw: 16, sh: 16 },
+            dirtPath11:  { sheet: 'forestGrassDirt',   sx: 160,sy: 0,  sw: 16, sh: 16 },
+            dirtPath12:  { sheet: 'forestGrassDirt',   sx: 176,sy: 0,  sw: 16, sh: 16 },
+            dirtPath13:  { sheet: 'forestGrassDirt',   sx: 192,sy: 0,  sw: 16, sh: 16 },
+            dirtPath14:  { sheet: 'forestGrassDirt',   sx: 208,sy: 0,  sw: 16, sh: 16 },
+            // 深水/浅水变体 - 从 grass_deep_water.png
+            waterShallow1: { sheet: 'forestGrassDeepWater', sx: 0,   sy: 0, sw: 16, sh: 16 },
+            waterShallow2: { sheet: 'forestGrassDeepWater', sx: 16,  sy: 0, sw: 16, sh: 16 },
+            waterDeep1:    { sheet: 'forestGrassDeepWater', sx: 32,  sy: 0, sw: 16, sh: 16 },
+            waterDeep2:    { sheet: 'forestGrassDeepWater', sx: 48,  sy: 0, sw: 16, sh: 16 },
+            waterShore1:   { sheet: 'forestGrassDeepWater', sx: 0,   sy: 16, sw: 16, sh: 16 },
+            waterShore2:   { sheet: 'forestGrassDeepWater', sx: 16,  sy: 16, sw: 16, sh: 16 },
+            waterShore3:   { sheet: 'forestGrassDeepWater', sx: 32,  sy: 16, sw: 16, sh: 16 },
+            waterShore4:   { sheet: 'forestGrassDeepWater', sx: 48,  sy: 16, sw: 16, sh: 16 },
+            // 灌木 - 从 bushes.png (2x2 格子)
+            bush1:   { sheet: 'forestBushes', sx: 0,  sy: 0,  sw: 16, sh: 16 },
+            bush2:   { sheet: 'forestBushes', sx: 16, sy: 0,  sw: 16, sh: 16 },
+            bush3:   { sheet: 'forestBushes', sx: 0,  sy: 16, sw: 16, sh: 16 },
+            bush4:   { sheet: 'forestBushes', sx: 16, sy: 16, sw: 16, sh: 16 },
+            // 石头 - 从 stones.png (3x2 格子)
+            stone1:  { sheet: 'forestStones', sx: 0,  sy: 0,  sw: 16, sh: 16 },
+            stone2:  { sheet: 'forestStones', sx: 16, sy: 0, sw: 16, sh: 16 },
+            stone3:  { sheet: 'forestStones', sx: 32, sy: 0, sw: 16, sh: 16 },
+            stone4:  { sheet: 'forestStones', sx: 0,  sy: 16, sw: 16, sh: 16 },
+            stone5:  { sheet: 'forestStones', sx: 16, sy: 16, sw: 16, sh: 16 },
+            stone6:  { sheet: 'forestStones', sx: 32, sy: 16, sw: 16, sh: 16 },
+            // 树木 - 从 trees.png (4x8 格子)
+            tree1:   { sheet: 'forestTrees', sx: 0,  sy: 0,  sw: 16, sh: 32 },
+            tree2:   { sheet: 'forestTrees', sx: 16, sy: 0, sw: 16, sh: 32 },
+            tree3:   { sheet: 'forestTrees', sx: 32, sy: 0, sw: 16, sh: 32 },
+            tree4:   { sheet: 'forestTrees', sx: 48, sy: 0, sw: 16, sh: 32 }
+        };
+    }
+
+    // ===== 森林 Tileset 绘制辅助 =====
+    // 尝试从森林tileset绘制指定tile，成功返回true，失败返回false
+    drawForestTile(ctx, tileKey, px, py, w, h) {
+        const assets = (typeof AssetsLoader !== 'undefined') ? AssetsLoader.assets : {};
+        const tileInfo = this.forestTileMap[tileKey];
+        if (!tileInfo) return false;
+        const sheetImg = assets[tileInfo.sheet];
+        if (!sheetImg) return false;
+        // 将16x16的tile放大到目标尺寸 (TILE=48 即3倍)
+        const scale = w / tileInfo.sw;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(sheetImg,
+            tileInfo.sx, tileInfo.sy, tileInfo.sw, tileInfo.sh,
+            px, py, tileInfo.sw * scale, tileInfo.sh * scale
+        );
+        return true;
+    }
+
+    // 根据坐标伪随机选择tileset变体
+    pickForestVariant(tx, ty, variants) {
+        const idx = Math.floor(this.seededRandom(tx, ty, 999) * variants.length);
+        return variants[idx];
     }
 
     resize() {
@@ -451,25 +543,67 @@ class Renderer {
     }
 
     drawTerrainTile(ctx, tile, px, py, tx, ty, sc, palette, state) {
+        // 优先尝试使用森林 tileset 图片
         switch (tile) {
-            case T.GRASS:
+            case T.GRASS: {
+                const variant = this.pickForestVariant(tx, ty, ['grass', 'grassAlt1', 'grassAlt2', 'grassAlt3']);
+                if (this.drawForestTile(ctx, variant, px, py, TILE, TILE)) return;
                 this.drawGrass(ctx, px, py, tx, ty, palette, state);
                 break;
-            case T.DIRT:
+            }
+            case T.DIRT: {
+                if (this.drawForestTile(ctx, 'dirt', px, py, TILE, TILE)) return;
                 this.drawDirt(ctx, px, py, tx, ty);
                 break;
-            case T.TILLED:
+            }
+            case T.TILLED: {
+                // 耕地使用泥土变体作为底色
+                const dirtVariant = this.pickForestVariant(tx, ty,
+                    ['dirtPath1','dirtPath2','dirtPath3','dirtPath4','dirtPath5','dirtPath6']);
+                if (this.drawForestTile(ctx, dirtVariant, px, py, TILE, TILE)) return;
                 this.drawTilled(ctx, px, py, tx, ty);
                 break;
-            case T.WATERED:
+            }
+            case T.WATERED: {
+                // 浇水耕地：先绘制泥土底色再叠加水效果
+                const dirtV = this.pickForestVariant(tx, ty,
+                    ['dirtPath1','dirtPath2','dirtPath3','dirtPath4','dirtPath5','dirtPath6']);
+                if (this.drawForestTile(ctx, dirtV, px, py, TILE, TILE)) {
+                    // 叠加蓝色水光效果
+                    ctx.fillStyle = 'rgba(79, 195, 247, 0.25)';
+                    ctx.fillRect(px, py, TILE, TILE);
+                    ctx.fillStyle = '#4fc3f7';
+                    const r1 = this.seededRandom(tx, ty, 5);
+                    const r2 = this.seededRandom(tx, ty, 6);
+                    ctx.fillRect(px + 6 + Math.floor(r1 * 30), py + 6 + Math.floor(r2 * 30), 4, 4);
+                    return;
+                }
                 this.drawWatered(ctx, px, py, tx, ty);
                 break;
-            case T.PATH:
+            }
+            case T.PATH: {
+                const pathVariant = this.pickForestVariant(tx, ty,
+                    ['dirtPath7','dirtPath8','dirtPath9','dirtPath10','dirtPath11','dirtPath12','dirtPath13','dirtPath14']);
+                if (this.drawForestTile(ctx, pathVariant, px, py, TILE, TILE)) return;
                 this.drawPath(ctx, px, py, tx, ty);
                 break;
-            case T.WATER:
+            }
+            case T.WATER: {
+                const waterVariant = this.pickForestVariant(tx, ty,
+                    ['waterShallow1','waterShallow2','waterDeep1','waterDeep2']);
+                if (this.drawForestTile(ctx, waterVariant, px, py, TILE, TILE)) {
+                    // 保留水面波纹动画效果
+                    const t = Date.now() / 1000;
+                    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                    const waveOffset = Math.sin(t * 2 + tx * 0.5 + ty * 0.3) * 4;
+                    ctx.fillRect(px + 6 + waveOffset, py + 10, 12, 2);
+                    const waveOffset2 = Math.sin(t * 1.8 + tx * 0.7 + ty * 0.5 + 1) * 3;
+                    ctx.fillRect(px + 10 - waveOffset2, py + 22, 10, 2);
+                    return;
+                }
                 this.drawWater(ctx, px, py, tx, ty, state);
                 break;
+            }
             case T.FENCE:
                 this.drawFence(ctx, px, py, tx, ty, state);
                 break;
@@ -483,12 +617,20 @@ class Renderer {
             case T.DOOR:
                 this.drawDoor(ctx, px, py, tx, ty);
                 break;
-            case T.STONE:
+            case T.STONE: {
+                const stoneVariant = this.pickForestVariant(tx, ty, ['stone1','stone2','stone3','stone4','stone5','stone6']);
+                if (this.drawForestTile(ctx, stoneVariant, px, py, TILE, TILE)) return;
                 this.drawStoneBase(ctx, px, py, tx, ty);
                 break;
-            case T.TREE:
+            }
+            case T.TREE: {
+                const treeVariant = this.pickForestVariant(tx, ty, ['tree1','tree2','tree3','tree4']);
+                // 树木精灵是16x32，放大到48x96，底部对齐
+                const treeH = TILE * 2;
+                if (this.drawForestTile(ctx, treeVariant, px, py - TILE, TILE, treeH)) return;
                 this.drawTreeBase(ctx, px, py, tx, ty, palette);
                 break;
+            }
             case T.ROCK_MINE:
                 this.drawRockMineBase(ctx, px, py, tx, ty);
                 break;
@@ -498,9 +640,13 @@ class Renderer {
             case T.WILD_CROP:
                 this.drawWildCrop(ctx, px, py, tx, ty, palette);
                 break;
-            case T.FLOWER:
+            case T.FLOWER: {
+                const flowerVariant = this.pickForestVariant(tx, ty,
+                    ['grassFlower1','grassFlower2','grassFlower3','grassFlower4']);
+                if (this.drawForestTile(ctx, flowerVariant, px, py, TILE, TILE)) return;
                 this.drawFlower(ctx, px, py, tx, ty, palette);
                 break;
+            }
             default:
                 ctx.fillStyle = sc.grass;
                 ctx.fillRect(px, py, TILE, TILE);
@@ -1687,10 +1833,17 @@ class Renderer {
 
     /**
      * 使用精灵图渲染玩家角色
-     * 精灵图格式: 576x48, 4方向(下上左右) x 3帧(站立/左脚/右脚), 每帧48x48
+     * 优先使用 LPC 精灵图 (64x64每帧, 4方向x9帧)
+     * Fallback 到旧精灵图 (48x48每帧, 4方向x3帧)
      * @returns {boolean} 是否成功使用精灵图渲染
      */
     _renderPlayerSprite(ctx, state, px, py, dir, moving) {
+        // 优先尝试 LPC 精灵图
+        if (this._renderLPCPlayer(ctx, state, px, py, dir, moving)) {
+            return true;
+        }
+
+        // Fallback: 旧精灵图 (576x48, 4方向x3帧, 每帧48x48)
         const sprite = AssetsLoader.assets.characterSprite;
         if (!sprite) return false;
 
@@ -1727,6 +1880,75 @@ class Renderer {
         );
 
         // 绘制工具（精灵图模式下也显示工具）
+        const walkCycle = moving ? state.moveTimer * 10 : 0;
+        const sinWalk = Math.sin(walkCycle);
+        this.renderTool(ctx, px, py, dir, moving, sinWalk, state);
+
+        return true;
+    }
+
+    /**
+     * 使用 LPC Medieval Fantasy Character Sprites 渲染玩家角色
+     * LPC精灵图格式: 576x256, 4方向 x 9帧, 每帧64x64
+     * 方向顺序(行): 下(0), 左(1), 右(2), 上(3)
+     * 帧顺序(列): 0=站立/待机, 1-8=行走循环
+     * @returns {boolean} 是否成功使用 LPC 精灵图渲染
+     */
+    _renderLPCPlayer(ctx, state, px, py, dir, moving) {
+        // 选择角色精灵图（默认男性农夫，可通过 state.playerGender 切换）
+        const sprite = (state.playerGender === 'female')
+            ? AssetsLoader.assets.lpcFarmerFemale
+            : AssetsLoader.assets.lpcFarmerMale;
+        if (!sprite) return false;
+
+        // LPC 精灵图参数
+        const FRAME_W = 64;
+        const FRAME_H = 64;
+        const LPC_COLS = 9;  // 9帧: 1站立 + 8行走
+        const LPC_ROWS = 4;  // 4方向
+
+        // 游戏方向 -> LPC精灵图行映射
+        // 游戏: 0=下, 1=上, 2=左, 3=右
+        // LPC:  行0=下, 行1=左, 行2=右, 行3=上
+        const dirToRow = [0, 3, 1, 2]; // down->0, up->3, left->1, right->2
+        const lpcRow = dirToRow[Math.min(dir, 3)];
+
+        // 计算动画帧
+        let frameCol = 0; // 默认站立帧
+        if (moving) {
+            // 150ms 每帧，8帧行走循环
+            const now = Date.now();
+            frameCol = Math.floor(now / 150) % 8 + 1; // 帧1-8
+        }
+
+        // 源区域
+        const sx = frameCol * FRAME_W;
+        const sy = lpcRow * FRAME_H;
+
+        // 缩放: 64x64 -> 48x96 (宽缩到48, 高放大到96，保持角色高挑)
+        // 角色脚底对齐到 tile 底部
+        const drawW = TILE;        // 48px 宽
+        const drawH = TILE * 2;    // 96px 高 (1.5倍)
+        const drawX = px;
+        const drawY = py + TILE - drawH; // 脚底对齐 tile 底部
+
+        // 关闭抗锯齿保持像素风格
+        ctx.imageSmoothingEnabled = false;
+
+        // 绘制阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(px + TILE / 2, py + TILE - 2, 12, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 绘制 LPC 精灵帧
+        ctx.drawImage(
+            sprite,
+            sx, sy, FRAME_W, FRAME_H,   // 源区域 64x64
+            drawX, drawY, drawW, drawH  // 目标区域 48x96
+        );
+
+        // 绘制工具（LPC模式下也显示工具）
         const walkCycle = moving ? state.moveTimer * 10 : 0;
         const sinWalk = Math.sin(walkCycle);
         this.renderTool(ctx, px, py, dir, moving, sinWalk, state);

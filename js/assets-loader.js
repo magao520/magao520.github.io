@@ -60,6 +60,12 @@ const AssetsLoader = {
             // 帧顺序: 站立(0), 左脚(1), 右脚(2)
             characterSprite: 'assets/sprites/character.png',
 
+            // LPC Medieval Fantasy Character Sprites (64x64每帧, 4方向x9帧)
+            // walkcycle: 帧1=站立, 帧2-9=行走循环
+            // 方向顺序: 下(0), 左(1), 右(2), 上(3)
+            lpcFarmerMale:   'assets/sprites/lpc_characters/farmer_walk.png',
+            lpcFarmerFemale: 'assets/sprites/lpc_characters/farmer_female_walk.png',
+
             // 工具图标
             toolDiamondAxe: 'assets/icons/diamond_axe.png',
             toolIronAxe:    'assets/icons/iron_axe.png',
@@ -210,6 +216,24 @@ const AssetsLoader = {
             );
         }
         await Promise.all(tinyTownPromises);
+
+        // 加载森林 Tileset 16x16 (CC0 - Seasons of Forest)
+        const forestTiles = {
+            forestGrass:         'assets/tiles/forest_tileset/sprites/grass.png',
+            forestGrassDirt:     'assets/tiles/forest_tileset/sprites/grass_dirt.png',
+            forestGrassDeepWater:'assets/tiles/forest_tileset/sprites/grass_deep_water.png',
+            forestBushes:        'assets/tiles/forest_tileset/sprites/bushes.png',
+            forestStones:        'assets/tiles/forest_tileset/sprites/stones.png',
+            forestTrees:         'assets/tiles/forest_tileset/sprites/trees.png'
+        };
+
+        const forestPromises = Object.entries(forestTiles).map(([key, src]) =>
+            this.loadImage(src).then(img => {
+                if (img) this.assets[key] = img;
+                return img;
+            })
+        );
+        await Promise.all(forestPromises);
 
         this.loaded = true;
         console.log(`[AssetsLoader] 加载完成: ${Object.keys(this.assets).length} 张图片`);
