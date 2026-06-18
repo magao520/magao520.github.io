@@ -101,6 +101,18 @@ class Renderer {
     }
     
     /**
+     * 辅助函数：安全绘制瓦片
+     */
+    drawTile(ctx, assetKey, px, py) {
+        const img = AssetsLoader.assets[assetKey];
+        if (img) {
+            ctx.drawImage(img, px, py, TILE, TILE);
+            return true;
+        }
+        return false;
+    }
+    
+    /**
      * 渲染单个图块 - 使用 Tiny Town 像素瓦片
      * 
      * Tiny Town 实际瓦片内容 (12列x11行, 16x16px):
@@ -122,10 +134,7 @@ class Renderer {
         switch (tile) {
             case T.GRASS:
                 // 草地 - tt0, tt1, tt2 (绿色实心瓦片)
-                if (a.tt0) {
-                    const g = [0, 1, 2][v];
-                    ctx.drawImage(a[`tt${g}`], px, py, TILE, TILE);
-                } else {
+                if (!this.drawTile(ctx, `tt${[0,1,2][v]}`, px, py)) {
                     ctx.fillStyle = (x + y) % 2 === 0 ? '#84c669' : '#7fbf64';
                     ctx.fillRect(px, py, TILE, TILE);
                 }
@@ -133,10 +142,7 @@ class Renderer {
 
             case T.DIRT:
                 // 泥土 - 用沙地瓦片 tt12, tt13, tt14 (黄棕色实心)
-                if (a.tt12) {
-                    const d = [12, 13, 14][v];
-                    ctx.drawImage(a[`tt${d}`], px, py, TILE, TILE);
-                } else {
+                if (!this.drawTile(ctx, `tt${[12,13,14][v]}`, px, py)) {
                     ctx.fillStyle = '#8b6d3f';
                     ctx.fillRect(px, py, TILE, TILE);
                 }
@@ -144,9 +150,7 @@ class Renderer {
 
             case T.TILLED:
                 // 已犁地 - 用沙地瓦片 + 手绘犁沟
-                if (a.tt12) {
-                    ctx.drawImage(a.tt12, px, py, TILE, TILE);
-                    // 深色覆盖模拟翻土
+                if (this.drawTile(ctx, 'tt12', px, py)) {
                     ctx.fillStyle = 'rgba(80, 50, 20, 0.4)';
                     ctx.fillRect(px, py, TILE, TILE);
                 } else {
@@ -162,8 +166,7 @@ class Renderer {
 
             case T.WATERED:
                 // 湿润耕地 - 沙地瓦片 + 深色 + 湿润光泽
-                if (a.tt12) {
-                    ctx.drawImage(a.tt12, px, py, TILE, TILE);
+                if (this.drawTile(ctx, 'tt12', px, py)) {
                     ctx.fillStyle = 'rgba(60, 30, 10, 0.5)';
                     ctx.fillRect(px, py, TILE, TILE);
                 } else {
@@ -182,10 +185,7 @@ class Renderer {
 
             case T.PATH:
                 // 小路 - 用石砖路瓦片 tt48, tt49, tt50 (灰蓝色实心)
-                if (a.tt48) {
-                    const p = [48, 49, 50][v];
-                    ctx.drawImage(a[`tt${p}`], px, py, TILE, TILE);
-                } else {
+                if (!this.drawTile(ctx, `tt${[48,49,50][v]}`, px, py)) {
                     ctx.fillStyle = '#c4a96a';
                     ctx.fillRect(px, py, TILE, TILE);
                 }
@@ -194,9 +194,7 @@ class Renderer {
             case T.FENCE:
                 // 栅栏 - 先画草地底，再画栅栏瓦片
                 // 栅栏瓦片: tt44(横), tt45(竖), tt46(横), tt47(角)
-                if (a.tt0) {
-                    ctx.drawImage(a.tt0, px, py, TILE, TILE);
-                } else {
+                if (!this.drawTile(ctx, 'tt0', px, py)) {
                     ctx.fillStyle = '#84c669';
                     ctx.fillRect(px, py, TILE, TILE);
                 }
@@ -204,16 +202,12 @@ class Renderer {
                 const isHoriz = (x > 0 && state.map[y] && state.map[y][x-1] === T.FENCE) ||
                                 (x < MAP_W-1 && state.map[y] && state.map[y][x+1] === T.FENCE);
                 const fenceTile = isHoriz ? [44, 46][v] : [45, 47][v];
-                if (a[`tt${fenceTile}`]) {
-                    ctx.drawImage(a[`tt${fenceTile}`], px, py, TILE, TILE);
-                }
+                this.drawTile(ctx, `tt${fenceTile}`, px, py);
                 break;
 
             case T.WATER:
                 // 水面 - tt76, tt77, tt78 (蓝色实心瓦片)
-                if (a.tt76) {
-                    const w = [76, 77, 78][v];
-                    ctx.drawImage(a[`tt${w}`], px, py, TILE, TILE);
+                if (this.drawTile(ctx, `tt${[76,77,78][v]}`, px, py)) {
                     // 水面波光动画
                     const phase = Date.now() / 800;
                     ctx.fillStyle = 'rgba(255,255,255,0.08)';
@@ -227,10 +221,8 @@ class Renderer {
                 break;
 
             case T.FLOWER:
-                // 花丛 - 草地底 + 树木瓦片当装饰 (用小树/灌木瓦片)
-                if (a.tt0) {
-                    ctx.drawImage(a.tt0, px, py, TILE, TILE);
-                } else {
+                // 花丛 - 草地底 + 手绘小花
+                if (!this.drawTile(ctx, 'tt0', px, py)) {
                     ctx.fillStyle = '#84c669';
                     ctx.fillRect(px, py, TILE, TILE);
                 }
@@ -246,10 +238,7 @@ class Renderer {
 
             case T.HOUSE:
                 // 房子墙壁 - 用砖墙瓦片 tt52, tt53 (红棕色实心)
-                if (a.tt52) {
-                    const h = [52, 53][v % 2];
-                    ctx.drawImage(a[`tt${h}`], px, py, TILE, TILE);
-                } else {
+                if (!this.drawTile(ctx, `tt${[52,53][v % 2]}`, px, py)) {
                     ctx.fillStyle = '#c49558';
                     ctx.fillRect(px, py, TILE, TILE);
                 }
@@ -257,9 +246,7 @@ class Renderer {
 
             case T.DOOR:
                 // 门 - 用栅栏/门瓦片 tt56 或 tt92
-                if (a.tt56) {
-                    ctx.drawImage(a.tt56, px, py, TILE, TILE);
-                } else {
+                if (!this.drawTile(ctx, 'tt56', px, py)) {
                     ctx.fillStyle = '#8b5a2b';
                     ctx.fillRect(px + 12, py + 4, 24, TILE - 4);
                     ctx.fillStyle = '#ffd93d';
@@ -270,14 +257,11 @@ class Renderer {
                 break;
 
             case T.STONE:
-                // 石头 - 草地底 + 用砖墙瓦片当石头
-                if (a.tt0) {
-                    ctx.drawImage(a.tt0, px, py, TILE, TILE);
-                } else {
+                // 石头 - 草地底 + 手绘石头
+                if (!this.drawTile(ctx, 'tt0', px, py)) {
                     ctx.fillStyle = '#84c669';
                     ctx.fillRect(px, py, TILE, TILE);
                 }
-                // 画石头
                 ctx.fillStyle = '#8a8a8a';
                 ctx.beginPath();
                 ctx.ellipse(px + TILE/2, py + TILE/2 + 4, 14, 10, 0, 0, Math.PI * 2);
@@ -323,62 +307,47 @@ class Renderer {
                 scale *= pulse;
             }
             
-            ctx.save();
-            ctx.translate(px + TILE/2, py + TILE/2);
-            ctx.scale(scale, scale);
-            ctx.font = '28px serif';
+            ctx.font = `${Math.floor(TILE * scale * 0.8)}px serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(emoji, 0, -2);
-            ctx.restore();
+            ctx.fillText(emoji, px + TILE / 2, py + TILE / 2 + 4);
             
-            // 生长进度条
-            if (crop.growth < 100) {
-                ctx.fillStyle = 'rgba(0,0,0,0.4)';
-                ctx.fillRect(px + 4, py + 2, TILE - 8, 4);
-                ctx.fillStyle = crop.growth < 50 ? '#4caf50' : '#ffd93d';
-                ctx.fillRect(px + 4, py + 2, (TILE - 8) * crop.growth / 100, 4);
-            }
-            
-            // 水分指示
-            if (crop.water > 0) {
-                ctx.fillStyle = 'rgba(0,0,0,0.3)';
-                ctx.fillRect(px + 4, py + TILE - 6, TILE - 8, 3);
-                ctx.fillStyle = '#2196f3';
-                ctx.fillRect(px + 4, py + TILE - 6, (TILE - 8) * crop.water / 100, 3);
+            // 水分指示器
+            if (crop.water < 30) {
+                ctx.fillStyle = 'rgba(255, 100, 100, 0.6)';
+                ctx.fillRect(px + 4, py + 2, TILE - 8, 3);
             }
         }
     }
     
     /**
-     * 渲染玩家角色 - 使用 PNG spritesheet
-     * 角色 spritesheet 是 8 帧横排，每帧 12x17 (walk) 或 12x16 (idle)
-     * 缩放绘制到 TILE x TILE 区域
+     * 渲染玩家角色
      */
     renderPlayer(ctx, state) {
         const px = state.playerX;
         const py = state.playerY;
-
+        
         // 阴影
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.beginPath();
-        ctx.ellipse(px + TILE / 2, py + TILE - 4, 14, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(px + TILE/2, py + TILE - 4, 14, 6, 0, 0, Math.PI * 2);
         ctx.fill();
-
-        // 方向映射: 0=down, 1=up, 2=left, 3=right
-        const dirKeys = ['Down', 'Up', 'Left', 'Right'];
-        const dirKey = dirKeys[state.playerDir];
-
-        // 选择 walk 或 idle spritesheet
-        const sheetKey = state.playerMoving ? `charWalk${dirKey}` : `charIdle${dirKey}`;
+        
+        // 根据方向选择 spritesheet
+        const dirNames = ['Down', 'Up', 'Left', 'Right'];
+        const dirName = dirNames[state.playerDir] || 'Down';
+        
+        // 选择 walk 或 idle
+        const animType = state.playerMoving ? 'Walk' : 'Idle';
+        const sheetKey = `char${animType}${dirName}`;
         const sheet = AssetsLoader.assets[sheetKey];
-
+        
         if (sheet) {
-            // spritesheet 帧参数
-            const totalFrames = Math.round(sheet.width / Math.max(1, sheet.height));
-            const frameW = sheet.width / Math.max(1, totalFrames);  // 每帧宽度
-            const frameH = sheet.height;     // 每帧高度
-
+            // 动态计算帧数（基于图片宽高比）
+            const frameH = sheet.height;
+            const frameW = sheet.width / Math.max(1, Math.round(sheet.width / Math.max(1, frameH)));
+            const totalFrames = Math.round(sheet.width / Math.max(1, frameW));
+            
             // 计算当前帧
             let frame;
             if (state.playerMoving) {
@@ -387,99 +356,63 @@ class Renderer {
                 // idle 状态使用固定第0帧，避免闪烁
                 frame = 0;
             }
-
-            // 保持宽高比缩放，底部对齐
+            
+            // 保持宽高比缩放，底部对齐，水平居中
             const scale = TILE / Math.max(frameW, frameH);
             const drawW = frameW * scale;
             const drawH = frameH * scale;
-            ctx.drawImage(
-                sheet,
-                frame * frameW, 0, frameW, frameH,  // 源区域
-                px + (TILE - drawW) / 2, py + TILE - drawH, drawW, drawH  // 目标区域，居中底部对齐
-            );
+            const drawX = px + (TILE - drawW) / 2;
+            const drawY = py + TILE - drawH;
+            
+            ctx.drawImage(sheet, frame * frameW, 0, frameW, frameH, drawX, drawY, drawW, drawH);
         } else {
-            // Fallback: 手绘角色
-            this.renderPlayerFallback(ctx, state, px, py);
+            // fallback: 绘制简单角色
+            ctx.fillStyle = '#ff6b6b';
+            ctx.fillRect(px + 12, py + 8, 24, 32);
+            ctx.fillStyle = '#feca57';
+            ctx.fillRect(px + 16, py + 4, 16, 12);
         }
-
-        // 工具指示 - 根据方向调整位置
+        
+        // 工具指示
         const toolEmojis = ['⛏️', '🚿', '🌱', '🧺', '🗑️'];
-        ctx.font = '14px serif';
+        const toolEmoji = toolEmojis[state.currentTool] || '';
+        if (toolEmoji) {
+            ctx.font = '16px serif';
+            ctx.textAlign = 'center';
+            
+            // 根据方向调整工具位置
+            let tx = px + TILE / 2;
+            let ty = py - 8;
+            if (state.playerDir === 1) { // 上
+                ty = py + TILE + 12;
+            } else if (state.playerDir === 2) { // 左
+                tx = px - 8;
+                ty = py + TILE / 2;
+            } else if (state.playerDir === 3) { // 右
+                tx = px + TILE + 8;
+                ty = py + TILE / 2;
+            }
+            ctx.fillText(toolEmoji, tx, ty);
+        }
+        
+        // 玩家名字
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px sans-serif';
         ctx.textAlign = 'center';
-        let toolX = px + TILE / 2;
-        let toolY = py - 8;
-        // 方向: 0=down, 1=up, 2=left, 3=right
-        switch (state.playerDir) {
-            case 0: toolX = px + TILE / 2; toolY = py - 8; break;       // 下方 - 头顶上方
-            case 1: toolX = px + TILE / 2; toolY = py + TILE + 14; break; // 上方 - 脚下下方
-            case 2: toolX = px - 12; toolY = py + TILE / 2; break;       // 左方 - 身体左侧
-            case 3: toolX = px + TILE + 12; toolY = py + TILE / 2; break; // 右方 - 身体右侧
-        }
-        ctx.fillText(toolEmojis[state.currentTool] || '⛏️', toolX, toolY);
-    }
-
-    /**
-     * 手绘角色 (fallback)
-     */
-    renderPlayerFallback(ctx, state, px, py) {
-        const bodyBob = state.playerMoving ? Math.sin(state.moveTimer * 8) * 2 : 0;
-
-        // 腿
-        ctx.fillStyle = '#5c3d1e';
-        if (state.playerMoving) {
-            const legOff = Math.sin(state.moveTimer * 10) * 4;
-            ctx.fillRect(px + 16, py + 32 + bodyBob, 6, 12 + legOff);
-            ctx.fillRect(px + 26, py + 32 + bodyBob, 6, 12 - legOff);
-        } else {
-            ctx.fillRect(px + 16, py + 32, 6, 12);
-            ctx.fillRect(px + 26, py + 32, 6, 12);
-        }
-
-        // 身体
-        ctx.fillStyle = '#4a90d9';
-        ctx.fillRect(px + 14, py + 16 + bodyBob, 20, 18);
-
-        // 手臂
-        ctx.fillStyle = '#f5d6b8';
-        if (state.playerMoving) {
-            const armSwing = Math.sin(state.moveTimer * 10) * 5;
-            ctx.fillRect(px + 8, py + 18 + bodyBob + armSwing, 6, 12);
-            ctx.fillRect(px + 34, py + 18 + bodyBob - armSwing, 6, 12);
-        } else {
-            ctx.fillRect(px + 8, py + 18, 6, 12);
-            ctx.fillRect(px + 34, py + 18, 6, 12);
-        }
-
-        // 头
-        ctx.fillStyle = '#f5d6b8';
-        ctx.fillRect(px + 14, py + 4 + bodyBob, 20, 14);
-
-        // 帽子
-        ctx.fillStyle = '#c4a96a';
-        ctx.fillRect(px + 10, py + bodyBob, 28, 6);
-        ctx.fillRect(px + 16, py - 4 + bodyBob, 16, 8);
-
-        // 眼睛 (根据方向)
-        ctx.fillStyle = '#333';
-        if (state.playerDir === 0) {
-            ctx.fillRect(px + 18, py + 10 + bodyBob, 3, 3);
-            ctx.fillRect(px + 27, py + 10 + bodyBob, 3, 3);
-        } else if (state.playerDir === 2) {
-            ctx.fillRect(px + 16, py + 10 + bodyBob, 3, 3);
-        } else if (state.playerDir === 3) {
-            ctx.fillRect(px + 29, py + 10 + bodyBob, 3, 3);
-        }
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.strokeText(state.playerName, px + TILE / 2, py - 12);
+        ctx.fillText(state.playerName, px + TILE / 2, py - 12);
     }
     
     /**
-     * 渲染粒子
+     * 渲染粒子效果
      */
     renderParticles(ctx, state) {
         for (const p of state.particles) {
+            ctx.fillStyle = p.color;
             ctx.globalAlpha = p.life;
-            ctx.font = `${p.size}px serif`;
-            ctx.textAlign = 'center';
-            ctx.fillText(p.emoji, p.x, p.y);
+            ctx.fillRect(p.x, p.y, p.size, p.size);
         }
         ctx.globalAlpha = 1;
     }
@@ -488,93 +421,116 @@ class Renderer {
      * 渲染浮动文字
      */
     renderFloatingTexts(ctx, state) {
-        for (const t of state.floatingTexts) {
-            ctx.globalAlpha = t.life;
-            ctx.font = 'bold 16px "ZCOOL KuaiLe", cursive';
+        for (const ft of state.floatingTexts) {
+            ctx.fillStyle = ft.color;
+            ctx.font = 'bold 14px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillStyle = '#000';
-            ctx.fillText(t.text, t.x + 1, t.y + 1);
-            ctx.fillStyle = t.color;
-            ctx.fillText(t.text, t.x, t.y);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.strokeText(ft.text, ft.x, ft.y);
+            ctx.fillText(ft.text, ft.x, ft.y);
         }
-        ctx.globalAlpha = 1;
     }
     
     /**
-     * 日夜循环
+     * 渲染日夜循环效果
      */
     renderDayNight(ctx, state) {
-        const alpha = getDaylightAlpha(state.time);
-        if (alpha > 0) {
-            ctx.fillStyle = `rgba(10, 10, 40, ${alpha})`;
+        let overlayColor = null;
+        let overlayAlpha = 0;
+        
+        if (state.timeOfDay >= 20 || state.timeOfDay < 5) {
+            // 夜晚
+            overlayColor = '#0a0a2e';
+            overlayAlpha = 0.5;
+        } else if (state.timeOfDay >= 18) {
+            // 傍晚
+            overlayColor = '#ff6b35';
+            overlayAlpha = (state.timeOfDay - 18) / 2 * 0.3;
+        } else if (state.timeOfDay < 7) {
+            // 清晨
+            overlayColor = '#87ceeb';
+            overlayAlpha = (7 - state.timeOfDay) / 2 * 0.15;
+        }
+        
+        if (overlayColor) {
+            ctx.fillStyle = overlayColor;
+            ctx.globalAlpha = overlayAlpha;
             ctx.fillRect(0, 0, this.screenW, this.screenH);
-            
-            // 星星
-            if (alpha > 0.3) {
-                ctx.fillStyle = `rgba(255, 255, 200, ${alpha})`;
-                for (const star of this.stars) {
-                    const sx = star.nx * this.screenW;
-                    const sy = star.ny * this.screenH;
-                    ctx.fillRect(sx, sy, star.size, star.size);
-                }
+            ctx.globalAlpha = 1;
+        }
+        
+        // 夜晚星星
+        if (state.timeOfDay >= 19 || state.timeOfDay < 6) {
+            ctx.fillStyle = '#fff';
+            const starAlpha = state.timeOfDay >= 20 || state.timeOfDay < 5 ? 1 : 0.5;
+            ctx.globalAlpha = starAlpha;
+            for (const star of this.stars) {
+                const sx = star.nx * this.screenW;
+                const sy = star.ny * this.screenH;
+                ctx.fillRect(sx, sy, star.size, star.size);
             }
+            ctx.globalAlpha = 1;
         }
     }
     
     /**
-     * 小地图
+     * 渲染小地图
      */
     renderMinimap(state, sc) {
-        const mm = document.getElementById('minimap');
-        if (!mm.classList.contains('active')) return;
+        if (!state.showMinimap) return;
         
-        const mctx = mm.getContext('2d');
-        const scale = 5;
-        mctx.fillStyle = '#1a1a2e';
-        mctx.fillRect(0, 0, 150, 150);
+        const ctx = this.ctx;
+        const mmSize = 150;
+        const mmX = this.screenW - mmSize - 20;
+        const mmY = 20;
+        const scaleX = mmSize / MAP_W;
+        const scaleY = mmSize / MAP_H;
         
+        // 背景
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(mmX - 5, mmY - 5, mmSize + 10, mmSize + 10);
+        
+        // 地图内容
         for (let y = 0; y < MAP_H; y++) {
             for (let x = 0; x < MAP_W; x++) {
                 const tile = state.map[y][x];
                 let color;
                 switch (tile) {
                     case T.GRASS: color = sc.grass; break;
-                    case T.DIRT: case T.TILLED: color = '#6b4423'; break;
-                    case T.WATERED: color = '#4a3520'; break;
+                    case T.DIRT: color = '#8b6d3f'; break;
+                    case T.TILLED: color = '#6b4423'; break;
+                    case T.WATERED: color = '#5a3a1a'; break;
                     case T.PATH: color = '#c4a96a'; break;
                     case T.FENCE: color = '#8b6914'; break;
                     case T.WATER: color = '#3a7bd5'; break;
                     case T.FLOWER: color = '#ff69b4'; break;
-                    case T.HOUSE: case T.DOOR: color = '#c49558'; break;
+                    case T.HOUSE: color = '#d4a76a'; break;
+                    case T.DOOR: color = '#8b4513'; break;
                     case T.STONE: color = '#888'; break;
-                    default: color = sc.grass;
+                    default: color = '#4a6741';
                 }
-                mctx.fillStyle = color;
-                mctx.fillRect(x * scale, y * scale, scale, scale);
+                ctx.fillStyle = color;
+                ctx.fillRect(mmX + x * scaleX, mmY + y * scaleY, scaleX + 1, scaleY + 1);
             }
         }
         
-        // 作物
-        for (const key of Object.keys(state.crops)) {
-            const [x, y] = key.split(',').map(Number);
-            const crop = state.crops[key];
-            mctx.fillStyle = crop.growth >= 100 ? '#ffd93d' : '#4caf50';
-            mctx.fillRect(x * scale, y * scale, scale, scale);
-        }
-        
         // 玩家位置
-        const ppx = (state.playerX / TILE) * scale;
-        const ppy = (state.playerY / TILE) * scale;
-        mctx.fillStyle = '#ff4444';
-        mctx.fillRect(ppx - 2, ppy - 2, 5, 5);
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(
+            mmX + (state.playerX / TILE) * scaleX - 2,
+            mmY + (state.playerY / TILE) * scaleY - 2,
+            4, 4
+        );
         
         // 视野框
-        mctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        mctx.strokeRect(
-            (state.cameraX / TILE) * scale,
-            (state.cameraY / TILE) * scale,
-            (this.screenW / TILE) * scale,
-            (this.screenH / TILE) * scale
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(
+            mmX + (state.cameraX / TILE) * scaleX,
+            mmY + (state.cameraY / TILE) * scaleY,
+            (this.screenW / TILE) * scaleX,
+            (this.screenH / TILE) * scaleY
         );
     }
 }
