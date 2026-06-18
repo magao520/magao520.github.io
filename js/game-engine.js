@@ -128,7 +128,7 @@ class GameState {
         this.map = [];
         this.crops = {};   // key: "x,y" -> crop data
         this.playerX = 100 * TILE;
-        this.playerY = 100 * TILE;
+        this.playerY = 130 * TILE;
         this.playerDir = 0; // 0=down 1=up 2=left 3=right
         this.playerFrame = 0;
         this.playerMoving = false;
@@ -223,34 +223,72 @@ function getTileAtPosition(x, y, seed) {
 function getFarmTile(x, y, n) {
     const z = ZONES.FARM;
 
-    // 围栏边界
+    // 外围栅栏
     if (x === z.x1 || x === z.x2 || y === z.y1 || y === z.y2) return T.FENCE;
 
-    // 入口 (南面中间留缺口)
-    if (y === z.y2 && x >= 95 && x <= 105) return T.PATH;
+    // 南面入口（留缺口）
+    if (y === z.y2 && x >= 97 && x <= 103) return T.PATH;
 
-    // 谷仓 (农场内偏北)
-    if (x >= 95 && x <= 105 && y >= 75 && y <= 80) {
-        if (x === 100 && y === 80) return T.DOOR;
+    // 玩家小屋（中心偏北）
+    if (x >= 97 && x <= 103 && y >= 78 && y <= 82) {
+        if (x === 100 && y === 82) return T.DOOR;
         return T.HOUSE;
     }
 
-    // 农田区域 (中间)
-    if (x >= 75 && x <= 125 && y >= 90 && y <= 120) {
-        // 小路贯穿
-        if (x === 100 && y >= 85 && y <= 125) return T.PATH;
-        if (y === 105 && x >= 75 && x <= 125) return T.PATH;
+    // 主路（南北贯穿）
+    if (x === 100 && y >= z.y1 && y <= z.y2) return T.PATH;
+
+    // 东西横路
+    if (y === 100 && x >= z.x1 + 5 && x <= z.x2 - 5) return T.PATH;
+
+    // 田地1：左上 (75-88, 85-95) - 用栅栏围起来
+    if (x >= 75 && x <= 88 && y >= 85 && y <= 95) {
+        if (x === 75 || x === 88 || y === 85 || y === 95) return T.FENCE;
+        if (x === 81 && y === 95) return T.PATH; // 田地入口
         return T.TILLED;
     }
 
-    // 小路从入口到农田
-    if (x === 100 && y >= z.y2 && y <= 130) return T.PATH;
+    // 田地2：右上 (112-125, 85-95)
+    if (x >= 112 && x <= 125 && y >= 85 && y <= 95) {
+        if (x === 112 || x === 125 || y === 85 || y === 95) return T.FENCE;
+        if (x === 118 && y === 95) return T.PATH;
+        return T.TILLED;
+    }
 
-    // 花园装饰
-    if (x >= 65 && x <= 70 && y >= 75 && y <= 78) return T.FLOWER;
-    if (x >= 130 && x <= 135 && y >= 75 && y <= 78) return T.FLOWER;
+    // 田地3：左下 (75-88, 105-115)
+    if (x >= 75 && x <= 88 && y >= 105 && y <= 115) {
+        if (x === 75 || x === 88 || y === 105 || y === 115) return T.FENCE;
+        if (x === 81 && y === 105) return T.PATH;
+        return T.TILLED;
+    }
 
-    // 草地
+    // 田地4：右下 (112-125, 105-115)
+    if (x >= 112 && x <= 125 && y >= 105 && y <= 115) {
+        if (x === 112 || x === 125 || y === 105 || y === 115) return T.FENCE;
+        if (x === 118 && y === 105) return T.PATH;
+        return T.TILLED;
+    }
+
+    // 花园（小屋旁边）
+    if (x >= 90 && x <= 96 && y >= 80 && y <= 84) return T.FLOWER;
+    if (x >= 104 && x <= 110 && y >= 80 && y <= 84) return T.FLOWER;
+
+    // 水塘（左下角装饰）
+    const pondCx = 68, pondCy = 120;
+    const pondDist = Math.sqrt((x - pondCx) ** 2 + (y - pondCy) ** 2);
+    if (pondDist < 5) return T.WATER;
+
+    // 四角树木
+    if ((x <= z.x1 + 5 && y <= z.y1 + 5) ||
+        (x >= z.x2 - 5 && y <= z.y1 + 5) ||
+        (x <= z.x1 + 5 && y >= z.y2 - 5) ||
+        (x >= z.x2 - 5 && y >= z.y2 - 5)) {
+        if (n > 0) return T.TREE;
+    }
+
+    // 随机装饰
+    if (n > 0.5 && x > z.x1 + 10 && x < z.x2 - 10) return T.FLOWER;
+
     return T.GRASS;
 }
 
@@ -375,6 +413,14 @@ function getWildTile(x, y, n) {
     if (y === 140 && x >= 40 && x <= 60) return T.PATH;
     // 小镇到湖畔
     if (x === 110 && y >= 140 && y <= 170) return T.PATH;
+    // 农场到森林：斜线路径 (60,60) -> (35,35)
+    if (x >= 35 && x <= 60 && y >= 35 && y <= 60 && Math.abs(x - 35 - (y - 35)) < 2) return T.PATH;
+    // 农场到矿区：从(140,70)到(150,50)的路径
+    if (x >= 140 && x <= 150 && y >= 50 && y <= 70 && Math.abs((x - 140) - (70 - y)) < 2) return T.PATH;
+    // 小镇到矿区：从(150,130)到(150,50)的纵向路径
+    if (x === 150 && y >= 50 && y <= 130) return T.PATH;
+    // 森林到湖畔：从(25,60)到(25,140)的纵向路径
+    if (x === 25 && y >= 60 && y <= 140) return T.PATH;
 
     // 随机散布
     if (n > 0.6) return T.TREE;
@@ -441,7 +487,7 @@ function initNPCs(state) {
     state.npcs = NPC_TYPES.map(npc => ({
         name: npc.name,
         role: npc.role,
-        emoji: npc.emoji,
+        color: npc.color,
         x: npc.house[0] * TILE,
         y: npc.house[1] * TILE,
         dir: 0,
@@ -480,11 +526,13 @@ function updateNPCs(state, dt) {
                 const nx = npc.x + dx * speed;
                 const ny = npc.y + dy * speed;
 
-                // NPC 不离开小镇区域
+                // NPC 不离开小镇和农场入口区域
                 const z = ZONES.TOWN;
                 const tx = Math.floor(nx / TILE);
                 const ty = Math.floor(ny / TILE);
-                if (tx >= z.x1 + 1 && tx <= z.x2 - 1 && ty >= z.y1 + 1 && ty <= z.y2 - 1) {
+                const inTown = tx >= z.x1 + 1 && tx <= z.x2 - 1 && ty >= z.y1 + 1 && ty <= z.y2 - 1;
+                const nearFarm = tx >= 95 && tx <= 105 && ty >= 125 && ty <= 135;
+                if (inTown || nearFarm) {
                     npc.x = nx;
                     npc.y = ny;
                 } else {
@@ -1305,7 +1353,7 @@ function showToast(msg) {
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
 // ===== 导出 (兼容) =====

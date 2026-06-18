@@ -12,6 +12,36 @@ document.addEventListener('DOMContentLoaded', () => {
     // 暴露 state 到全局 (供商店按钮等使用)
     window.state = state;
 
+    // ===== 打字机对话框 =====
+    let _typewriterTimer = null;
+    let _typewriterDone = false;
+    function showDialog(speaker, text) {
+        const dialogBox = document.getElementById('dialog-box');
+        const speakerEl = document.getElementById('dialog-speaker');
+        const textEl = document.getElementById('dialog-text');
+
+        speakerEl.textContent = speaker;
+        dialogBox.classList.add('active');
+
+        // 清除之前的打字机效果
+        clearInterval(_typewriterTimer);
+        _typewriterDone = false;
+        textEl.textContent = '';
+
+        let index = 0;
+        _typewriterTimer = setInterval(() => {
+            if (index < text.length) {
+                textEl.textContent += text[index];
+                index++;
+            } else {
+                clearInterval(_typewriterTimer);
+                _typewriterDone = true;
+                // 显示闪烁的 ▼ 提示
+                textEl.innerHTML += '<span style="animation:dialogBlink 1s infinite;float:right;">▼</span>';
+            }
+        }, 50);
+    }
+
     // ===== 登录处理 =====
     document.getElementById('start-btn').addEventListener('click', startGame);
     document.getElementById('player-name').addEventListener('keydown', (e) => {
@@ -95,6 +125,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showToast(`欢迎来到 ${state.roomId}！`);
 
+        // 新手引导
+        if (!localStorage.getItem('farm_tutorial_done')) {
+            showDialog('系统', '欢迎来到你的农场！\n\n用 WASD 移动角色\n靠近田地按空格使用工具\n按 1-5 切换不同工具\n\n先试试用锄头耕地吧！');
+            localStorage.setItem('farm_tutorial_done', '1');
+        }
+
         // 5秒后隐藏控制提示
         setTimeout(() => {
             document.getElementById('controls-hint').classList.remove('active');
@@ -115,6 +151,12 @@ document.addEventListener('DOMContentLoaded', () => {
         updateParticles(state, dt);
         updateNPCs(state, dt);
         updateFishing(state, dt);
+
+        // 游戏结束/保存提示：22:00 (1320分钟)
+        if (state.time >= 1320 && !state._endDayShown) {
+            state._endDayShown = true;
+            showDialog('系统', '已经很晚了，明天再继续吧！\n游戏会自动保存进度。');
+        }
 
         // 分块加载：玩家移动时动态扩展
         ensureChunksAroundPlayer(state);
@@ -169,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 当前区域 (根据玩家位置实时计算)
         const areaEl = document.getElementById('area-display');
         if (areaEl && typeof getZone === 'function') {
-            const zone = getZone(Math.floor(state.playerX), Math.floor(state.playerY));
+            const zone = getZone(Math.floor(state.playerX / TILE), Math.floor(state.playerY / TILE));
             const areaNames = {
                 'FARM': '农场', 'TOWN': '小镇', 'FOREST': '森林',
                 'MINE': '矿洞', 'LAKE': '湖泊', 'WILD': '荒野'
@@ -183,6 +225,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (seedTool && crop) {
             seedTool.title = `${crop.emoji} ${crop.name} (${crop.price}💰) [3]`;
         }
+
+        // 当前工具名称显示
+        const toolNames = ['锄头', '水壶', '种子袋', '收获篮', '铲子'];
+        const toolEl = document.getElementById('current-tool-name');
+        if (toolEl) toolEl.textContent = toolNames[state.currentTool] || '锄头';
     }
 
     // ===== 背包界面 =====

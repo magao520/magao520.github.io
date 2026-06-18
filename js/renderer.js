@@ -110,41 +110,330 @@ class Renderer {
         ctx.save();
         ctx.translate(-Math.round(state.cameraX), -Math.round(state.cameraY));
 
-        // 1. 地形底层
-        this.renderTerrainBase(ctx, state, sc, palette);
+        // 1. 地面层（纯地形：草地、路径、耕地、水面等）
+        this.renderGroundLayer(ctx, state, sc, palette);
 
-        // 2. 地形细节（树木、石头、房屋等）
-        this.renderTerrainDetails(ctx, state, sc, palette);
+        // 2. 物体层 + 角色层（按Y轴排序，实现正确遮挡关系）
+        this.renderObjectsAndCharacters(ctx, state, sc, palette);
 
-        // 3. 作物
-        this.renderCrops(ctx, state, palette);
-
-        // 4. NPC
-        this.renderNPCs(ctx, state);
-
-        // 5. 玩家
-        this.renderPlayer(ctx, state);
-
-        // 6. 其他玩家
-        this.renderOtherPlayers(ctx, state);
-
-        // 7. 粒子和浮动文字
+        // 3. 粒子和浮动文字
         this.renderParticles(ctx, state);
         this.renderFloatingTexts(ctx, state);
 
         ctx.restore();
 
-        // 8. 全局光影
+        // 4. 全局光影
         this.renderGlobalLighting(ctx, state, sc);
 
-        // 9. 钓鱼进度条
+        // 5. 钓鱼进度条
         this.renderFishingBar(ctx, state);
 
-        // 10. 小地图
+        // 6. 小地图
         this.renderMinimap(state, sc);
     }
 
-    // ===== 地形底层绘制 =====
+    // ===== 地面层：只绘制纯地面地块（草地、路径、耕地、水面等） =====
+    renderGroundLayer(ctx, state, sc, palette) {
+        const startX = Math.max(0, Math.floor(state.cameraX / TILE));
+        const startY = Math.max(0, Math.floor(state.cameraY / TILE));
+        const endX = Math.min(MAP_W, Math.ceil((state.cameraX + this.screenW) / TILE) + 1);
+        const endY = Math.min(MAP_H, Math.ceil((state.cameraY + this.screenH) / TILE) + 1);
+
+        for (let y = startY; y < endY; y++) {
+            for (let x = startX; x < endX; x++) {
+                const tile = state.map[y][x];
+                const px = x * TILE;
+                const py = y * TILE;
+                // 只绘制纯地面类型
+                switch (tile) {
+                    case T.GRASS:
+                        this.drawGrass(ctx, px, py, x, y, palette, state);
+                        break;
+                    case T.DIRT:
+                        this.drawDirt(ctx, px, py, x, y);
+                        break;
+                    case T.TILLED:
+                        this.drawTilled(ctx, px, py, x, y);
+                        break;
+                    case T.WATERED:
+                        this.drawWatered(ctx, px, py, x, y);
+                        break;
+                    case T.PATH:
+                        this.drawPath(ctx, px, py, x, y);
+                        break;
+                    case T.WATER:
+                        this.drawWater(ctx, px, py, x, y, state);
+                        break;
+                    case T.BRIDGE:
+                        this.drawBridge(ctx, px, py, x, y);
+                        break;
+                    default:
+                        // 非地面类型在物体层绘制，但需要填充背景
+                        ctx.fillStyle = sc.grass;
+                        ctx.fillRect(px, py, TILE, TILE);
+                        break;
+                }
+            }
+        }
+    }
+
+    // ===== 物体层 + 角色层：按Y轴排序渲染，实现正确遮挡关系 =====
+    renderObjectsAndCharacters(ctx, state, sc, palette) {
+        const startX = Math.max(0, Math.floor(state.cameraX / TILE) - 2);
+        const startY = Math.max(0, Math.floor(state.cameraY / TILE) - 2);
+        const endX = Math.min(MAP_W, Math.ceil((state.cameraX + this.screenW) / TILE) + 3);
+        const endY = Math.min(MAP_H, Math.ceil((state.cameraY + this.screenH) / TILE) + 3);
+
+        const hour = state.timeOfDay || (state.time / 60);
+        const isNight = hour >= 19 || hour < 6;
+
+        // 收集所有需要按Y排序的渲染对象
+        const renderList = [];
+
+        // 收集地图上的物体（树、石头、房屋、栅栏等）
+        for (let y = startY; y < endY; y++) {
+            for (let x = startX; x < endX; x++) {
+                const tile = state.map[y][x];
+                const px = x * TILE;
+                const py = y * TILE;
+
+                // 物体类型地块
+                switch (tile) {
+                    case T.FENCE:
+                        renderList.push({ type: 'fence', y: py, render: () => this.drawFence(ctx, px, py, x, y, state) });
+                        break;
+                    case T.HOUSE:
+                    case T.NPC_HOUSE:
+                        renderList.push({ type: 'house', y: py, render: () => {
+                            this.drawHouseBase(ctx, px, py, x, y, tile === T.NPC_HOUSE);
+                            this.drawHouseDetails(ctx, px, py, x, y, isNight, tile === T.NPC_HOUSE);
+                        }});
+                        break;
+                    case T.DOOR:
+                        renderList.push({ type: 'door', y: py, render: () => this.drawDoor(ctx, px, py, x, y) });
+                        break;
+                    case T.STONE:
+                        renderList.push({ type: 'stone', y: py, render: () => this.drawStoneBase(ctx, px, py, x, y) });
+                        break;
+                    case T.TREE:
+                        renderList.push({ type: 'tree', y: py, render: () => this.drawTreeBase(ctx, px, py, x, y, palette) });
+                        break;
+                    case T.ROCK_MINE:
+                        renderList.push({ type: 'rock', y: py, render: () => this.drawRockMineBase(ctx, px, py, x, y) });
+                        break;
+                    case T.FISH_SPOT:
+                        renderList.push({ type: 'fish', y: py, render: () => this.drawFishSpot(ctx, px, py, x, y, state) });
+                        break;
+                    case T.WILD_CROP:
+                        renderList.push({ type: 'wild', y: py, render: () => this.drawWildCrop(ctx, px, py, x, y, palette) });
+                        break;
+                    case T.FLOWER:
+                        renderList.push({ type: 'flower', y: py, render: () => this.drawFlower(ctx, px, py, x, y, palette) });
+                        break;
+                }
+            }
+        }
+
+        // 收集作物
+        const cropKeys = Object.keys(state.crops);
+        for (const key of cropKeys) {
+            const crop = state.crops[key];
+            if (!crop) continue;
+            const [cx, cy] = key.split(',').map(Number);
+            const cpx = cx * TILE;
+            const cpy = cy * TILE;
+            // 跳过屏幕外的作物
+            if (cpx < state.cameraX - TILE * 2 || cpx > state.cameraX + this.screenW + TILE * 2 ||
+                cpy < state.cameraY - TILE * 2 || cpy > state.cameraY + this.screenH + TILE * 2) continue;
+            renderList.push({ type: 'crop', y: cpy, render: () => this.renderSingleCrop(ctx, state, cpx, cpy, cx, cy, crop, palette) });
+        }
+
+        // 收集NPC
+        for (const npc of state.npcs) {
+            if (npc.x < state.cameraX - TILE * 2 || npc.x > state.cameraX + this.screenW + TILE * 2 ||
+                npc.y < state.cameraY - TILE * 2 || npc.y > state.cameraY + this.screenH + TILE * 2) continue;
+            renderList.push({ type: 'npc', y: npc.y, render: () => this.renderSingleNPC(ctx, npc) });
+        }
+
+        // 收集玩家
+        renderList.push({ type: 'player', y: state.playerY, render: () => this.renderPlayer(ctx, state) });
+
+        // 收集其他玩家
+        const now = Date.now();
+        for (const [peerId, player] of state.otherPlayers) {
+            if (now - player.lastUpdate > 10000) continue;
+            renderList.push({ type: 'other', y: player.y, render: () => this.renderSingleOtherPlayer(ctx, player) });
+        }
+
+        // 按Y坐标排序（从小到大，Y小的先绘制，Y大的后绘制覆盖在上面）
+        renderList.sort((a, b) => a.y - b.y);
+
+        // 按排序顺序渲染
+        for (const item of renderList) {
+            item.render();
+        }
+    }
+
+    // 单个作物渲染（从原renderCrops提取）
+    renderSingleCrop(ctx, state, px, py, x, y, crop, palette) {
+        const cropData = getCropData(crop.cropId);
+        if (!cropData) return;
+
+        // 作物阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.beginPath();
+        ctx.ellipse(px + TILE / 2, py + TILE - 2, 10, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        const isWithered = crop.water <= 0 && crop.growth < 100;
+
+        if (isWithered) {
+            this.drawWitheredCrop(ctx, px, py, x, y);
+        } else if (crop.growth < 25) {
+            this.drawSeedling(ctx, px, py, x, y);
+        } else if (crop.growth < 50) {
+            this.drawGrowingCrop(ctx, px, py, x, y, crop.growth);
+        } else if (crop.growth < 100) {
+            this.drawMatureCrop(ctx, px, py, x, y, cropData, crop.growth, false, palette);
+        } else {
+            this.drawMatureCrop(ctx, px, py, x, y, cropData, crop.growth, true, palette);
+        }
+
+        // 水分指示器
+        if (crop.water < 30) {
+            ctx.fillStyle = 'rgba(255, 80, 80, 0.7)';
+            ctx.fillRect(px + 4, py + 2, TILE - 8, 3);
+        }
+    }
+
+    // 单个NPC渲染（从原renderNPCs提取）
+    renderSingleNPC(ctx, npc) {
+        const px = npc.x;
+        const py = npc.y;
+
+        // 阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(px + TILE / 2, py + TILE - 2, 12, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 身体
+        ctx.fillStyle = npc.color || '#4a90d9';
+        ctx.fillRect(px + 14, py + 14, 20, 22);
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 14, py + 14, 20, 22);
+
+        // 头
+        ctx.fillStyle = '#ffd5a0';
+        ctx.beginPath();
+        ctx.arc(px + TILE / 2, py + 12, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 头发
+        ctx.fillStyle = '#5d4037';
+        ctx.beginPath();
+        ctx.arc(px + TILE / 2, py + 10, 10, Math.PI, 0);
+        ctx.fill();
+        ctx.fillRect(px + TILE / 2 - 10, py + 8, 4, 8);
+        ctx.fillRect(px + TILE / 2 + 6, py + 8, 4, 8);
+
+        // 眼睛
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(px + TILE / 2 - 4, py + 12, 2, 2);
+        ctx.fillRect(px + TILE / 2 + 2, py + 12, 2, 2);
+
+        // NPC名字
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeText(npc.name, px + TILE / 2, py - 6);
+        ctx.fillText(npc.name, px + TILE / 2, py - 6);
+    }
+
+    // 单个其他玩家渲染（从原renderOtherPlayers提取）
+    renderSingleOtherPlayer(ctx, player) {
+        const px = player.x;
+        const py = player.y;
+        const dir = player.dir || 0;
+        const color = player.color || '#ff6b6b';
+
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(px + TILE / 2, py + TILE - 2, 12, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        const cx = px + TILE / 2;
+        const cy = py + TILE / 2 + 4;
+        const facingLeft = dir === 2;
+        const facingRight = dir === 3;
+        const facingUp = dir === 1;
+
+        // 腿
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(cx - 5, cy + 10, 4, 8);
+        ctx.fillRect(cx + 1, cy + 10, 4, 8);
+
+        // 身体
+        ctx.fillStyle = color;
+        ctx.fillRect(cx - 8, cy - 4, 16, 14);
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx - 8, cy - 4, 16, 14);
+
+        // 头
+        ctx.fillStyle = '#f5cba7';
+        ctx.beginPath();
+        ctx.arc(cx, cy - 10, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 头发
+        ctx.fillStyle = '#5d4037';
+        if (!facingUp) {
+            ctx.beginPath();
+            ctx.arc(cx, cy - 12, 9, Math.PI, 0);
+            ctx.fill();
+            ctx.fillRect(cx - 9, cy - 12, 3, 6);
+            ctx.fillRect(cx + 6, cy - 12, 3, 6);
+        } else {
+            ctx.beginPath();
+            ctx.arc(cx, cy - 13, 8, Math.PI, 0);
+            ctx.fill();
+        }
+
+        // 眼睛
+        if (!facingUp) {
+            ctx.fillStyle = '#1a1a1a';
+            if (dir === 0) {
+                ctx.fillRect(cx - 3, cy - 10, 2, 2);
+                ctx.fillRect(cx + 1, cy - 10, 2, 2);
+            } else if (facingLeft) {
+                ctx.fillRect(cx - 4, cy - 10, 2, 2);
+            } else if (facingRight) {
+                ctx.fillRect(cx + 2, cy - 10, 2, 2);
+            }
+        }
+
+        // 名字
+        const nameText = player.name || '玩家';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        const textW = ctx.measureText(nameText).width;
+        ctx.fillRect(cx - textW / 2 - 4, py - 20, textW + 8, 12);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(nameText, cx, py - 10);
+    }
+
+    // ===== 地形底层绘制（保留兼容） =====
     renderTerrainBase(ctx, state, sc, palette) {
         const startX = Math.max(0, Math.floor(state.cameraX / TILE));
         const startY = Math.max(0, Math.floor(state.cameraY / TILE));
@@ -156,15 +445,15 @@ class Renderer {
                 const tile = state.map[y][x];
                 const px = x * TILE;
                 const py = y * TILE;
-                this.drawTerrainTile(ctx, tile, px, py, x, y, sc, palette);
+                this.drawTerrainTile(ctx, tile, px, py, x, y, sc, palette, state);
             }
         }
     }
 
-    drawTerrainTile(ctx, tile, px, py, tx, ty, sc, palette) {
+    drawTerrainTile(ctx, tile, px, py, tx, ty, sc, palette, state) {
         switch (tile) {
             case T.GRASS:
-                this.drawGrass(ctx, px, py, tx, ty, palette);
+                this.drawGrass(ctx, px, py, tx, ty, palette, state);
                 break;
             case T.DIRT:
                 this.drawDirt(ctx, px, py, tx, ty);
@@ -179,10 +468,10 @@ class Renderer {
                 this.drawPath(ctx, px, py, tx, ty);
                 break;
             case T.WATER:
-                this.drawWater(ctx, px, py, tx, ty);
+                this.drawWater(ctx, px, py, tx, ty, state);
                 break;
             case T.FENCE:
-                this.drawFence(ctx, px, py, tx, ty);
+                this.drawFence(ctx, px, py, tx, ty, state);
                 break;
             case T.BRIDGE:
                 this.drawBridge(ctx, px, py, tx, ty);
@@ -204,7 +493,7 @@ class Renderer {
                 this.drawRockMineBase(ctx, px, py, tx, ty);
                 break;
             case T.FISH_SPOT:
-                this.drawFishSpot(ctx, px, py, tx, ty);
+                this.drawFishSpot(ctx, px, py, tx, ty, state);
                 break;
             case T.WILD_CROP:
                 this.drawWildCrop(ctx, px, py, tx, ty, palette);
@@ -218,22 +507,92 @@ class Renderer {
         }
     }
 
-    // ===== 草地：基础绿 + 2-3个随机亮色小点模拟草叶 =====
-    drawGrass(ctx, px, py, tx, ty, palette) {
+    // ===== 草地：基础绿 + 草叶竖线 + 小花点缀 + 边缘过渡 =====
+    drawGrass(ctx, px, py, tx, ty, palette, state) {
         const colors = palette.grass;
+        // 基础绿色填充
         ctx.fillStyle = colors[0];
         ctx.fillRect(px, py, TILE, TILE);
-        // 深色纹理
+
+        // 深色纹理斑块
         ctx.fillStyle = colors[1];
         const r1 = this.seededRandom(tx, ty, 1);
         const r2 = this.seededRandom(tx, ty, 2);
         ctx.fillRect(px + 4 + Math.floor(r1 * 24), py + 4 + Math.floor(r2 * 24), 4, 4);
+
+        // 3-5个随机深色小草叶（用2-3像素竖线模拟）
+        ctx.fillStyle = colors[1];
+        const bladeCount = 3 + Math.floor(this.seededRandom(tx, ty, 30) * 3);
+        for (let i = 0; i < bladeCount; i++) {
+            const bx = this.seededRandom(tx, ty, i + 40);
+            const by = this.seededRandom(tx, ty, i + 50);
+            const bladeX = px + 3 + Math.floor(bx * (TILE - 6));
+            const bladeY = py + 3 + Math.floor(by * (TILE - 10));
+            const bladeH = 2 + Math.floor(this.seededRandom(tx, ty, i + 60) * 2);
+            ctx.fillRect(bladeX, bladeY, 2, bladeH);
+        }
+
         // 亮色草叶小点
         ctx.fillStyle = colors[2];
         for (let i = 0; i < 3; i++) {
             const rx = this.seededRandom(tx, ty, i + 10);
             const ry = this.seededRandom(tx, ty, i + 20);
             ctx.fillRect(px + 2 + Math.floor(rx * 40), py + 2 + Math.floor(ry * 40), 2, 2);
+        }
+
+        // 偶尔有浅色小花点缀（白色/黄色小点）
+        if (this.seededRandom(tx, ty, 70) > 0.65) {
+            const flowerCount = 1 + Math.floor(this.seededRandom(tx, ty, 71) * 2);
+            for (let i = 0; i < flowerCount; i++) {
+                const fx = this.seededRandom(tx, ty, i + 72);
+                const fy = this.seededRandom(tx, ty, i + 73);
+                // 白色或黄色小花
+                ctx.fillStyle = this.seededRandom(tx, ty, i + 74) > 0.5 ? '#fff' : '#ffd54f';
+                ctx.fillRect(px + 4 + Math.floor(fx * 36), py + 4 + Math.floor(fy * 36), 2, 2);
+            }
+        }
+
+        // 草地边缘过渡效果（与路径/耕地相邻处）
+        if (state && state.map) {
+            this.drawGrassEdgeTransition(ctx, px, py, tx, ty, colors, state);
+        }
+    }
+
+    // 草地边缘过渡：在草地与路径/耕地相邻处绘制过渡像素
+    drawGrassEdgeTransition(ctx, px, py, tx, ty, colors, state) {
+        const neighbors = [
+            [tx - 1, ty, 'left'],   // 左
+            [tx + 1, ty, 'right'],  // 右
+            [tx, ty - 1, 'top'],    // 上
+            [tx, ty + 1, 'bottom']  // 下
+        ];
+
+        for (const [nx, ny, side] of neighbors) {
+            if (nx < 0 || ny < 0 || ny >= MAP_H || nx >= MAP_W) continue;
+            const neighborTile = state.map[ny][nx];
+            // 只在与路径、耕地、浇水耕地、泥土相邻时绘制过渡
+            if (neighborTile === T.PATH || neighborTile === T.TILLED || neighborTile === T.WATERED || neighborTile === T.DIRT) {
+                // 在边缘绘制深色过渡像素
+                ctx.fillStyle = colors[1];
+                const edgeCount = 3 + Math.floor(this.seededRandom(tx, ty, side.charCodeAt(0) + 80) * 3);
+                for (let i = 0; i < edgeCount; i++) {
+                    const r = this.seededRandom(tx, ty, side.charCodeAt(0) * 10 + i + 90);
+                    switch (side) {
+                        case 'left':
+                            ctx.fillRect(px, py + 2 + Math.floor(r * (TILE - 4)), 2, 2);
+                            break;
+                        case 'right':
+                            ctx.fillRect(px + TILE - 2, py + 2 + Math.floor(r * (TILE - 4)), 2, 2);
+                            break;
+                        case 'top':
+                            ctx.fillRect(px + 2 + Math.floor(r * (TILE - 4)), py, 2, 2);
+                            break;
+                        case 'bottom':
+                            ctx.fillRect(px + 2 + Math.floor(r * (TILE - 4)), py + TILE - 2, 2, 2);
+                            break;
+                    }
+                }
+            }
         }
     }
 
@@ -251,86 +610,225 @@ class Renderer {
         ctx.fillRect(px + 4 + Math.floor(r3 * 30), py + 4 + Math.floor(r4 * 30), 3, 3);
     }
 
-    // ===== 耕地：深棕色底 + 浅棕色犁沟线 =====
+    // ===== 耕地：深棕色底 + 4条犁沟线 + 泥土飞溅 =====
     drawTilled(ctx, px, py, tx, ty) {
         ctx.fillStyle = '#6b4423';
         ctx.fillRect(px, py, TILE, TILE);
-        // 犁沟线
+        // 犁沟纹理：4条水平浅棕色线
         ctx.fillStyle = '#5a3a1a';
-        for (let i = 0; i < 3; i++) {
-            const yOff = 6 + i * 14;
+        for (let i = 0; i < 4; i++) {
+            const yOff = 4 + i * 11;
             ctx.fillRect(px + 2, py + yOff, TILE - 4, 3);
+        }
+        // 犁沟间浅色高光
+        ctx.fillStyle = '#7d5533';
+        for (let i = 0; i < 3; i++) {
+            const yOff = 7 + i * 11;
+            ctx.fillRect(px + 4, py + yOff, TILE - 8, 1);
         }
         // 浅色斑点
         ctx.fillStyle = '#8b6d4a';
         const r1 = this.seededRandom(tx, ty, 1);
         const r2 = this.seededRandom(tx, ty, 2);
         ctx.fillRect(px + 10 + Math.floor(r1 * 20), py + 10 + Math.floor(r2 * 20), 4, 4);
+
+        // 耕地边缘泥土飞溅效果（小棕色点）
+        ctx.fillStyle = '#5a3a1a';
+        for (let i = 0; i < 4; i++) {
+            const sx = this.seededRandom(tx, ty, i + 30);
+            const sy = this.seededRandom(tx, ty, i + 40);
+            // 在边缘位置放置飞溅点
+            const edgeSide = Math.floor(this.seededRandom(tx, ty, i + 50) * 4);
+            switch (edgeSide) {
+                case 0: ctx.fillRect(px, py + 2 + Math.floor(sy * (TILE - 4)), 2, 2); break;
+                case 1: ctx.fillRect(px + TILE - 2, py + 2 + Math.floor(sy * (TILE - 4)), 2, 2); break;
+                case 2: ctx.fillRect(px + 2 + Math.floor(sx * (TILE - 4)), py, 2, 2); break;
+                case 3: ctx.fillRect(px + 2 + Math.floor(sx * (TILE - 4)), py + TILE - 2, 2, 2); break;
+            }
+        }
     }
 
-    // ===== 浇水耕地：耕地基础上加蓝色反光点 =====
+    // ===== 浇水耕地：耕地基础上加更明显的蓝色反光点 =====
     drawWatered(ctx, px, py, tx, ty) {
         this.drawTilled(ctx, px, py, tx, ty);
-        // 蓝色反光点
+        // 更明显的蓝色反光点
         ctx.fillStyle = '#4fc3f7';
         const r1 = this.seededRandom(tx, ty, 5);
         const r2 = this.seededRandom(tx, ty, 6);
-        ctx.fillRect(px + 6 + Math.floor(r1 * 30), py + 6 + Math.floor(r2 * 30), 3, 3);
+        ctx.fillRect(px + 6 + Math.floor(r1 * 30), py + 6 + Math.floor(r2 * 30), 4, 4);
         ctx.fillStyle = '#81d4fa';
         const r3 = this.seededRandom(tx, ty, 7);
         const r4 = this.seededRandom(tx, ty, 8);
-        ctx.fillRect(px + 4 + Math.floor(r3 * 36), py + 4 + Math.floor(r4 * 36), 2, 2);
+        ctx.fillRect(px + 4 + Math.floor(r3 * 36), py + 4 + Math.floor(r4 * 36), 3, 3);
+        // 额外的蓝色反光亮点
+        ctx.fillStyle = '#b3e5fc';
+        const r5 = this.seededRandom(tx, ty, 9);
+        const r6 = this.seededRandom(tx, ty, 10);
+        ctx.fillRect(px + 8 + Math.floor(r5 * 28), py + 8 + Math.floor(r6 * 28), 2, 2);
+        // 湿润的深色效果
+        ctx.fillStyle = 'rgba(0, 50, 100, 0.12)';
+        ctx.fillRect(px, py, TILE, TILE);
     }
 
-    // ===== 路径：沙色底 + 深色斑点 =====
+    // ===== 路径：沙色底 + 小石子 + 边缘草地过渡 =====
     drawPath(ctx, px, py, tx, ty) {
         ctx.fillStyle = '#c4a96a';
         ctx.fillRect(px, py, TILE, TILE);
+        // 深色沙地斑块
         ctx.fillStyle = '#a18850';
         const r1 = this.seededRandom(tx, ty, 1);
         const r2 = this.seededRandom(tx, ty, 2);
         ctx.fillRect(px + 6 + Math.floor(r1 * 28), py + 6 + Math.floor(r2 * 28), 8, 8);
+
+        // 随机小石子（2-3个深色小点）
         ctx.fillStyle = '#8d6e40';
         for (let i = 0; i < 3; i++) {
             const rx = this.seededRandom(tx, ty, i + 10);
             const ry = this.seededRandom(tx, ty, i + 20);
             ctx.fillRect(px + 2 + Math.floor(rx * 40), py + 2 + Math.floor(ry * 40), 3, 3);
         }
+        // 额外的小石子（灰色调）
+        ctx.fillStyle = '#9e9e8e';
+        for (let i = 0; i < 2; i++) {
+            const rx = this.seededRandom(tx, ty, i + 30);
+            const ry = this.seededRandom(tx, ty, i + 31);
+            ctx.fillRect(px + 4 + Math.floor(rx * 36), py + 4 + Math.floor(ry * 36), 2, 2);
+        }
+
+        // 路径边缘草地过渡（边缘像素颜色混合）
+        ctx.fillStyle = '#8a9a50';
+        for (let i = 0; i < 3; i++) {
+            const r = this.seededRandom(tx, ty, i + 40);
+            const edge = Math.floor(this.seededRandom(tx, ty, i + 41) * 4);
+            switch (edge) {
+                case 0: ctx.fillRect(px, py + 2 + Math.floor(r * (TILE - 4)), 2, 2); break;
+                case 1: ctx.fillRect(px + TILE - 2, py + 2 + Math.floor(r * (TILE - 4)), 2, 2); break;
+                case 2: ctx.fillRect(px + 2 + Math.floor(r * (TILE - 4)), py, 2, 2); break;
+                case 3: ctx.fillRect(px + 2 + Math.floor(r * (TILE - 4)), py + TILE - 2, 2, 2); break;
+            }
+        }
     }
 
-    // ===== 水面：蓝色底 + 白色小横线模拟波纹 =====
-    drawWater(ctx, px, py, tx, ty) {
+    // ===== 水面：蓝色底 + 白色波纹动画 + 岸边泡沫 =====
+    drawWater(ctx, px, py, tx, ty, state) {
         const t = Date.now() / 1000;
+        // 基础蓝色
         ctx.fillStyle = '#4fc3f7';
         ctx.fillRect(px, py, TILE, TILE);
+        // 深色水波斑块
         ctx.fillStyle = '#29b6f6';
         const r1 = this.seededRandom(tx, ty, 1);
         const r2 = this.seededRandom(tx, ty, 2);
         ctx.fillRect(px + 4 + Math.floor(r1 * 30), py + 4 + Math.floor(r2 * 30), 8, 8);
-        // 白色波纹小横线
+
+        // 3条白色横线模拟波纹（带时间动画）
         ctx.fillStyle = '#e1f5fe';
-        const waveOffset = Math.sin(t * 2 + tx * 0.5 + ty * 0.3) * 4;
-        ctx.fillRect(px + 6 + waveOffset, py + 14, 12, 2);
-        ctx.fillRect(px + 10 - waveOffset, py + 28, 10, 2);
-        ctx.fillRect(px + 8 + waveOffset * 0.5, py + 38, 8, 2);
+        const waveOffset1 = Math.sin(t * 2 + tx * 0.5 + ty * 0.3) * 4;
+        const waveOffset2 = Math.sin(t * 1.8 + tx * 0.7 + ty * 0.5 + 1) * 3;
+        const waveOffset3 = Math.sin(t * 2.2 + tx * 0.3 + ty * 0.6 + 2) * 5;
+        ctx.fillRect(px + 6 + waveOffset1, py + 10, 12, 2);
+        ctx.fillRect(px + 10 - waveOffset2, py + 22, 10, 2);
+        ctx.fillRect(px + 8 + waveOffset3, py + 36, 8, 2);
+
+        // 浅色波纹高光
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        const shimmerOffset = Math.sin(t * 3 + tx + ty) * 3;
+        ctx.fillRect(px + 20 + shimmerOffset, py + 16, 6, 1);
+        ctx.fillRect(px + 4 - shimmerOffset, py + 30, 5, 1);
+
+        // 岸边浅色泡沫点
+        if (state && state.map) {
+            this.drawWaterFoam(ctx, px, py, tx, ty, t);
+        }
     }
 
-    // ===== 栅栏 =====
-    drawFence(ctx, px, py, tx, ty) {
+    // 水面岸边泡沫效果
+    drawWaterFoam(ctx, px, py, tx, ty, t) {
+        const neighbors = [
+            [tx - 1, ty, 'left'],
+            [tx + 1, ty, 'right'],
+            [tx, ty - 1, 'top'],
+            [tx, ty + 1, 'bottom']
+        ];
+
+        for (const [nx, ny, side] of neighbors) {
+            if (nx < 0 || ny < 0 || ny >= MAP_H || nx >= MAP_W) continue;
+            const neighborTile = state.map[ny][nx];
+            // 只在与非水面相邻时绘制泡沫
+            if (neighborTile !== T.WATER && neighborTile !== T.FISH_SPOT && neighborTile !== T.BRIDGE) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                const foamCount = 2 + Math.floor(this.seededRandom(tx, ty, side.charCodeAt(0) + 100) * 3);
+                for (let i = 0; i < foamCount; i++) {
+                    const r = this.seededRandom(tx, ty, side.charCodeAt(0) * 10 + i + 110);
+                    const foamOffset = Math.sin(t * 1.5 + i * 2 + tx + ty) * 2;
+                    switch (side) {
+                        case 'left':
+                            ctx.fillRect(px, py + 2 + Math.floor(r * (TILE - 4)) + foamOffset, 2, 2);
+                            break;
+                        case 'right':
+                            ctx.fillRect(px + TILE - 2, py + 2 + Math.floor(r * (TILE - 4)) + foamOffset, 2, 2);
+                            break;
+                        case 'top':
+                            ctx.fillRect(px + 2 + Math.floor(r * (TILE - 4)) + foamOffset, py, 2, 2);
+                            break;
+                        case 'bottom':
+                            ctx.fillRect(px + 2 + Math.floor(r * (TILE - 4)) + foamOffset, py + TILE - 2, 2, 2);
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    // ===== 栅栏：棕色竖条 + 横条连接 + 深棕色描边 =====
+    drawFence(ctx, px, py, tx, ty, state) {
         // 先画草地底
         ctx.fillStyle = '#7cb342';
         ctx.fillRect(px, py, TILE, TILE);
-        // 栅栏柱
+
+        // 检查相邻栅栏以决定绘制方向
+        const hasLeft = state && state.map && tx > 0 && state.map[ty][tx - 1] === T.FENCE;
+        const hasRight = state && state.map && tx < MAP_W - 1 && state.map[ty][tx + 1] === T.FENCE;
+        const hasTop = state && state.map && ty > 0 && state.map[ty - 1][tx] === T.FENCE;
+        const hasBottom = state && state.map && ty < MAP_H - 1 && state.map[ty + 1][tx] === T.FENCE;
+
+        // 栅栏柱（2px宽竖条，间隔4px）
         ctx.fillStyle = '#6b4223';
-        ctx.fillRect(px + 4, py + 8, 4, TILE - 14);
-        ctx.fillRect(px + TILE - 8, py + 8, 4, TILE - 14);
-        // 横条
+        // 左柱
+        ctx.fillRect(px + 6, py + 6, 3, TILE - 12);
+        // 右柱
+        ctx.fillRect(px + TILE - 9, py + 6, 3, TILE - 12);
+        // 中间柱（如果有水平延伸）
+        if (!hasLeft && !hasRight) {
+            ctx.fillRect(px + TILE / 2 - 1, py + 6, 3, TILE - 12);
+        }
+
+        // 横条连接（1px）
         ctx.fillStyle = '#8b5a2b';
-        ctx.fillRect(px + 4, py + 12, TILE - 8, 3);
-        ctx.fillRect(px + 4, py + 28, TILE - 8, 3);
-        // 描边
-        this.strokeRect(ctx, px + 4, py + 8, 4, TILE - 14);
-        this.strokeRect(ctx, px + TILE - 8, py + 8, 4, TILE - 14);
+        ctx.fillRect(px + 6, py + 12, TILE - 15, 2);
+        ctx.fillRect(px + 6, py + 26, TILE - 15, 2);
+        ctx.fillRect(px + 6, py + 38, TILE - 15, 2);
+
+        // 深棕色描边
+        ctx.strokeStyle = '#3d2817';
+        ctx.lineWidth = 1;
+        // 左柱描边
+        ctx.strokeRect(px + 6, py + 6, 3, TILE - 12);
+        // 右柱描边
+        ctx.strokeRect(px + TILE - 9, py + 6, 3, TILE - 12);
+        // 中间柱描边
+        if (!hasLeft && !hasRight) {
+            ctx.strokeRect(px + TILE / 2 - 1, py + 6, 3, TILE - 12);
+        }
+        // 横条描边
+        ctx.strokeRect(px + 6, py + 12, TILE - 15, 2);
+        ctx.strokeRect(px + 6, py + 26, TILE - 15, 2);
+        ctx.strokeRect(px + 6, py + 38, TILE - 15, 2);
+
+        // 柱顶高光
+        ctx.fillStyle = '#a07040';
+        ctx.fillRect(px + 7, py + 6, 1, 2);
+        ctx.fillRect(px + TILE - 8, py + 6, 1, 2);
     }
 
     // ===== 桥梁 =====
@@ -572,8 +1070,8 @@ class Renderer {
     }
 
     // ===== 钓鱼点 =====
-    drawFishSpot(ctx, px, py, tx, ty) {
-        this.drawWater(ctx, px, py, tx, ty);
+    drawFishSpot(ctx, px, py, tx, ty, state) {
+        this.drawWater(ctx, px, py, tx, ty, state);
         const t = Date.now() / 800;
         const fwx = Math.sin(t + tx * 2) * 6;
         ctx.fillStyle = 'rgba(255,255,255,0.2)';
