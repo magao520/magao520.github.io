@@ -70,7 +70,7 @@
         }
 
         .login-box h1 {
-            font-size: 28px;
+            font-size: 36px;
             color: #ffd93d;
             text-shadow: 3px 3px 0 #5c3d1e;
             margin-bottom: 8px;
@@ -78,7 +78,7 @@
         }
 
         .login-box .subtitle {
-            color: #8b6d3f;
+            color: #d4c4a0;
             font-size: 10px;
             margin-bottom: 24px;
             letter-spacing: 1px;
@@ -256,9 +256,28 @@
 
         /* 时间大字显示 */
         #time-display {
-            font-size: 18px !important;
+            font-size: 22px !important;
             color: #ffd93d !important;
             text-shadow: 2px 2px 0 #5c3d1e;
+            letter-spacing: 1px;
+        }
+
+        /* 金币图标 */
+        .coin-icon {
+            width: 10px;
+            height: 10px;
+            background: #ffd93d;
+            border: 2px solid #c4a96a;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: inset -1px -1px 0 #c4a96a;
+        }
+
+        /* HP标签 */
+        .hp-label {
+            color: #4caf50;
+            font-size: 9px;
+            font-weight: bold;
             letter-spacing: 1px;
         }
 
@@ -271,7 +290,7 @@
             left: 50%;
             transform: translateX(-50%);
             display: none;
-            gap: 2px;
+            gap: 4px;
             z-index: 55;
             background: #3d2817;
             border: 3px solid #5c3d1e;
@@ -283,14 +302,14 @@
         #toolbar.active { display: flex; }
 
         .tool-item {
-            width: 40px;
-            height: 40px;
+            width: 48px;
+            height: 44px;
             background: #2d1f0e;
             border: 2px solid #5c3d1e;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 10px;
+            font-size: 12px;
             color: #c4a96a;
             cursor: pointer;
             transition: all 0.1s;
@@ -530,17 +549,17 @@
             position: fixed;
             top: 10px;
             right: 10px;
-            width: 150px;
-            height: 150px;
+            width: 120px;
+            height: 120px;
             background: #3d2817;
             border: 3px solid #5c3d1e;
             z-index: 50;
-            display: none;
+            display: block;
             border-radius: 0;
             box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
         }
 
-        #minimap.active { display: block; }
+        #minimap.hidden { display: none; }
 
         /* ========================================
            Toast - 像素风提示
@@ -823,23 +842,18 @@
     <div id="hud">
         <div class="hud-left">
             <div class="hud-box">
-                <span>[P]</span>
                 <span id="hud-name">农场主</span>
             </div>
             <div id="stamina-bar-container">
-                <span style="color:#4caf50;">[+]</span>
+                <span class="hp-label">HP</span>
                 <div id="stamina-bar">
                     <div id="stamina-bar-fill"></div>
                 </div>
                 <span id="stamina-text">100/100</span>
             </div>
             <div class="hud-box">
-                <span style="color:#ffd93d;">$</span>
+                <span class="coin-icon"></span>
                 <span class="value" id="coins-display">500</span>
-            </div>
-            <div class="hud-box">
-                <span>[C]</span>
-                <span id="day-display">第 1 天 春</span>
             </div>
         </div>
         <div class="hud-right">
@@ -847,9 +861,10 @@
                 <span id="time-display">06:00</span>
             </div>
             <div class="hud-box">
-                <span id="weather-display">晴</span>
+                <span id="day-display">第 1 天 春</span>
             </div>
             <div class="hud-box">
+                <span id="weather-display">晴</span>
                 <span id="area-display">农场</span>
             </div>
         </div>
@@ -857,14 +872,14 @@
 
     <!-- ===== 工具栏 ===== -->
     <div id="toolbar">
-        <div class="tool-item active" data-tool="0" title="锄头 [1]">锄<span class="tool-label">锄</span></div>
-        <div class="tool-item" data-tool="1" title="水壶 [2]">水<span class="tool-label">水</span></div>
-        <div class="tool-item" data-tool="2" title="种子袋 [3]">种<span class="tool-label">种</span></div>
-        <div class="tool-item" data-tool="3" title="收获 [4]">收<span class="tool-label">收</span></div>
-        <div class="tool-item" data-tool="4" title="铲除 [5]">铲<span class="tool-label">铲</span></div>
+        <div class="tool-item active" data-tool="0" title="锄头 [1]">锄</div>
+        <div class="tool-item" data-tool="1" title="水壶 [2]">水</div>
+        <div class="tool-item" data-tool="2" title="种子袋 [3]">种</div>
+        <div class="tool-item" data-tool="3" title="收获 [4]">收</div>
+        <div class="tool-item" data-tool="4" title="铲除 [5]">铲</div>
         <div class="tool-separator"></div>
-        <div class="tool-item" data-tool="5" title="背包 [B]">包<span class="tool-label">包</span></div>
-        <div class="tool-item" data-tool="6" title="地图 [M]">图<span class="tool-label">图</span></div>
+        <div class="tool-item" data-tool="5" title="背包 [B]">包</div>
+        <div class="tool-item" data-tool="6" title="地图 [M]">图</div>
     </div>
 
     <!-- ===== 快捷物品栏 ===== -->
@@ -898,7 +913,7 @@
     </div>
 
     <!-- ===== 小地图 ===== -->
-    <canvas id="minimap" width="150" height="150"></canvas>
+    <canvas id="minimap" width="120" height="120"></canvas>
 
     <!-- ===== Toast ===== -->
     <div id="toast"></div>

@@ -80,6 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('hud').classList.add('active');
         document.getElementById('controls-hint').classList.add('active');
 
+        // 默认显示小地图
+        state.showMinimap = true;
+        document.getElementById('minimap').classList.add('active');
+
         // 更新 HUD
         const hudName = document.getElementById('hud-name');
         if (hudName) hudName.textContent = name;
@@ -192,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        speaker.textContent = '🎒 背包';
+        speaker.textContent = '[背包]';
 
         let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">';
 
@@ -203,10 +207,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const qText = item.quality && item.quality.prefix ? ` ${item.quality.prefix}` : '';
                 const qColor = item.quality ? item.quality.color : '#fff';
                 html += `<div style="background:#3d2b1f;border:2px solid #5c3d1e;padding:6px 8px;text-align:center;min-width:60px;">
-                    <div style="font-size:24px;">${item.emoji}</div>
                     <div style="font-size:10px;color:#f4e8c1;margin-top:2px;">${item.name}</div>
                     <div style="font-size:10px;color:${qColor};">${qText}x${item.qty}</div>
-                    <div style="font-size:9px;color:#ffd93d;">${item.value}💰</div>
+                    <div style="font-size:9px;color:#ffd93d;">${item.value}G</div>
                 </div>`;
             }
         }
@@ -214,9 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // 显示统计
         html += '</div>';
         html += `<div style="margin-top:10px;font-size:12px;color:#aaa;">
-            💎 体力: ${state.energy}/${state.maxEnergy} |
-            🪱 鱼饵: ${state.baitCount} |
-            🏆 成就: ${state.achievements.length}
+            体力: ${state.energy}/${state.maxEnergy} |
+            鱼饵: ${state.baitCount} |
+            成就: ${state.achievements.length}
         </div>`;
 
         text.innerHTML = html;

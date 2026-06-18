@@ -350,48 +350,88 @@ class Renderer {
         }
     }
 
-    // ===== 房屋底 =====
+    // ===== 房屋底 - 星露谷风格 48x40 =====
     drawHouseBase(ctx, px, py, tx, ty, isNpc) {
-        const wallColor = isNpc ? '#b08050' : '#c49558';
-        const roofColor = isNpc ? '#8b4513' : '#a0522d';
+        // NPC房屋颜色映射
+        let wallColor = '#c49558';
+        let roofColor = '#a0522d';
+        if (isNpc) {
+            const npc = NPC_TYPES.find(n => n.house[0] === tx && n.house[1] === ty);
+            if (npc) {
+                switch(npc.name) {
+                    case '皮埃尔': wallColor = '#e8d5a3'; roofColor = '#c62828'; break;
+                    case '克林特': wallColor = '#8d6e63'; roofColor = '#616161'; break;
+                    case '玛妮': wallColor = '#f5f5f5'; roofColor = '#e91e63'; break;
+                    case '威利': wallColor = '#e8d5a3'; roofColor = '#1565c0'; break;
+                    default: wallColor = '#c49558'; roofColor = '#a0522d';
+                }
+            }
+        }
 
-        // 墙
+        const hw = TILE * 2; // 房屋宽 96
+        const hh = TILE * 1.8; // 房屋高 86
+        const hx = px - TILE / 2;
+        const hy = py - TILE / 2;
+
+        // 底部阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(hx + 4, hy + hh - 4, hw - 8, 8);
+
+        // 墙体 - 带木板纹理
         ctx.fillStyle = wallColor;
-        ctx.fillRect(px + 4, py + 14, TILE - 8, TILE - 16);
-        this.strokeRect(ctx, px + 4, py + 14, TILE - 8, TILE - 16);
+        ctx.fillRect(hx + 4, hy + 20, hw - 8, hh - 24);
+        this.strokeRect(ctx, hx + 4, hy + 20, hw - 8, hh - 24);
 
-        // 屋顶
+        // 木板纹理（水平线条）
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 4; i++) {
+            const ly = hy + 24 + i * 14;
+            ctx.beginPath();
+            ctx.moveTo(hx + 5, ly);
+            ctx.lineTo(hx + hw - 5, ly);
+            ctx.stroke();
+        }
+
+        // 屋顶 - 三角形带瓦片纹理
         ctx.fillStyle = roofColor;
         ctx.beginPath();
-        ctx.moveTo(px + 1, py + 16);
-        ctx.lineTo(px + TILE / 2, py + 2);
-        ctx.lineTo(px + TILE - 1, py + 16);
+        ctx.moveTo(hx - 2, hy + 22);
+        ctx.lineTo(hx + hw / 2, hy - 4);
+        ctx.lineTo(hx + hw + 2, hy + 22);
         ctx.closePath();
         ctx.fill();
         ctx.strokeStyle = '#3d2817';
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // 屋顶瓦片线条
-        ctx.strokeStyle = 'rgba(60,30,10,0.4)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 3; i++) {
-            const ry = py + 6 + i * 4;
-            const rw = (ry - (py + 2)) / 14 * (TILE - 2);
-            ctx.beginPath();
-            ctx.moveTo(px + TILE / 2 - rw / 2, ry);
-            ctx.lineTo(px + TILE / 2 + rw / 2, ry);
-            ctx.stroke();
+        // 瓦片纹理（鱼鳞状小矩形）
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        for (let row = 0; row < 3; row++) {
+            const ry = hy + 4 + row * 7;
+            const rw = (ry - (hy - 4)) / 26 * (hw + 4);
+            const tilesInRow = 5 + row * 2;
+            for (let t = 0; t < tilesInRow; t++) {
+                const tx2 = hx + hw / 2 - rw / 2 + (t / tilesInRow) * rw;
+                ctx.fillRect(tx2, ry, rw / tilesInRow - 1, 3);
+            }
         }
 
+        // 门廊台阶
+        ctx.fillStyle = '#9e9e9e';
+        ctx.fillRect(hx + hw / 2 - 10, hy + hh - 8, 20, 4);
+        ctx.fillRect(hx + hw / 2 - 12, hy + hh - 4, 24, 4);
+        this.strokeRect(ctx, hx + hw / 2 - 10, hy + hh - 8, 20, 4);
+        this.strokeRect(ctx, hx + hw / 2 - 12, hy + hh - 4, 24, 4);
+
         // 烟囱
-        const chimneyX = px + TILE * 0.7;
-        const chimneyY = py + 8;
-        ctx.fillStyle = '#6a6a6a';
-        ctx.fillRect(chimneyX, chimneyY, 6, 10);
-        ctx.fillStyle = '#4a4a4a';
-        ctx.fillRect(chimneyX - 1, chimneyY - 2, 8, 3);
-        this.strokeRect(ctx, chimneyX, chimneyY, 6, 10);
+        const chimneyX = hx + hw * 0.75;
+        const chimneyY = hy + 6;
+        ctx.fillStyle = '#757575';
+        ctx.fillRect(chimneyX, chimneyY, 8, 14);
+        ctx.fillStyle = '#616161';
+        ctx.fillRect(chimneyX - 2, chimneyY - 3, 12, 4);
+        this.strokeRect(ctx, chimneyX, chimneyY, 8, 14);
     }
 
     // ===== 门 =====
@@ -657,40 +697,58 @@ class Renderer {
     }
 
     drawHouseDetails(ctx, px, py, tx, ty, isNight, isNpc) {
-        // 窗户
-        const windowColor = isNight ? '#ffcc80' : '#87ceeb';
-        // 左窗
-        this.drawWindow(ctx, px + 10, py + 20, windowColor, isNight);
-        // 右窗
-        this.drawWindow(ctx, px + 26, py + 20, windowColor, isNight);
+        const hw = TILE * 2;
+        const hh = TILE * 1.8;
+        const hx = px - TILE / 2;
+        const hy = py - TILE / 2;
 
-        // 门
-        ctx.fillStyle = '#5c3d1e';
-        ctx.fillRect(px + 18, py + 30, 12, 16);
-        this.strokeRect(ctx, px + 18, py + 30, 12, 16);
+        // 窗户 - 3个窗户
+        const windowColor = isNight ? '#ffcc80' : '#87ceeb';
+        this.drawWindow(ctx, hx + 14, hy + 28, windowColor, isNight);
+        this.drawWindow(ctx, hx + 38, hy + 28, windowColor, isNight);
+        this.drawWindow(ctx, hx + 62, hy + 28, windowColor, isNight);
+
+        // 门 - 居中
+        const doorX = hx + hw / 2 - 8;
+        const doorY = hy + hh - 28;
+        ctx.fillStyle = '#6d4c41';
+        ctx.fillRect(doorX, doorY, 16, 24);
+        this.strokeRect(ctx, doorX, doorY, 16, 24);
+        // 门板线条
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(doorX + 8, doorY);
+        ctx.lineTo(doorX + 8, doorY + 24);
+        ctx.stroke();
         // 门把手
         ctx.fillStyle = '#ffd700';
-        ctx.fillRect(px + 27, py + 38, 2, 2);
+        ctx.beginPath();
+        ctx.arc(doorX + 12, doorY + 14, 2, 0, Math.PI * 2);
+        ctx.fill();
 
-        // 夜晚窗户发光
+        // 夜晚窗户发光效果
         if (isNight) {
-            ctx.fillStyle = 'rgba(255, 204, 128, 0.15)';
-            ctx.fillRect(px + 8, py + 18, 14, 14);
-            ctx.fillRect(px + 24, py + 18, 14, 14);
+            ctx.fillStyle = 'rgba(255, 204, 128, 0.2)';
+            ctx.fillRect(hx + 12, hy + 26, 16, 16);
+            ctx.fillRect(hx + 36, hy + 26, 16, 16);
+            ctx.fillRect(hx + 60, hy + 26, 16, 16);
         }
 
-        // 烟雾
+        // 烟雾粒子
         const t = Date.now() / 1000;
-        const chimneyX = px + TILE * 0.7 + 3;
-        const chimneyY = py + 6;
-        for (let i = 0; i < 2; i++) {
-            const smokeAge = (t * 0.8 + i * 0.7) % 3;
-            const smokeX = chimneyX + Math.sin(t * 2 + i) * 3 * smokeAge;
-            const smokeY = chimneyY - smokeAge * 8;
-            const smokeSize = 2 + smokeAge * 3;
-            const smokeAlpha = 0.25 - smokeAge * 0.08;
-            ctx.fillStyle = `rgba(200, 200, 200, ${Math.max(0, smokeAlpha)})`;
-            ctx.fillRect(smokeX - smokeSize / 2, smokeY - smokeSize / 2, smokeSize, smokeSize);
+        const chimneyX = hx + hw * 0.75 + 4;
+        const chimneyY = hy + 3;
+        for (let i = 0; i < 3; i++) {
+            const smokeAge = (t * 0.6 + i * 1.0) % 4;
+            const smokeX = chimneyX + Math.sin(t * 1.5 + i * 2) * 4 * smokeAge;
+            const smokeY = chimneyY - smokeAge * 6;
+            const smokeSize = 3 + smokeAge * 4;
+            const smokeAlpha = 0.3 - smokeAge * 0.06;
+            ctx.fillStyle = `rgba(180, 180, 180, ${Math.max(0, smokeAlpha)})`;
+            ctx.beginPath();
+            ctx.arc(smokeX, smokeY, smokeSize, 0, Math.PI * 2);
+            ctx.fill();
         }
     }
 
@@ -1372,20 +1430,27 @@ class Renderer {
         }
     }
 
-    // ===== 小地图 =====
+    // ===== 小地图 - 使用独立canvas =====
     renderMinimap(state, sc) {
         if (!state.showMinimap) return;
 
-        const ctx = this.ctx;
-        const mmSize = 150;
-        const mmX = this.screenW - mmSize - 20;
-        const mmY = 20;
+        const mmCanvas = document.getElementById('minimap');
+        if (!mmCanvas) return;
+        const ctx = mmCanvas.getContext('2d');
+        const mmSize = 120;
         const scaleX = mmSize / MAP_W;
         const scaleY = mmSize / MAP_H;
 
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(mmX - 5, mmY - 5, mmSize + 10, mmSize + 10);
+        // 清空
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(0, 0, mmSize, mmSize);
 
+        // 边框
+        ctx.strokeStyle = '#5c3d1e';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, mmSize, mmSize);
+
+        // 绘制已生成区块
         for (const chunkKey of state.generatedChunks) {
             const [cx, cy] = chunkKey.split(',').map(Number);
             const startX = cx * CHUNK_SIZE;
@@ -1395,6 +1460,7 @@ class Renderer {
 
             for (let y = startY; y < endY; y++) {
                 for (let x = startX; x < endX; x++) {
+                    if (!state.map[y] || !state.map[y][x]) continue;
                     const tile = state.map[y][x];
                     let color;
                     switch (tile) {
@@ -1417,35 +1483,49 @@ class Renderer {
                         default: color = '#4a6741';
                     }
                     ctx.fillStyle = color;
-                    ctx.fillRect(mmX + x * scaleX, mmY + y * scaleY, Math.max(scaleX, 1), Math.max(scaleY, 1));
+                    ctx.fillRect(x * scaleX, y * scaleY, Math.max(scaleX, 1), Math.max(scaleY, 1));
                 }
             }
         }
 
-        // 玩家位置
-        ctx.fillStyle = '#ff0000';
-        ctx.fillRect(
-            mmX + (state.playerX / TILE) * scaleX - 2,
-            mmY + (state.playerY / TILE) * scaleY - 2,
-            4, 4
-        );
+        // NPC位置（黄色点）
+        for (const npc of state.npcs || []) {
+            const npx = (npc.x / TILE) * scaleX;
+            const npy = (npc.y / TILE) * scaleY;
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(npx - 1, npy - 1, 3, 3);
+        }
 
-        // 其他玩家
+        // 玩家位置（红色方块）
+        const px = (state.playerX / TILE) * scaleX;
+        const py = (state.playerY / TILE) * scaleY;
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(px - 2, py - 2, 5, 5);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px - 2, py - 2, 5, 5);
+
+        // 其他玩家（彩色圆点）
         const now = Date.now();
         for (const [peerId, player] of state.otherPlayers) {
             if (now - player.lastUpdate > 10000) continue;
-            const opx = mmX + (player.x / TILE) * scaleX;
-            const opy = mmY + (player.y / TILE) * scaleY;
+            const opx = (player.x / TILE) * scaleX;
+            const opy = (player.y / TILE) * scaleY;
             ctx.fillStyle = player.color || '#ff6b6b';
-            ctx.fillRect(opx - 2, opy - 2, 4, 4);
+            ctx.beginPath();
+            ctx.arc(opx, opy, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
         }
 
-        // 视野范围
-        ctx.strokeStyle = '#fff';
+        // 视野范围框
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
         ctx.lineWidth = 1;
         ctx.strokeRect(
-            mmX + (state.cameraX / TILE) * scaleX,
-            mmY + (state.cameraY / TILE) * scaleY,
+            (state.cameraX / TILE) * scaleX,
+            (state.cameraY / TILE) * scaleY,
             (this.screenW / TILE) * scaleX,
             (this.screenH / TILE) * scaleY
         );
