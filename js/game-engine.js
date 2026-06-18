@@ -223,12 +223,6 @@ function getTileAtPosition(x, y, seed) {
 function getFarmTile(x, y, n) {
     const z = ZONES.FARM;
 
-    // 外围栅栏
-    if (x === z.x1 || x === z.x2 || y === z.y1 || y === z.y2) return T.FENCE;
-
-    // 南面入口（留缺口）
-    if (y === z.y2 && x >= 97 && x <= 103) return T.PATH;
-
     // 玩家小屋（中心偏北）
     if (x >= 97 && x <= 103 && y >= 78 && y <= 82) {
         if (x === 100 && y === 82) return T.DOOR;
@@ -241,53 +235,46 @@ function getFarmTile(x, y, n) {
     // 东西横路
     if (y === 100 && x >= z.x1 + 5 && x <= z.x2 - 5) return T.PATH;
 
-    // 田地1：左上 (75-88, 85-95) - 用栅栏围起来
-    if (x >= 75 && x <= 88 && y >= 85 && y <= 95) {
-        if (x === 75 || x === 88 || y === 85 || y === 95) return T.FENCE;
-        if (x === 81 && y === 95) return T.PATH; // 田地入口
-        return T.TILLED;
-    }
+    // 田地1：左上 (75-88, 85-95)
+    if (x >= 75 && x <= 88 && y >= 85 && y <= 95) return T.TILLED;
 
     // 田地2：右上 (112-125, 85-95)
-    if (x >= 112 && x <= 125 && y >= 85 && y <= 95) {
-        if (x === 112 || x === 125 || y === 85 || y === 95) return T.FENCE;
-        if (x === 118 && y === 95) return T.PATH;
-        return T.TILLED;
-    }
+    if (x >= 112 && x <= 125 && y >= 85 && y <= 95) return T.TILLED;
 
     // 田地3：左下 (75-88, 105-115)
-    if (x >= 75 && x <= 88 && y >= 105 && y <= 115) {
-        if (x === 75 || x === 88 || y === 105 || y === 115) return T.FENCE;
-        if (x === 81 && y === 105) return T.PATH;
-        return T.TILLED;
-    }
+    if (x >= 75 && x <= 88 && y >= 105 && y <= 115) return T.TILLED;
 
     // 田地4：右下 (112-125, 105-115)
-    if (x >= 112 && x <= 125 && y >= 105 && y <= 115) {
-        if (x === 112 || x === 125 || y === 105 || y === 115) return T.FENCE;
-        if (x === 118 && y === 105) return T.PATH;
-        return T.TILLED;
-    }
+    if (x >= 112 && x <= 125 && y >= 105 && y <= 115) return T.TILLED;
 
-    // 花园（小屋旁边）
-    if (x >= 90 && x <= 96 && y >= 80 && y <= 84) return T.FLOWER;
-    if (x >= 104 && x <= 110 && y >= 80 && y <= 84) return T.FLOWER;
+    // 花园（小屋旁边）- 减少范围
+    if (x >= 91 && x <= 96 && y >= 81 && y <= 83) {
+        if (n > 0.6) return T.FLOWER;
+    }
+    if (x >= 104 && x <= 109 && y >= 81 && y <= 83) {
+        if (n > 0.6) return T.FLOWER;
+    }
 
     // 水塘（左下角装饰）
     const pondCx = 68, pondCy = 120;
     const pondDist = Math.sqrt((x - pondCx) ** 2 + (y - pondCy) ** 2);
     if (pondDist < 5) return T.WATER;
 
-    // 四角树木
-    if ((x <= z.x1 + 5 && y <= z.y1 + 5) ||
-        (x >= z.x2 - 5 && y <= z.y1 + 5) ||
-        (x <= z.x1 + 5 && y >= z.y2 - 5) ||
-        (x >= z.x2 - 5 && y >= z.y2 - 5)) {
-        if (n > 0) return T.TREE;
+    // 四角少量树木（降低密度）
+    if ((x <= z.x1 + 3 && y <= z.y1 + 3) ||
+        (x >= z.x2 - 3 && y <= z.y1 + 3) ||
+        (x <= z.x1 + 3 && y >= z.y2 - 3) ||
+        (x >= z.x2 - 3 && y >= z.y2 - 3)) {
+        if (n > 0.3) return T.TREE;
     }
 
-    // 随机装饰
-    if (n > 0.5 && x > z.x1 + 10 && x < z.x2 - 10) return T.FLOWER;
+    // 随机树木（稀疏，5%概率）
+    if (n > 0.95 && x > z.x1 + 8 && x < z.x2 - 8 && y > z.y1 + 8 && y < z.y2 - 8) {
+        return T.TREE;
+    }
+
+    // 随机花朵（稀疏，10%概率）
+    if (n > 0.9 && x > z.x1 + 5 && x < z.x2 - 5) return T.FLOWER;
 
     return T.GRASS;
 }
@@ -315,7 +302,7 @@ function getTownTile(x, y, n) {
     if (y === 150 && x >= z.x1 && x <= z.x2) return T.PATH;
 
     // 装饰花
-    if (n > 0.5 && (x < z.x1 + 5 || x > z.x2 - 5)) return T.FLOWER;
+    if (n > 0.92 && (x < z.x1 + 5 || x > z.x2 - 5)) return T.FLOWER;
 
     return T.GRASS;
 }
@@ -332,7 +319,7 @@ function getForestTile(x, y, n) {
     if (x === 35 && y >= z.y1 && y <= z.y2) return T.PATH;
 
     // 密集树木区域 (噪声决定)
-    if (n > 0.3) return T.TREE;
+    if (n > 0.85) return T.TREE;
 
     // 采集物
     if (n > -0.2 && n <= 0.3) return T.WILD_CROP;
@@ -393,7 +380,7 @@ function getLakeTile(x, y, n) {
     }
 
     // 湖畔草地
-    if (n > 0.3) return T.TREE;
+    if (n > 0.85) return T.TREE;
     if (n > 0) return T.WILD_CROP;
 
     return T.GRASS;
@@ -423,8 +410,8 @@ function getWildTile(x, y, n) {
     if (x === 25 && y >= 60 && y <= 140) return T.PATH;
 
     // 随机散布
-    if (n > 0.6) return T.TREE;
-    if (n > 0.4) return T.FLOWER;
+    if (n > 0.85) return T.TREE;
+    if (n > 0.92) return T.FLOWER;
     if (n < -0.6) return T.STONE;
     if (n < -0.4 && Math.abs(noise(x * 2, y * 2, 77)) > 0.7) return T.WILD_CROP;
 

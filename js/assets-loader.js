@@ -53,7 +53,17 @@ const AssetsLoader = {
             rock:  'assets/chars/adventure/Tiny Adventure Pack/Other/Misc/Rock.png',
             bush:  'assets/chars/adventure/Tiny Adventure Pack/Other/Misc/Bush.png',
             coin:  'assets/chars/adventure/Tiny Adventure Pack/Other/Coin.png',
-            grass: 'assets/chars/adventure/Tiny Adventure Pack/Other/Misc/Grass.png'
+            grass: 'assets/chars/adventure/Tiny Adventure Pack/Other/Misc/Grass.png',
+
+            // 角色 - 精灵图 (576x48, 4方向x3帧, 每帧48x48)
+            // 方向顺序: 下(0), 上(1), 左(2), 右(3)
+            // 帧顺序: 站立(0), 左脚(1), 右脚(2)
+            characterSprite: 'assets/sprites/character.png',
+
+            // 工具图标
+            toolDiamondAxe: 'assets/icons/diamond_axe.png',
+            toolIronAxe:    'assets/icons/iron_axe.png',
+            toolStoneAxe:   'assets/icons/stone_axe.png'
         };
 
         // 并行加载所有图片

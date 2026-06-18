@@ -1487,6 +1487,14 @@ class Renderer {
         const dir = state.playerDir || 0;
         const moving = state.playerMoving;
 
+        // 优先使用精灵图渲染
+        if (this._renderPlayerSprite(ctx, state, px, py, dir, moving)) {
+            // 精灵图渲染成功，绘制玩家名字后返回
+            this._renderPlayerName(ctx, px, py, state);
+            return;
+        }
+
+        // Fallback: 程序化绘制角色（原逻辑）
         const walkCycle = moving ? state.moveTimer * 10 : 0;
         const sinWalk = Math.sin(walkCycle);
         const bobY = moving ? Math.abs(sinWalk) * 1 : 0;
@@ -1652,6 +1660,13 @@ class Renderer {
         this.renderTool(ctx, px, py, dir, moving, sinWalk, state);
 
         // 玩家名字
+        this._renderPlayerName(ctx, px, py, state);
+    }
+
+    /**
+     * 渲染玩家名字（精灵图和程序化绘制共用）
+     */
+    _renderPlayerName(ctx, px, py, state) {
         const nameText = state.playerName || '';
         if (nameText) {
             ctx.font = 'bold 11px sans-serif';
@@ -1668,6 +1683,55 @@ class Renderer {
             ctx.fillStyle = '#fff';
             ctx.fillText(nameText, nameX, nameY);
         }
+    }
+
+    /**
+     * 使用精灵图渲染玩家角色
+     * 精灵图格式: 576x48, 4方向(下上左右) x 3帧(站立/左脚/右脚), 每帧48x48
+     * @returns {boolean} 是否成功使用精灵图渲染
+     */
+    _renderPlayerSprite(ctx, state, px, py, dir, moving) {
+        const sprite = AssetsLoader.assets.characterSprite;
+        if (!sprite) return false;
+
+        // 精灵图参数
+        const FRAME = 48;
+        const SPRITE_DIRS = 4;  // 下, 上, 左, 右
+        const SPRITE_FRAMES = 3; // 站立, 左脚, 右脚
+
+        // 计算动画帧
+        let frameIdx = 0; // 默认站立
+        if (moving) {
+            const walkCycle = state.moveTimer * 8;
+            const phase = Math.floor(walkCycle) % 4;
+            // 0->站立, 1->左脚, 2->站立, 3->右脚
+            frameIdx = phase === 1 ? 1 : (phase === 3 ? 2 : 0);
+        }
+
+        // 方向映射: 游戏方向 -> 精灵图方向
+        // 游戏中: 0=下, 1=上, 2=左, 3=右 (与精灵图一致)
+        const spriteDir = Math.min(dir, SPRITE_DIRS - 1);
+
+        // 计算源帧在精灵图中的位置
+        const srcX = spriteDir * FRAME * SPRITE_FRAMES + frameIdx * FRAME;
+        const srcY = 0;
+
+        // 关闭抗锯齿保持像素风格
+        ctx.imageSmoothingEnabled = false;
+
+        // 绘制精灵帧
+        ctx.drawImage(
+            sprite,
+            srcX, srcY, FRAME, FRAME,  // 源区域
+            px, py, TILE, TILE          // 目标区域 (TILE=48, 精灵也是48x48, 1:1)
+        );
+
+        // 绘制工具（精灵图模式下也显示工具）
+        const walkCycle = moving ? state.moveTimer * 10 : 0;
+        const sinWalk = Math.sin(walkCycle);
+        this.renderTool(ctx, px, py, dir, moving, sinWalk, state);
+
+        return true;
     }
 
     renderTool(ctx, px, py, dir, moving, sinWalk, state) {
