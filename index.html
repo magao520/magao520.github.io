@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🌾 快乐农场 - 星露谷风格</title>
+    <title>快乐农场 - 星露谷风格大世界</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
-        
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+
         body {
             background: #1a1a2e;
             overflow: hidden;
@@ -16,58 +16,94 @@
             width: 100vw;
             height: 100vh;
         }
-        
+
         #game-wrapper {
             position: relative;
             width: 100vw;
             height: 100vh;
         }
-        
+
         canvas {
             display: block;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
             touch-action: none;
         }
-        
-        /* ===== 登录界面 ===== */
+
+        /* ========================================
+           登录界面 - 精致像素风设计
+           ======================================== */
         #login-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(180deg, #87ceeb 0%, #e8d5a3 50%, #4a7c3f 50%, #3d6b35 100%);
+            background: linear-gradient(180deg, #87ceeb 0%, #b8e6ff 30%, #e8d5a3 50%, #4a7c3f 50%, #3d6b35 100%);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 100;
             flex-direction: column;
         }
-        
+
+        /* 登录背景动画 - 浮动粒子 */
+        #login-overlay::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background:
+                radial-gradient(2px 2px at 10% 20%, rgba(255,255,255,0.4) 50%, transparent 50%),
+                radial-gradient(2px 2px at 30% 60%, rgba(255,255,255,0.3) 50%, transparent 50%),
+                radial-gradient(3px 3px at 50% 30%, rgba(255,255,255,0.35) 50%, transparent 50%),
+                radial-gradient(2px 2px at 70% 70%, rgba(255,255,255,0.3) 50%, transparent 50%),
+                radial-gradient(2px 2px at 90% 40%, rgba(255,255,255,0.4) 50%, transparent 50%),
+                radial-gradient(3px 3px at 20% 80%, rgba(255,255,255,0.25) 50%, transparent 50%),
+                radial-gradient(2px 2px at 80% 15%, rgba(255,255,255,0.3) 50%, transparent 50%);
+            animation: loginFloat 8s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes loginFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
         .login-box {
             background: #f4e8c1;
             border: 4px solid #5c3d1e;
-            padding: 30px 40px;
-            box-shadow: 8px 8px 0 rgba(0,0,0,0.3), inset 2px 2px 0 rgba(255,255,255,0.5);
+            padding: 32px 40px;
+            box-shadow:
+                8px 8px 0 rgba(0,0,0,0.3),
+                inset 2px 2px 0 rgba(255,255,255,0.5),
+                inset -2px -2px 0 rgba(0,0,0,0.1);
             text-align: center;
-            max-width: 400px;
+            max-width: 420px;
             width: 90%;
+            position: relative;
+            z-index: 1;
+            animation: loginBoxIn 0.5s ease-out;
         }
-        
+
+        @keyframes loginBoxIn {
+            from { transform: translateY(30px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
         .login-box h1 {
-            font-size: 36px;
+            font-size: 38px;
             color: #5c3d1e;
-            text-shadow: 2px 2px 0 #c4a96a;
-            margin-bottom: 5px;
+            text-shadow: 2px 2px 0 #c4a96a, 0 0 10px rgba(255,217,61,0.3);
+            margin-bottom: 4px;
         }
-        
+
         .login-box .subtitle {
             color: #8b6d3f;
             font-size: 14px;
-            margin-bottom: 20px;
+            margin-bottom: 22px;
+            letter-spacing: 2px;
         }
-        
+
         .login-box input {
             width: 100%;
-            padding: 10px 14px;
+            padding: 12px 14px;
             border: 3px solid #5c3d1e;
             background: #fff8e7;
             font-family: 'ZCOOL KuaiLe', cursive;
@@ -75,54 +111,60 @@
             color: #5c3d1e;
             margin-bottom: 12px;
             outline: none;
+            transition: box-shadow 0.2s, border-color 0.2s;
         }
-        
+
         .login-box input:focus {
-            box-shadow: inset 0 0 0 2px #c4a96a;
+            box-shadow: inset 0 0 0 2px #c4a96a, 0 0 8px rgba(255,217,61,0.3);
+            border-color: #c4a96a;
         }
-        
+
         .login-box button {
             width: 100%;
-            padding: 12px;
-            background: #e74c3c;
+            padding: 14px;
+            background: linear-gradient(180deg, #e74c3c 0%, #c0392b 100%);
             border: 3px solid #5c3d1e;
             color: #fff;
             font-family: 'ZCOOL KuaiLe', cursive;
-            font-size: 20px;
+            font-size: 22px;
             cursor: pointer;
-            box-shadow: 4px 4px 0 #5c3d1e;
+            box-shadow: 4px 4px 0 #5c3d1e, inset 0 1px 0 rgba(255,255,255,0.3);
             transition: all 0.1s;
-            margin-top: 5px;
+            margin-top: 8px;
+            letter-spacing: 2px;
         }
-        
+
         .login-box button:hover {
             transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #5c3d1e;
+            box-shadow: 6px 6px 0 #5c3d1e, inset 0 1px 0 rgba(255,255,255,0.3);
         }
-        
+
         .login-box button:active {
             transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 #5c3d1e;
+            box-shadow: 2px 2px 0 #5c3d1e, inset 0 1px 0 rgba(255,255,255,0.3);
         }
-        
+
         .login-box .hint {
             color: #8b6d3f;
             font-size: 12px;
-            margin-top: 15px;
+            margin-top: 16px;
+            line-height: 1.6;
         }
-        
+
         .login-box details {
             margin-top: 12px;
             text-align: left;
         }
-        
+
         .login-box details summary {
             color: #8b6d3f;
             font-size: 13px;
             cursor: pointer;
         }
-        
-        /* ===== HUD ===== */
+
+        /* ========================================
+           HUD - 全面重做
+           ======================================== */
         #hud {
             position: fixed;
             top: 0; left: 0; right: 0;
@@ -133,45 +175,99 @@
             pointer-events: none;
             z-index: 50;
         }
-        
+
         #hud.active { display: flex; }
-        
+
         .hud-box {
             background: rgba(20, 15, 10, 0.85);
             border: 2px solid #c4a96a;
-            padding: 8px 14px;
+            padding: 6px 12px;
             color: #f4e8c1;
             font-size: 14px;
             pointer-events: auto;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            border-radius: 2px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
         }
-        
-        .hud-box .icon { font-size: 20px; }
+
+        .hud-box .icon { font-size: 18px; }
         .hud-box .value { color: #ffd93d; font-weight: bold; }
-        
-        .hud-left, .hud-right { display: flex; flex-direction: column; gap: 6px; }
-        
-        /* ===== 工具栏 ===== */
+
+        .hud-left, .hud-right { display: flex; flex-direction: column; gap: 5px; }
+
+        /* 体力条 */
+        #stamina-bar-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(20, 15, 10, 0.85);
+            border: 2px solid #c4a96a;
+            padding: 6px 12px;
+            border-radius: 2px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            pointer-events: auto;
+        }
+
+        #stamina-bar {
+            width: 100px;
+            height: 12px;
+            background: #3d2b1f;
+            border: 1px solid #5c3d1e;
+            border-radius: 1px;
+            overflow: hidden;
+        }
+
+        #stamina-bar-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+            transition: width 0.3s;
+            border-radius: 1px;
+        }
+
+        #stamina-bar-fill.low {
+            background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
+        }
+
+        #stamina-text {
+            color: #f4e8c1;
+            font-size: 11px;
+            min-width: 50px;
+        }
+
+        /* 时间大字显示 */
+        #time-display {
+            font-size: 22px !important;
+            color: #ffd93d !important;
+            text-shadow: 0 0 8px rgba(255,217,61,0.4);
+            letter-spacing: 2px;
+        }
+
+        /* ========================================
+           工具栏 - 底部居中
+           ======================================== */
         #toolbar {
             position: fixed;
-            bottom: 10px;
+            bottom: 70px;
             left: 50%;
             transform: translateX(-50%);
             display: none;
             gap: 4px;
             z-index: 50;
-            background: rgba(20, 15, 10, 0.85);
+            background: rgba(20, 15, 10, 0.88);
             border: 2px solid #c4a96a;
             padding: 6px 10px;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
-        
+
         #toolbar.active { display: flex; }
-        
+
         .tool-item {
-            width: 48px;
-            height: 48px;
+            width: 50px;
+            height: 50px;
             background: #3d2b1f;
             border: 2px solid #5c3d1e;
             display: flex;
@@ -180,48 +276,231 @@
             font-size: 24px;
             cursor: pointer;
             transition: all 0.1s;
+            border-radius: 4px;
+            position: relative;
         }
-        
+
         .tool-item:hover { background: #5c3d1e; }
         .tool-item.active {
             border-color: #ffd93d;
             background: #5c3d1e;
-            box-shadow: 0 0 8px #ffd93d;
+            box-shadow: 0 0 10px rgba(255, 217, 61, 0.5);
         }
-        
+
+        .tool-item .tool-label {
+            position: absolute;
+            bottom: -16px;
+            font-size: 9px;
+            color: #c4a96a;
+            white-space: nowrap;
+        }
+
         .tool-separator {
             width: 2px;
             background: #5c3d1e;
             margin: 4px 2px;
         }
-        
-        /* ===== 对话框 ===== */
+
+        /* ========================================
+           快捷物品栏 - 工具栏右侧
+           ======================================== */
+        #hotbar {
+            position: fixed;
+            bottom: 70px;
+            left: calc(50% + 200px);
+            display: none;
+            gap: 3px;
+            z-index: 50;
+            background: rgba(20, 15, 10, 0.88);
+            border: 2px solid #c4a96a;
+            padding: 6px 8px;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+
+        #hotbar.active { display: flex; }
+
+        .hotbar-slot {
+            width: 44px;
+            height: 44px;
+            background: #3d2b1f;
+            border: 2px solid #5c3d1e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            position: relative;
+        }
+
+        .hotbar-emoji { font-size: 18px; line-height: 1; }
+        .hotbar-count { font-size: 9px; color: #ffd93d; line-height: 1; }
+        .hotbar-empty { width: 8px; height: 8px; background: rgba(255,255,255,0.1); border-radius: 1px; }
+
+        /* ========================================
+           对话框 - 像素风 + 打字机效果
+           ======================================== */
         #dialog-box {
             position: fixed;
-            bottom: 80px;
+            bottom: 140px;
             left: 50%;
             transform: translateX(-50%);
-            width: 600px;
-            max-width: 90vw;
-            background: rgba(20, 15, 10, 0.92);
+            width: 640px;
+            max-width: 92vw;
+            background: rgba(20, 15, 10, 0.94);
             border: 3px solid #c4a96a;
-            padding: 16px 20px;
+            padding: 18px 22px;
             color: #f4e8c1;
             font-size: 16px;
             z-index: 60;
             display: none;
-            line-height: 1.6;
+            line-height: 1.7;
+            border-radius: 4px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
         }
-        
+
         #dialog-box.active { display: block; }
-        
-        #dialog-box .speaker {
+
+        #dialog-speaker {
             color: #ffd93d;
             font-weight: bold;
-            margin-bottom: 4px;
+            font-size: 15px;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(196, 169, 106, 0.3);
         }
-        
-        /* ===== 小地图 ===== */
+
+        #dialog-text {
+            min-height: 24px;
+        }
+
+        /* 对话框闪烁提示箭头 */
+        #dialog-box.active::after {
+            content: '▼';
+            position: absolute;
+            bottom: 8px;
+            right: 14px;
+            color: #ffd93d;
+            font-size: 12px;
+            animation: dialogBlink 1s infinite;
+        }
+
+        @keyframes dialogBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+
+        /* ========================================
+           背包面板
+           ======================================== */
+        #backpack-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 460px;
+            max-width: 92vw;
+            background: rgba(20, 15, 10, 0.95);
+            border: 3px solid #c4a96a;
+            padding: 20px;
+            z-index: 70;
+            display: none;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        }
+
+        #backpack-panel.active { display: block; }
+
+        #backpack-panel h3 {
+            color: #ffd93d;
+            font-size: 18px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        #backpack-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 48px);
+            gap: 4px;
+            justify-content: center;
+            position: relative;
+        }
+
+        .backpack-cell {
+            width: 48px;
+            height: 48px;
+            background: #3d2b1f;
+            border: 2px solid #5c3d1e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            border-radius: 2px;
+        }
+
+        #backpack-cursor {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            border: 2px solid #ffd93d;
+            box-shadow: 0 0 8px rgba(255, 217, 61, 0.5);
+            pointer-events: none;
+            transition: left 0.1s, top 0.1s;
+        }
+
+        /* ========================================
+           商店面板
+           ======================================== */
+        #shop-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            max-width: 90vw;
+            background: rgba(20, 15, 10, 0.95);
+            border: 3px solid #c4a96a;
+            padding: 20px;
+            z-index: 70;
+            display: none;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        }
+
+        #shop-panel.active { display: block; }
+
+        #shop-panel h3 {
+            color: #ffd93d;
+            font-size: 18px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        #shop-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .shop-item {
+            padding: 10px 14px;
+            color: #f4e8c1;
+            font-size: 15px;
+            border-bottom: 1px solid rgba(196, 169, 106, 0.2);
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .shop-item:hover { background: rgba(255, 217, 61, 0.1); }
+
+        .shop-item.selected {
+            background: rgba(255, 217, 61, 0.2);
+            border-left: 3px solid #ffd93d;
+            color: #ffd93d;
+        }
+
+        /* ========================================
+           小地图
+           ======================================== */
         #minimap {
             position: fixed;
             top: 10px;
@@ -232,62 +511,81 @@
             border: 2px solid #c4a96a;
             z-index: 50;
             display: none;
+            border-radius: 4px;
         }
-        
+
         #minimap.active { display: block; }
-        
-        /* ===== 提示 ===== */
+
+        /* ========================================
+           Toast - 精致像素风提示
+           ======================================== */
         #toast {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(20, 15, 10, 0.9);
+            background: rgba(20, 15, 10, 0.92);
             border: 2px solid #ffd93d;
             color: #f4e8c1;
-            padding: 12px 24px;
+            padding: 12px 28px;
             font-size: 18px;
             z-index: 200;
             opacity: 0;
             transition: opacity 0.3s;
             pointer-events: none;
             text-align: center;
+            border-radius: 4px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
         }
-        
+
         #toast.show { opacity: 1; }
-        
-        /* ===== 控制提示 ===== */
+
+        /* ========================================
+           控制提示
+           ======================================== */
         #controls-hint {
             position: fixed;
-            bottom: 80px;
+            bottom: 140px;
             right: 10px;
-            background: rgba(20, 15, 10, 0.7);
+            background: rgba(20, 15, 10, 0.75);
             border: 1px solid #5c3d1e;
-            padding: 8px 12px;
+            padding: 10px 14px;
             color: #8b7355;
             font-size: 11px;
             z-index: 50;
             display: none;
-            line-height: 1.8;
+            line-height: 1.9;
+            border-radius: 3px;
         }
-        
+
         #controls-hint.active { display: block; }
-        
+
         #controls-hint kbd {
             background: #3d2b1f;
             border: 1px solid #5c3d1e;
-            padding: 1px 5px;
+            padding: 1px 6px;
             color: #c4a96a;
             font-family: monospace;
+            border-radius: 2px;
+            font-size: 10px;
         }
 
-        /* ===== 触控控件 (仅触摸设备显示) ===== */
+        /* ========================================
+           触控控件 (仅触摸设备显示)
+           ======================================== */
         @media (hover: none) and (pointer: coarse) {
             #touch-controls {
                 display: flex !important;
             }
             #controls-hint {
                 display: none !important;
+            }
+            #toolbar {
+                bottom: 140px;
+            }
+            #hotbar {
+                bottom: 140px;
+                left: calc(50% + 180px);
             }
         }
 
@@ -301,51 +599,80 @@
             z-index: 80;
         }
 
-        /* 虚拟摇杆 */
+        /* 虚拟摇杆 - 更大更好按 */
         #joystick-zone {
             position: fixed;
             bottom: 20px;
             left: 20px;
-            width: 120px;
-            height: 120px;
+            width: 150px;
+            height: 150px;
             pointer-events: auto;
             touch-action: none;
         }
 
         #joystick-base {
             position: absolute;
-            width: 120px;
-            height: 120px;
+            width: 150px;
+            height: 150px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.15);
-            border: 3px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.12);
+            border: 3px solid rgba(255, 255, 255, 0.25);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
         }
 
         #joystick-thumb {
             position: absolute;
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.4);
-            border: 2px solid rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.35);
+            border: 2px solid rgba(255, 255, 255, 0.5);
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             transition: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
 
-        /* 互动按钮 */
+        /* 互动按钮 - 更大 */
         #touch-interact {
             position: fixed;
             bottom: 40px;
             right: 20px;
-            width: 70px;
-            height: 70px;
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
-            background: rgba(255, 217, 61, 0.4);
-            border: 3px solid rgba(255, 217, 61, 0.7);
+            background: rgba(255, 217, 61, 0.35);
+            border: 3px solid rgba(255, 217, 61, 0.65);
             color: #ffd93d;
-            font-size: 28px;
+            font-size: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        #touch-interact:active {
+            background: rgba(255, 217, 61, 0.65);
+            transform: scale(0.93);
+        }
+
+        /* 背包触控按钮 - 新增 */
+        #touch-backpack {
+            position: fixed;
+            bottom: 140px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            background: rgba(20, 15, 10, 0.8);
+            border: 2px solid #5c3d1e;
+            color: #f4e8c1;
+            font-size: 26px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -355,43 +682,48 @@
             -webkit-user-select: none;
         }
 
-        #touch-interact:active {
-            background: rgba(255, 217, 61, 0.7);
-            transform: scale(0.95);
+        #touch-backpack:active {
+            background: rgba(255, 217, 61, 0.3);
+            border-color: #ffd93d;
         }
 
-        /* 触控工具栏 */
+        /* 触控工具栏 - 按钮更大 */
         #touch-toolbar {
             position: fixed;
-            bottom: 130px;
+            bottom: 160px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 6px;
+            gap: 8px;
             pointer-events: auto;
             touch-action: none;
         }
 
         .touch-tool-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
+            width: 58px;
+            height: 58px;
+            border-radius: 14px;
             background: rgba(20, 15, 10, 0.8);
             border: 2px solid #5c3d1e;
             color: #f4e8c1;
-            font-size: 22px;
+            font-size: 26px;
             display: flex;
             align-items: center;
             justify-content: center;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
 
         .touch-tool-btn.active {
             border-color: #ffd93d;
             background: rgba(255, 217, 61, 0.3);
-            box-shadow: 0 0 8px rgba(255, 217, 61, 0.5);
+            box-shadow: 0 0 12px rgba(255, 217, 61, 0.5);
+        }
+
+        .touch-tool-btn:active {
+            transform: scale(0.93);
         }
     </style>
 </head>
@@ -399,82 +731,112 @@
     <div id="game-wrapper">
         <canvas id="gameCanvas"></canvas>
     </div>
-    
-    <!-- 登录界面 -->
+
+    <!-- ===== 登录界面 ===== -->
     <div id="login-overlay">
         <div class="login-box">
-            <h1>🌾 快乐农场</h1>
-            <p class="subtitle">星露谷风格 · 2D联机种菜</p>
+            <h1>快乐农场</h1>
+            <p class="subtitle">星露谷风格 · 大世界种菜冒险</p>
             <input type="text" id="player-name" placeholder="输入你的名字" maxlength="12">
             <input type="text" id="room-id" placeholder="房间号 (留空创建新房)">
             <details>
-                <summary>⚙️ GitHub 配置</summary>
+                <summary>GitHub 配置</summary>
                 <input type="text" id="github-token" placeholder="Personal Access Token">
                 <input type="text" id="github-repo" placeholder="用户名/仓库名">
             </details>
-            <button id="start-btn">🚀 开始种田</button>
-            <p class="hint">WASD移动 · 空格键互动 · 数字键切换工具</p>
+            <button id="start-btn">开始种田</button>
+            <p class="hint">
+                WASD 移动 · 空格 互动 · 1-5 工具<br>
+                B 背包 · E NPC · Q 使用 · Tab 种子 · F 钓鱼
+            </p>
         </div>
     </div>
-    
-    <!-- HUD -->
+
+    <!-- ===== HUD ===== -->
     <div id="hud">
         <div class="hud-left">
             <div class="hud-box">
                 <span class="icon">👤</span>
                 <span id="hud-name">农场主</span>
             </div>
+            <div id="stamina-bar-container">
+                <span style="color:#4ade80; font-size:14px;">⚡</span>
+                <div id="stamina-bar">
+                    <div id="stamina-bar-fill"></div>
+                </div>
+                <span id="stamina-text">100/100</span>
+            </div>
             <div class="hud-box">
                 <span class="icon">💰</span>
-                <span class="value" id="hud-coins">500</span>
+                <span class="value" id="coins-display">500</span>
             </div>
             <div class="hud-box">
                 <span class="icon">📅</span>
-                <span id="hud-day">第 1 天</span>
-                <span id="hud-season" style="color:#4ade80">春</span>
+                <span id="day-display">第 1 天 · 🌸春</span>
             </div>
         </div>
         <div class="hud-right">
             <div class="hud-box">
-                <span class="icon">🕐</span>
-                <span id="hud-time">06:00</span>
+                <span id="time-display">06:00</span>
             </div>
             <div class="hud-box">
-                <span class="icon">🌤️</span>
-                <span id="hud-weather">晴朗</span>
+                <span id="weather-display">☀️ 晴朗</span>
             </div>
             <div class="hud-box">
-                <span>🏠</span>
-                <span id="hud-room">-</span>
+                <span id="area-display">🏠 农场</span>
             </div>
         </div>
     </div>
-    
-    <!-- 工具栏 -->
+
+    <!-- ===== 工具栏 ===== -->
     <div id="toolbar">
-        <div class="tool-item active" data-tool="0" title="锄头 [1]">⛏️</div>
-        <div class="tool-item" data-tool="1" title="水壶 [2]">🚿</div>
-        <div class="tool-item" data-tool="2" title="种子袋 [3]">🌱</div>
-        <div class="tool-item" data-tool="3" title="收获 [4]">🧺</div>
-        <div class="tool-item" data-tool="4" title="铲除 [5]">🗑️</div>
+        <div class="tool-item active" data-tool="0" title="锄头 [1]">⛏️<span class="tool-label">锄头</span></div>
+        <div class="tool-item" data-tool="1" title="水壶 [2]">🚿<span class="tool-label">水壶</span></div>
+        <div class="tool-item" data-tool="2" title="种子袋 [3]">🌱<span class="tool-label">种子</span></div>
+        <div class="tool-item" data-tool="3" title="收获 [4]">🧺<span class="tool-label">收获</span></div>
+        <div class="tool-item" data-tool="4" title="铲除 [5]">🗑️<span class="tool-label">铲除</span></div>
         <div class="tool-separator"></div>
-        <div class="tool-item" data-tool="5" title="地图 [M]">🗺️</div>
-        <div class="tool-item" data-tool="6" title="背包 [B]">🎒</div>
+        <div class="tool-item" data-tool="5" title="背包 [B]">🎒<span class="tool-label">背包</span></div>
+        <div class="tool-item" data-tool="6" title="地图 [M]">🗺️<span class="tool-label">地图</span></div>
     </div>
-    
-    <!-- 对话框 -->
+
+    <!-- ===== 快捷物品栏 ===== -->
+    <div id="hotbar">
+        <div class="hotbar-slot"><span class="hotbar-empty"></span></div>
+        <div class="hotbar-slot"><span class="hotbar-empty"></span></div>
+        <div class="hotbar-slot"><span class="hotbar-empty"></span></div>
+        <div class="hotbar-slot"><span class="hotbar-empty"></span></div>
+    </div>
+
+    <!-- ===== 对话框 ===== -->
     <div id="dialog-box">
-        <div class="speaker" id="dialog-speaker"></div>
+        <div id="dialog-speaker"></div>
         <div id="dialog-text"></div>
     </div>
-    
-    <!-- 小地图 -->
+
+    <!-- ===== 背包面板 ===== -->
+    <div id="backpack-panel">
+        <h3>🎒 背包</h3>
+        <div id="backpack-grid">
+            <div id="backpack-cursor"></div>
+        </div>
+        <p style="color:#8b7355; font-size:11px; text-align:center; margin-top:10px;">方向键移动 · 空格使用 · Esc/B 关闭</p>
+    </div>
+
+    <!-- ===== 商店面板 ===== -->
+    <div id="shop-panel">
+        <h3>🏪 商店</h3>
+        <div id="shop-list"></div>
+        <p style="color:#8b7355; font-size:11px; text-align:center; margin-top:10px;">上下选择 · 空格/Enter 购买 · Esc/B 关闭</p>
+    </div>
+
+    <!-- ===== 小地图 ===== -->
     <canvas id="minimap" width="150" height="150"></canvas>
-    
-    <!-- 提示 -->
+
+    <!-- ===== Toast ===== -->
     <div id="toast"></div>
 
-    <!-- 触控控件 (仅触摸设备显示) -->
+    <!-- ===== 触控控件 (仅触摸设备显示) ===== -->
     <div id="touch-controls">
         <!-- 虚拟摇杆 -->
         <div id="joystick-zone">
@@ -484,6 +846,8 @@
         </div>
         <!-- 互动按钮 -->
         <div id="touch-interact">A</div>
+        <!-- 背包按钮 -->
+        <div id="touch-backpack">🎒</div>
         <!-- 工具切换 -->
         <div id="touch-toolbar">
             <div class="touch-tool-btn active" data-tool="0">⛏️</div>
@@ -493,15 +857,18 @@
             <div class="touch-tool-btn" data-tool="4">🗑️</div>
         </div>
     </div>
-    
-    <!-- 控制提示 -->
+
+    <!-- ===== 控制提示 ===== -->
     <div id="controls-hint">
         <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动<br>
         <kbd>空格</kbd> 互动<br>
         <kbd>1</kbd>-<kbd>5</kbd> 切换工具<br>
-        <kbd>M</kbd> 地图 · <kbd>B</kbd> 背包
+        <kbd>B</kbd> 背包 · <kbd>E</kbd> NPC对话<br>
+        <kbd>Q</kbd> 使用物品 · <kbd>Tab</kbd> 切换种子<br>
+        <kbd>F</kbd> 钓鱼 · <kbd>M</kbd> 地图
     </div>
 
+    <!-- ===== JS 引用 (保持 8 个脚本顺序不变) ===== -->
     <script src="js/config.js"></script>
     <script src="js/github-backend.js"></script>
     <script src="js/webrtc.js"></script>
@@ -511,7 +878,7 @@
     <script src="js/input.js"></script>
     <script src="js/main.js"></script>
 
-    <!-- 触控控件初始化 -->
+    <!-- ===== 触控控件初始化 ===== -->
     <script>
     // 触控事件处理器 - 在 main.js 的 startGame() 创建 input 后自动绑定
     window._touchInit = function() {
@@ -522,11 +889,10 @@
         const joystickThumb = document.getElementById('joystick-thumb');
         const joystickBase = document.getElementById('joystick-base');
         let joystickActive = false;
-        const joystickRadius = 35;
+        const joystickRadius = 45; // 更大的摇杆半径
 
         function getInput() {
-            // input 在 main.js 的 startGame() 中创建为全局变量
-            return (typeof input !== 'undefined') ? input : null;
+            return (typeof input !== 'undefined') ? input : (window.input || null);
         }
 
         function handleJoystickStart(e) {
@@ -555,7 +921,7 @@
 
             joystickThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 
-            const deadzone = 8;
+            const deadzone = 10;
             const inp = getInput();
             if (inp) {
                 if (dist > deadzone) {
@@ -593,6 +959,14 @@
             e.preventDefault();
             const inp = getInput();
             if (inp) inp.triggerInteract();
+        }, { passive: false });
+
+        // ===== 背包按钮 =====
+        const backpackBtn = document.getElementById('touch-backpack');
+        backpackBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            const inp = getInput();
+            if (inp) inp.toggleBackpack();
         }, { passive: false });
 
         // ===== 工具切换按钮 =====

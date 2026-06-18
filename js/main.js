@@ -1,5 +1,5 @@
 /**
- * 游戏入口 - 星露谷风格 2D 联机种菜
+ * 游戏入口 - 星露谷风格 2D 联机种菜 (大世界版)
  */
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('gameCanvas');
@@ -8,13 +8,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let input = null;
     let lastTime = 0;
     let hudUpdateTimer = 0;
-    
+
+    // 暴露 state 到全局 (供商店按钮等使用)
+    window.state = state;
+
     // ===== 登录处理 =====
     document.getElementById('start-btn').addEventListener('click', startGame);
     document.getElementById('player-name').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') startGame();
     });
-    
+
     // 工具栏点击
     document.querySelectorAll('.tool-item').forEach(el => {
         el.addEventListener('click', () => {
@@ -24,10 +27,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (tool === 5) {
                 document.getElementById('minimap').classList.toggle('active');
+                state.showMinimap = !state.showMinimap;
+            }
+            if (tool === 6) {
+                toggleInventory();
             }
         });
     });
-    
+
     function startGame() {
         // 防止重复调用（快速双击等）
         if (state.running) return;
@@ -39,9 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         state.playerName = name;
-        state.roomId = document.getElementById('room-id').value.trim() || `快乐农场${Math.floor(Math.random()*999)}`;
+        state.roomId = document.getElementById('room-id').value.trim() || `快乐农场${Math.floor(Math.random() * 999)}`;
 
-        // 生成地图
+        // 生成地图 (200x200 程序化 + 分块加载)
         generateMap(state);
 
         // 初始化输入
@@ -69,66 +76,74 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('hud').classList.add('active');
         document.getElementById('toolbar').classList.add('active');
         document.getElementById('controls-hint').classList.add('active');
-        
+
         // 更新 HUD
         document.getElementById('hud-name').textContent = name;
         document.getElementById('hud-room').textContent = state.roomId;
-        
+
         // 启动游戏循环
         state.running = true;
         lastTime = performance.now();
         requestAnimationFrame(gameLoop);
-        
+
         showToast(`欢迎来到 ${state.roomId}！`);
-        
+
         // 5秒后隐藏控制提示
         setTimeout(() => {
             document.getElementById('controls-hint').classList.remove('active');
         }, 8000);
     }
-    
+
     // ===== 游戏主循环 =====
     function gameLoop(timestamp) {
         if (!state.running) return;
-        
+
         const dt = Math.min((timestamp - lastTime) / 1000, 0.05); // 限制最大dt
         lastTime = timestamp;
-        
+
         // 更新
         input.update(dt);
         tickCrops(state, dt);
         tickTime(state, dt);
         updateParticles(state, dt);
-        
+        updateNPCs(state, dt);
+        updateFishing(state, dt);
+
+        // 分块加载：玩家移动时动态扩展
+        ensureChunksAroundPlayer(state);
+
+        // 计算 timeOfDay (小时) 供 renderer 使用
+        state.timeOfDay = state.time / 60;
+
         // 渲染
         renderer.render(state);
-        
+
         // 更新 HUD (每0.5秒)
         hudUpdateTimer += dt;
         if (hudUpdateTimer > 0.5) {
             hudUpdateTimer = 0;
             updateHUD(state);
         }
-        
+
         requestAnimationFrame(gameLoop);
     }
-    
+
     // ===== HUD 更新 =====
     function updateHUD(state) {
         document.getElementById('hud-coins').textContent = state.coins;
         document.getElementById('hud-day').textContent = `第 ${state.day} 天`;
         document.getElementById('hud-time').textContent = getTimeString(state.time);
-        
+
         const seasonNames = { spring: '🌸春', summer: '☀️夏', fall: '🍂秋', winter: '❄️冬' };
         document.getElementById('hud-season').textContent = seasonNames[state.season] || '🌸春';
-        
+
         const h = state.time / 60;
         let weatherIcon = '☀️', weatherText = '晴朗';
         if (h < 6 || h > 20) { weatherIcon = '🌙'; weatherText = '夜晚'; }
         else if (h < 8) { weatherIcon = '🌅'; weatherText = '清晨'; }
         else if (h > 17) { weatherIcon = '🌇'; weatherText = '黄昏'; }
         document.getElementById('hud-weather').textContent = weatherText;
-        
+
         // 当前种子显示
         const crop = CONFIG.CROPS[state.selectedSeed];
         const seedTool = document.querySelector('.tool-item[data-tool="2"]');
@@ -136,11 +151,67 @@ document.addEventListener('DOMContentLoaded', () => {
             seedTool.title = `${crop.emoji} ${crop.name} (${crop.price}💰) [3]`;
         }
     }
-    
+
+    // ===== 背包界面 =====
+    function toggleInventory() {
+        const dialogBox = document.getElementById('dialog-box');
+        const speaker = document.getElementById('dialog-speaker');
+        const text = document.getElementById('dialog-text');
+
+        if (dialogBox.classList.contains('active') && !state.shopOpen) {
+            dialogBox.classList.remove('active');
+            return;
+        }
+
+        speaker.textContent = '🎒 背包';
+
+        let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">';
+
+        if (state.inventory.length === 0) {
+            html += '<span style="color:#888;font-size:14px;">背包是空的</span>';
+        } else {
+            for (const item of state.inventory) {
+                const qText = item.quality && item.quality.prefix ? ` ${item.quality.prefix}` : '';
+                const qColor = item.quality ? item.quality.color : '#fff';
+                html += `<div style="background:#3d2b1f;border:2px solid #5c3d1e;padding:6px 8px;text-align:center;min-width:60px;">
+                    <div style="font-size:24px;">${item.emoji}</div>
+                    <div style="font-size:10px;color:#f4e8c1;margin-top:2px;">${item.name}</div>
+                    <div style="font-size:10px;color:${qColor};">${qText}x${item.qty}</div>
+                    <div style="font-size:9px;color:#ffd93d;">${item.value}💰</div>
+                </div>`;
+            }
+        }
+
+        // 显示统计
+        html += '</div>';
+        html += `<div style="margin-top:10px;font-size:12px;color:#aaa;">
+            💎 体力: ${state.energy}/${state.maxEnergy} |
+            🪱 鱼饵: ${state.baitCount} |
+            🏆 成就: ${state.achievements.length}
+        </div>`;
+
+        text.innerHTML = html;
+        dialogBox.classList.add('active');
+    }
+
+    // ===== ESC 关闭商店/背包 =====
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (state.shopOpen) {
+                closeShop(state);
+            } else {
+                const dialogBox = document.getElementById('dialog-box');
+                if (dialogBox.classList.contains('active')) {
+                    dialogBox.classList.remove('active');
+                }
+            }
+        }
+    });
+
     // 页面卸载保存
     window.addEventListener('beforeunload', () => {
         state.running = false;
     });
-    
-    console.log('🌾 星露谷风格农场已加载！');
+
+    console.log('🌾 星露谷风格农场 (200x200大世界) 已加载！');
 });

@@ -1,6 +1,6 @@
 /**
- * Canvas 渲染器 - 星露谷风格极致优化版
- * 
+ * Canvas 渲染器 - 星露谷风格极致优化版 (大世界版)
+ *
  * 优化特性:
  * 1. 无缝纹理平铺 - 使用 createPattern 消除瓦片边界
  * 2. 边缘过渡混合 - 相邻不同地形之间绘制半透明渐变
@@ -8,6 +8,8 @@
  * 4. 地形凹凸法线 - 明暗变化模拟地形起伏
  * 5. 动态光影 - 实时阴影、水面反射、阳光方向
  * 6. 色彩分级 - 季节和时间动态色调
+ * 7. NPC 渲染 - 小镇NPC显示
+ * 8. 钓鱼进度条 - 钓鱼小游戏UI
  */
 class Renderer {
     constructor(canvas) {
@@ -30,23 +32,29 @@ class Renderer {
         // 缓存的 patterns
         this.patterns = {};
         this.aoCache = null;
-        
+
         // 太阳光方向 (随时间变化)
         this.sunAngle = 0;
-        
+
         // 地形颜色定义 (用于过渡混合)
         this.tileColors = {
-            [T.GRASS]:   { r: 132, g: 198, b: 105 },
-            [T.DIRT]:    { r: 139, g: 109, b:  63 },
-            [T.TILLED]:  { r: 107, g:  68, b:  35 },
-            [T.WATERED]: { r:  90, g:  60, b:  30 },
-            [T.PATH]:    { r: 180, g: 160, b: 110 },
-            [T.FENCE]:   { r: 132, g: 198, b: 105 },
-            [T.WATER]:   { r:  58, g: 123, b: 213 },
-            [T.FLOWER]:  { r: 132, g: 198, b: 105 },
-            [T.HOUSE]:   { r: 196, g: 150, b: 100 },
-            [T.DOOR]:    { r: 139, g:  90, b:  43 },
-            [T.STONE]:   { r: 132, g: 198, b: 105 },
+            [T.GRASS]:     { r: 132, g: 198, b: 105 },
+            [T.DIRT]:      { r: 139, g: 109, b:  63 },
+            [T.TILLED]:    { r: 107, g:  68, b:  35 },
+            [T.WATERED]:   { r:  90, g:  60, b:  30 },
+            [T.PATH]:      { r: 180, g: 160, b: 110 },
+            [T.FENCE]:     { r: 132, g: 198, b: 105 },
+            [T.WATER]:     { r:  58, g: 123, b: 213 },
+            [T.FLOWER]:    { r: 132, g: 198, b: 105 },
+            [T.HOUSE]:     { r: 196, g: 150, b: 100 },
+            [T.DOOR]:      { r: 139, g:  90, b:  43 },
+            [T.STONE]:     { r: 132, g: 198, b: 105 },
+            [T.BRIDGE]:    { r: 139, g: 109, b:  63 },
+            [T.TREE]:      { r:  60, g: 120, b:  40 },
+            [T.ROCK_MINE]: { r: 100, g:  90, b:  80 },
+            [T.FISH_SPOT]: { r:  58, g: 123, b: 213 },
+            [T.WILD_CROP]: { r: 132, g: 198, b: 105 },
+            [T.NPC_HOUSE]: { r: 180, g: 140, b: 100 },
         };
     }
 
@@ -110,7 +118,7 @@ class Renderer {
         const sc = this.getSeasonColors(state.season);
 
         // 更新太阳光角度 (6:00= sunrise, 12:00= overhead, 18:00= sunset)
-        const hour = state.timeOfDay;
+        const hour = state.timeOfDay || (state.time / 60);
         if (hour >= 6 && hour <= 18) {
             this.sunAngle = ((hour - 6) / 12) * Math.PI; // 0 to PI
         } else {
@@ -145,19 +153,25 @@ class Renderer {
         // 5. 渲染作物
         this.renderCrops(ctx, state);
 
-        // 6. 渲染玩家
+        // 6. 渲染NPC
+        this.renderNPCs(ctx, state);
+
+        // 7. 渲染玩家
         this.renderPlayer(ctx, state);
 
-        // 7. 渲染粒子和浮动文字
+        // 8. 渲染粒子和浮动文字
         this.renderParticles(ctx, state);
         this.renderFloatingTexts(ctx, state);
 
         ctx.restore();
 
-        // 8. 全局光影效果
+        // 9. 全局光影效果
         this.renderGlobalLighting(ctx, state, sc);
 
-        // 9. 小地图
+        // 10. 钓鱼进度条
+        this.renderFishingBar(ctx, state);
+
+        // 11. 小地图
         this.renderMinimap(state, sc);
     }
 
@@ -204,8 +218,6 @@ class Renderer {
      * 获取地形对应的素材键
      */
     getTerrainAssetKey(tile) {
-        // 使用 64x64 Seamless RPG Tiles 高级无缝纹理
-        // 根据季节选择变体
         const season = window.state ? window.state.season : 'spring';
         switch (tile) {
             case T.GRASS:
@@ -213,17 +225,23 @@ class Renderer {
                 if (season === 'autumn') return 'texGrassNov';
                 if (season === 'summer') return 'texGrassDry';
                 return 'texGrass';
-            case T.DIRT:    return 'texDryland';
-            case T.TILLED:  return 'texFarmland';
-            case T.WATERED: return 'texMud';
-            case T.PATH:    return 'texPath';
-            case T.FENCE:   return 'texGrass';
-            case T.WATER:   return 'texWater';
-            case T.FLOWER:  return 'texGrass';
-            case T.HOUSE:   return 'texStoneTile';
-            case T.DOOR:    return 'texWoodTile';
-            case T.STONE:   return 'texPebbles';
-            default:        return 'texGrass';
+            case T.DIRT:      return 'texDryland';
+            case T.TILLED:    return 'texFarmland';
+            case T.WATERED:   return 'texMud';
+            case T.PATH:      return 'texPath';
+            case T.FENCE:     return 'texGrass';
+            case T.WATER:     return 'texWater';
+            case T.FLOWER:    return 'texGrass';
+            case T.HOUSE:     return 'texStoneTile';
+            case T.DOOR:      return 'texWoodTile';
+            case T.STONE:     return 'texPebbles';
+            case T.BRIDGE:    return 'texWoodpath';
+            case T.TREE:      return 'texJungle';
+            case T.ROCK_MINE: return 'texGravel';
+            case T.FISH_SPOT: return 'texShallow';
+            case T.WILD_CROP: return 'texGrass';
+            case T.NPC_HOUSE: return 'texWoodTile';
+            default:          return 'texGrass';
         }
     }
 
@@ -232,18 +250,24 @@ class Renderer {
      */
     getTerrainColor(tile, sc) {
         switch (tile) {
-            case T.GRASS:   return sc.grass;
-            case T.DIRT:    return '#8b6d3f';
-            case T.TILLED:  return '#6b4423';
-            case T.WATERED: return '#5a3a1a';
-            case T.PATH:    return '#c4a96a';
-            case T.FENCE:   return sc.grass;
-            case T.WATER:   return '#3a7bd5';
-            case T.FLOWER:  return sc.grass;
-            case T.HOUSE:   return '#c49558';
-            case T.DOOR:    return '#8b5a2b';
-            case T.STONE:   return sc.grass;
-            default:        return '#4a6741';
+            case T.GRASS:     return sc.grass;
+            case T.DIRT:      return '#8b6d3f';
+            case T.TILLED:    return '#6b4423';
+            case T.WATERED:   return '#5a3a1a';
+            case T.PATH:      return '#c4a96a';
+            case T.FENCE:     return sc.grass;
+            case T.WATER:     return '#3a7bd5';
+            case T.FLOWER:    return sc.grass;
+            case T.HOUSE:     return '#c49558';
+            case T.DOOR:      return '#8b5a2b';
+            case T.STONE:     return sc.grass;
+            case T.BRIDGE:    return '#a08060';
+            case T.TREE:      return '#2d5a1e';
+            case T.ROCK_MINE: return '#6a6058';
+            case T.FISH_SPOT: return '#4a9bd5';
+            case T.WILD_CROP: return sc.grass;
+            case T.NPC_HOUSE: return '#b08050';
+            default:          return '#4a6741';
         }
     }
 
@@ -292,7 +316,7 @@ class Renderer {
         const fromColor = this.tileColors[fromTile] || this.tileColors[T.GRASS];
         const toColor = this.tileColors[toTile] || this.tileColors[T.GRASS];
 
-        const gradientSize = 8; // 过渡宽度
+        const gradientSize = 8;
         let grad;
 
         if (edge === 'top') {
@@ -338,7 +362,7 @@ class Renderer {
                 const px = x * TILE;
                 const py = y * TILE;
 
-                // 检查四个角是否有高度差（邻居是不同地形）
+                // 检查四个角是否有高度差
                 const corners = [
                     { cx: px, cy: py, checks: [[0,-1],[-1,0],[-1,-1]] },
                     { cx: px + TILE, cy: py, checks: [[0,-1],[1,0],[1,-1]] },
@@ -406,7 +430,6 @@ class Renderer {
                         for (let i = 0; i < 4; i++) {
                             ctx.fillRect(px + 4, py + 8 + i * 10, TILE - 8, 2);
                         }
-                        // 湿润高光
                         ctx.fillStyle = 'rgba(100, 160, 230, 0.15)';
                         ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
                         break;
@@ -419,7 +442,6 @@ class Renderer {
                         const wy = Math.cos(phase + y * 1.5) * 5;
                         ctx.fillRect(px + 6 + wx, py + 10 + wy, 14, 3);
                         ctx.fillRect(px + 20 - wx, py + 28 + wy, 10, 2);
-                        // 水面深度渐变
                         const waterGrad = ctx.createLinearGradient(px, py, px, py + TILE);
                         waterGrad.addColorStop(0, 'rgba(255,255,255,0.03)');
                         waterGrad.addColorStop(1, 'rgba(0,30,80,0.1)');
@@ -465,11 +487,99 @@ class Renderer {
                         ctx.beginPath();
                         ctx.ellipse(px + TILE/2 - 2, py + TILE/2 + 2, 10, 7, 0, 0, Math.PI * 2);
                         ctx.fill();
-                        // 石头阴影
                         ctx.fillStyle = 'rgba(0,0,0,0.15)';
                         ctx.beginPath();
                         ctx.ellipse(px + TILE/2, py + TILE - 2, 12, 4, 0, 0, Math.PI * 2);
                         ctx.fill();
+                        break;
+
+                    case T.TREE:
+                        // 树干
+                        ctx.fillStyle = '#5c3d1e';
+                        ctx.fillRect(px + 18, py + 24, 12, 24);
+                        // 树冠
+                        ctx.fillStyle = '#2d7a1e';
+                        ctx.beginPath();
+                        ctx.arc(px + TILE/2, py + 18, 16, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#3d9b2e';
+                        ctx.beginPath();
+                        ctx.arc(px + TILE/2 - 4, py + 14, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(px + TILE/2 + 5, py + 16, 9, 0, Math.PI * 2);
+                        ctx.fill();
+                        // 树影
+                        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                        ctx.beginPath();
+                        ctx.ellipse(px + TILE/2, py + TILE - 2, 14, 5, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+
+                    case T.ROCK_MINE:
+                        // 矿岩
+                        ctx.fillStyle = '#6a6058';
+                        ctx.beginPath();
+                        ctx.ellipse(px + TILE/2, py + TILE/2 + 4, 16, 12, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#8a8078';
+                        ctx.beginPath();
+                        ctx.ellipse(px + TILE/2 - 3, py + TILE/2, 12, 9, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        // 矿石闪光
+                        const sparkle = Math.sin(Date.now() / 500 + x * 3 + y * 7) * 0.5 + 0.5;
+                        ctx.fillStyle = `rgba(255,215,0,${sparkle * 0.4})`;
+                        ctx.beginPath();
+                        ctx.arc(px + TILE/2 + 5, py + TILE/2 - 3, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                        // 阴影
+                        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                        ctx.beginPath();
+                        ctx.ellipse(px + TILE/2, py + TILE - 2, 14, 4, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+
+                    case T.FISH_SPOT:
+                        // 钓鱼点 - 水面 + 鱼标志
+                        const fishPhase = Date.now() / 800;
+                        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                        const fwx = Math.sin(fishPhase + x * 2) * 6;
+                        ctx.fillRect(px + 10 + fwx, py + 15, 12, 2);
+                        ctx.fillRect(px + 22 - fwx, py + 30, 10, 2);
+                        // 鱼标志
+                        ctx.font = '16px serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('🐟', px + TILE/2, py + TILE/2 + 2);
+                        break;
+
+                    case T.WILD_CROP:
+                        // 野生采集物
+                        const forageEmojis = ['🍄', '🫐', '🌸', '🌿'];
+                        const forageIdx = (x * 7 + y * 13) % 4;
+                        ctx.font = '20px serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(forageEmojis[forageIdx], px + TILE/2, py + TILE/2 + 4);
+                        break;
+
+                    case T.NPC_HOUSE:
+                        // NPC 房屋
+                        ctx.fillStyle = '#b08050';
+                        ctx.fillRect(px + 4, py + 12, TILE - 8, TILE - 14);
+                        // 屋顶
+                        ctx.fillStyle = '#8b4513';
+                        ctx.beginPath();
+                        ctx.moveTo(px + 2, py + 14);
+                        ctx.lineTo(px + TILE/2, py + 2);
+                        ctx.lineTo(px + TILE - 2, py + 14);
+                        ctx.closePath();
+                        ctx.fill();
+                        // 窗户
+                        ctx.fillStyle = '#87ceeb';
+                        ctx.fillRect(px + 12, py + 20, 10, 10);
+                        ctx.fillRect(px + 28, py + 20, 10, 10);
+                        // 门
+                        ctx.fillStyle = '#5c3d1e';
+                        ctx.fillRect(px + 19, py + 30, 12, 16);
                         break;
                 }
             }
@@ -524,6 +634,48 @@ class Renderer {
                 ctx.fillStyle = 'rgba(255, 80, 80, 0.7)';
                 ctx.fillRect(px + 4, py + 2, TILE - 8, 3);
             }
+        }
+    }
+
+    /**
+     * 渲染 NPC
+     */
+    renderNPCs(ctx, state) {
+        for (const npc of state.npcs) {
+            const px = npc.x;
+            const py = npc.y;
+
+            // 只渲染屏幕内的NPC
+            if (px < state.cameraX - TILE || px > state.cameraX + this.screenW + TILE ||
+                py < state.cameraY - TILE || py > state.cameraY + this.screenH + TILE) continue;
+
+            // NPC 阴影
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(px + TILE/2, py + TILE - 2, 14, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // NPC 身体
+            ctx.fillStyle = '#4a90d9';
+            ctx.fillRect(px + 12, py + 10, 24, 28);
+
+            // NPC 头
+            ctx.fillStyle = '#ffd5a0';
+            ctx.fillRect(px + 16, py + 4, 16, 14);
+
+            // NPC emoji
+            ctx.font = '18px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(npc.emoji, px + TILE/2, py - 4);
+
+            // NPC 名字
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.strokeText(npc.name, px + TILE/2, py - 14);
+            ctx.fillText(npc.name, px + TILE/2, py - 14);
         }
     }
 
@@ -604,11 +756,11 @@ class Renderer {
      */
     renderParticles(ctx, state) {
         for (const p of state.particles) {
-            ctx.fillStyle = p.color;
+            ctx.fillStyle = p.color || '#fff';
             ctx.globalAlpha = p.life;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.font = `${p.size}px serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText(p.emoji || '•', p.x, p.y);
         }
         ctx.globalAlpha = 1;
     }
@@ -629,29 +781,73 @@ class Renderer {
     }
 
     /**
+     * 渲染钓鱼进度条
+     */
+    renderFishingBar(ctx, state) {
+        if (!state.fishing) return;
+
+        const barWidth = 300;
+        const barHeight = 30;
+        const barX = (this.screenW - barWidth) / 2;
+        const barY = this.screenH - 120;
+
+        // 背景
+        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        ctx.fillRect(barX - 10, barY - 30, barWidth + 20, barHeight + 50);
+
+        // 标题
+        ctx.fillStyle = '#ffd93d';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🎣 钓鱼！按空格停下', this.screenW / 2, barY - 10);
+
+        // 进度条背景
+        ctx.fillStyle = '#333';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+
+        // 目标区域 (绿色)
+        const targetStart = state.fishTarget - state.fishTargetSize / 2;
+        const targetEnd = state.fishTarget + state.fishTargetSize / 2;
+        ctx.fillStyle = 'rgba(76, 175, 80, 0.6)';
+        ctx.fillRect(barX + targetStart * barWidth, barY, state.fishTargetSize * barWidth, barHeight);
+
+        // 移动指示器
+        const indicatorX = barX + state.fishBarPos * barWidth;
+        ctx.fillStyle = '#ff4444';
+        ctx.fillRect(indicatorX - 3, barY - 4, 6, barHeight + 8);
+
+        // 边框
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+        // 剩余时间
+        const remaining = Math.max(0, 10 - state.fishProgress);
+        ctx.fillStyle = '#aaa';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(`${remaining.toFixed(1)}s`, this.screenW / 2, barY + barHeight + 16);
+    }
+
+    /**
      * 全局光影效果
      */
     renderGlobalLighting(ctx, state, sc) {
-        const hour = state.timeOfDay;
+        const hour = state.timeOfDay || (state.time / 60);
         let overlayColor = null;
         let overlayAlpha = 0;
         let warmth = 0;
 
         if (hour >= 20 || hour < 5) {
-            // 深夜
             overlayColor = '#0a0a2e';
             overlayAlpha = 0.55;
         } else if (hour >= 18) {
-            // 傍晚 (暖橙色)
             overlayColor = '#ff6b35';
             overlayAlpha = (hour - 18) / 2 * 0.35;
             warmth = (hour - 18) / 2;
         } else if (hour < 7) {
-            // 清晨 (淡蓝色)
             overlayColor = '#87ceeb';
             overlayAlpha = (7 - hour) / 2 * 0.2;
         } else if (hour >= 12 && hour < 15) {
-            // 正午强光 (轻微漂白)
             overlayColor = '#fff8e7';
             overlayAlpha = 0.08;
         }
@@ -722,29 +918,95 @@ class Renderer {
         ctx.fillStyle = 'rgba(0,0,0,0.7)';
         ctx.fillRect(mmX - 5, mmY - 5, mmSize + 10, mmSize + 10);
 
-        for (let y = 0; y < MAP_H; y++) {
-            for (let x = 0; x < MAP_W; x++) {
-                const tile = state.map[y][x];
-                let color;
-                switch (tile) {
-                    case T.GRASS: color = sc.grass; break;
-                    case T.DIRT: color = '#8b6d3f'; break;
-                    case T.TILLED: color = '#6b4423'; break;
-                    case T.WATERED: color = '#5a3a1a'; break;
-                    case T.PATH: color = '#c4a96a'; break;
-                    case T.FENCE: color = '#8b6914'; break;
-                    case T.WATER: color = '#3a7bd5'; break;
-                    case T.FLOWER: color = '#ff69b4'; break;
-                    case T.HOUSE: color = '#d4a76a'; break;
-                    case T.DOOR: color = '#8b4513'; break;
-                    case T.STONE: color = '#888'; break;
-                    default: color = '#4a6741';
+        // 小地图只渲染已生成的区块 (优化)
+        for (const chunkKey of state.generatedChunks) {
+            const [cx, cy] = chunkKey.split(',').map(Number);
+            const startX = cx * CHUNK_SIZE;
+            const startY = cy * CHUNK_SIZE;
+            const endX = Math.min(startX + CHUNK_SIZE, MAP_W);
+            const endY = Math.min(startY + CHUNK_SIZE, MAP_H);
+
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
+                    const tile = state.map[y][x];
+                    let color;
+                    switch (tile) {
+                        case T.GRASS:     color = sc.grass; break;
+                        case T.DIRT:      color = '#8b6d3f'; break;
+                        case T.TILLED:    color = '#6b4423'; break;
+                        case T.WATERED:   color = '#5a3a1a'; break;
+                        case T.PATH:      color = '#c4a96a'; break;
+                        case T.FENCE:     color = '#8b6914'; break;
+                        case T.WATER:     color = '#3a7bd5'; break;
+                        case T.FLOWER:    color = '#ff69b4'; break;
+                        case T.HOUSE:     color = '#d4a76a'; break;
+                        case T.DOOR:      color = '#8b4513'; break;
+                        case T.STONE:     color = '#888'; break;
+                        case T.TREE:      color = '#2d5a1e'; break;
+                        case T.ROCK_MINE: color = '#6a6058'; break;
+                        case T.FISH_SPOT: color = '#4a9bd5'; break;
+                        case T.WILD_CROP: color = '#7bc67b'; break;
+                        case T.NPC_HOUSE: color = '#b08050'; break;
+                        default:          color = '#4a6741';
+                    }
+                    ctx.fillStyle = color;
+                    ctx.fillRect(mmX + x * scaleX, mmY + y * scaleY, Math.max(scaleX, 1), Math.max(scaleY, 1));
                 }
-                ctx.fillStyle = color;
-                ctx.fillRect(mmX + x * scaleX, mmY + y * scaleY, scaleX + 1, scaleY + 1);
             }
         }
 
+        // 未生成区域显示为暗色
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(mmX, mmY, mmSize, mmSize);
+
+        // 重新绘制已生成区域覆盖暗色
+        for (const chunkKey of state.generatedChunks) {
+            const [cx, cy] = chunkKey.split(',').map(Number);
+            const startX = cx * CHUNK_SIZE;
+            const startY = cy * CHUNK_SIZE;
+            const endX = Math.min(startX + CHUNK_SIZE, MAP_W);
+            const endY = Math.min(startY + CHUNK_SIZE, MAP_H);
+
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
+                    const tile = state.map[y][x];
+                    let color;
+                    switch (tile) {
+                        case T.GRASS:     color = sc.grass; break;
+                        case T.DIRT:      color = '#8b6d3f'; break;
+                        case T.TILLED:    color = '#6b4423'; break;
+                        case T.WATERED:   color = '#5a3a1a'; break;
+                        case T.PATH:      color = '#c4a96a'; break;
+                        case T.FENCE:     color = '#8b6914'; break;
+                        case T.WATER:     color = '#3a7bd5'; break;
+                        case T.FLOWER:    color = '#ff69b4'; break;
+                        case T.HOUSE:     color = '#d4a76a'; break;
+                        case T.DOOR:      color = '#8b4513'; break;
+                        case T.STONE:     color = '#888'; break;
+                        case T.TREE:      color = '#2d5a1e'; break;
+                        case T.ROCK_MINE: color = '#6a6058'; break;
+                        case T.FISH_SPOT: color = '#4a9bd5'; break;
+                        case T.WILD_CROP: color = '#7bc67b'; break;
+                        case T.NPC_HOUSE: color = '#b08050'; break;
+                        default:          color = '#4a6741';
+                    }
+                    ctx.fillStyle = color;
+                    ctx.fillRect(mmX + x * scaleX, mmY + y * scaleY, Math.max(scaleX, 1), Math.max(scaleY, 1));
+                }
+            }
+        }
+
+        // 区域标签
+        ctx.font = '8px sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText('农场', mmX + 100 * scaleX, mmY + 100 * scaleY);
+        ctx.fillText('小镇', mmX + 130 * scaleX, mmY + 150 * scaleY);
+        ctx.fillText('森林', mmX + 35 * scaleX, mmY + 35 * scaleY);
+        ctx.fillText('矿区', mmX + 170 * scaleX, mmY + 30 * scaleY);
+        ctx.fillText('湖畔', mmX + 25 * scaleX, mmY + 155 * scaleY);
+
+        // 玩家位置
         ctx.fillStyle = '#ff0000';
         ctx.fillRect(
             mmX + (state.playerX / TILE) * scaleX - 2,
@@ -752,6 +1014,7 @@ class Renderer {
             4, 4
         );
 
+        // 视野范围
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1;
         ctx.strokeRect(

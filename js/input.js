@@ -1,5 +1,5 @@
 /**
- * 输入处理系统 (键盘 + 触控摇杆)
+ * 输入处理系统 (键盘 + 触控摇杆) - 大世界版
  */
 class InputHandler {
     constructor(state) {
@@ -37,6 +37,14 @@ class InputHandler {
         if (e.key.toLowerCase() === 'm') {
             const mm = document.getElementById('minimap');
             mm.classList.toggle('active');
+            this.state.showMinimap = !this.state.showMinimap;
+        }
+
+        // 背包
+        if (e.key.toLowerCase() === 'b') {
+            // 触发背包按钮
+            const backpackBtn = document.querySelector('.tool-item[data-tool="6"]');
+            if (backpackBtn) backpackBtn.click();
         }
 
         // 种子选择 (Q/E)
@@ -113,6 +121,13 @@ class InputHandler {
      */
     update(dt) {
         const state = this.state;
+
+        // 钓鱼或商店打开时不能移动
+        if (state.fishing || state.shopOpen) {
+            state.playerMoving = false;
+            return;
+        }
+
         let dx = 0, dy = 0;
 
         // 摇杆优先
