@@ -34,16 +34,21 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('请输入你的名字！');
             return;
         }
-        
+
         state.playerName = name;
         state.roomId = document.getElementById('room-id').value.trim() || `快乐农场${Math.floor(Math.random()*999)}`;
-        
+
         // 生成地图
         generateMap(state);
-        
+
         // 初始化输入
         input = new InputHandler(state);
-        
+
+        // 预加载素材
+        AssetsLoader.loadAll().then(() => {
+            console.log('素材加载完成，游戏准备就绪');
+        });
+
         // 隐藏登录，显示游戏
         document.getElementById('login-overlay').style.display = 'none';
         document.getElementById('hud').classList.add('active');

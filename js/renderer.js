@@ -96,14 +96,19 @@ class Renderer {
     renderTile(ctx, tile, px, py, x, y, sc) {
         switch (tile) {
             case T.GRASS:
-                // 棋盘格草地
-                ctx.fillStyle = (x + y) % 2 === 0 ? sc.grass : sc.grassDark;
-                ctx.fillRect(px, py, TILE, TILE);
-                // 随机草细节
-                if ((x * 7 + y * 13) % 5 === 0) {
-                    ctx.fillStyle = (x + y) % 2 === 0 ? sc.grassDark : sc.grass;
-                    ctx.fillRect(px + 10, py + 20, 4, 8);
-                    ctx.fillRect(px + 30, py + 8, 4, 8);
+                // 优先使用 Grass.png 图块
+                if (AssetsLoader.assets.grass) {
+                    ctx.drawImage(AssetsLoader.assets.grass, px, py, TILE, TILE);
+                } else {
+                    // 棋盘格草地 (fallback)
+                    ctx.fillStyle = (x + y) % 2 === 0 ? sc.grass : sc.grassDark;
+                    ctx.fillRect(px, py, TILE, TILE);
+                    // 随机草细节
+                    if ((x * 7 + y * 13) % 5 === 0) {
+                        ctx.fillStyle = (x + y) % 2 === 0 ? sc.grassDark : sc.grass;
+                        ctx.fillRect(px + 10, py + 20, 4, 8);
+                        ctx.fillRect(px + 30, py + 8, 4, 8);
+                    }
                 }
                 break;
                 
@@ -227,16 +232,22 @@ class Renderer {
                 break;
                 
             case T.STONE:
+                // 草地底
                 ctx.fillStyle = (x + y) % 2 === 0 ? sc.grass : sc.grassDark;
                 ctx.fillRect(px, py, TILE, TILE);
-                ctx.fillStyle = '#888';
-                ctx.beginPath();
-                ctx.ellipse(px + TILE/2, py + TILE/2 + 4, 16, 12, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#999';
-                ctx.beginPath();
-                ctx.ellipse(px + TILE/2 - 2, py + TILE/2 + 2, 12, 9, 0, 0, Math.PI * 2);
-                ctx.fill();
+                // 使用 Rock.png
+                if (AssetsLoader.assets.rock) {
+                    ctx.drawImage(AssetsLoader.assets.rock, px + (TILE - 15) / 2, py + (TILE - 15) / 2, 15, 15);
+                } else {
+                    ctx.fillStyle = '#888';
+                    ctx.beginPath();
+                    ctx.ellipse(px + TILE/2, py + TILE/2 + 4, 16, 12, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#999';
+                    ctx.beginPath();
+                    ctx.ellipse(px + TILE/2 - 2, py + TILE/2 + 2, 12, 9, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
                 break;
         }
     }
@@ -302,21 +313,68 @@ class Renderer {
     }
     
     /**
-     * 渲染玩家角色
+     * 渲染玩家角色 - 使用 PNG spritesheet
+     * 角色 spritesheet 是 8 帧横排，每帧 12x17 (walk) 或 12x16 (idle)
+     * 缩放绘制到 TILE x TILE 区域
      */
     renderPlayer(ctx, state) {
         const px = state.playerX;
         const py = state.playerY;
-        
+
         // 阴影
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.beginPath();
-        ctx.ellipse(px + TILE/2, py + TILE - 4, 14, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(px + TILE / 2, py + TILE - 4, 14, 6, 0, 0, Math.PI * 2);
         ctx.fill();
-        
-        // 身体
+
+        // 方向映射: 0=down, 1=up, 2=left, 3=right
+        const dirKeys = ['Down', 'Up', 'Left', 'Right'];
+        const dirKey = dirKeys[state.playerDir];
+
+        // 选择 walk 或 idle spritesheet
+        const sheetKey = state.playerMoving ? `charWalk${dirKey}` : `charIdle${dirKey}`;
+        const sheet = AssetsLoader.assets[sheetKey];
+
+        if (sheet) {
+            // spritesheet 帧参数
+            const frameW = sheet.width / 8;  // 每帧宽度
+            const frameH = sheet.height;     // 每帧高度
+            const totalFrames = 8;
+
+            // 计算当前帧
+            let frame;
+            if (state.playerMoving) {
+                frame = Math.floor(state.moveTimer * 6) % totalFrames;
+            } else {
+                frame = Math.floor(Date.now() / 200) % totalFrames;
+            }
+
+            // 绘制 spritesheet 帧，缩放到 TILE 大小
+            ctx.drawImage(
+                sheet,
+                frame * frameW, 0, frameW, frameH,  // 源区域
+                px, py, TILE, TILE                    // 目标区域
+            );
+        } else {
+            // Fallback: 手绘角色
+            this.renderPlayerFallback(ctx, state, px, py);
+        }
+
+        // 工具指示
+        const toolEmojis = ['⛏️', '🚿', '🌱', '🧺', '🗑️'];
+        if (state.playerDir === 0) {
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(toolEmojis[state.currentTool], px + TILE / 2, py - 8);
+        }
+    }
+
+    /**
+     * 手绘角色 (fallback)
+     */
+    renderPlayerFallback(ctx, state, px, py) {
         const bodyBob = state.playerMoving ? Math.sin(state.moveTimer * 8) * 2 : 0;
-        
+
         // 腿
         ctx.fillStyle = '#5c3d1e';
         if (state.playerMoving) {
@@ -327,11 +385,11 @@ class Renderer {
             ctx.fillRect(px + 16, py + 32, 6, 12);
             ctx.fillRect(px + 26, py + 32, 6, 12);
         }
-        
+
         // 身体
         ctx.fillStyle = '#4a90d9';
         ctx.fillRect(px + 14, py + 16 + bodyBob, 20, 18);
-        
+
         // 手臂
         ctx.fillStyle = '#f5d6b8';
         if (state.playerMoving) {
@@ -342,35 +400,25 @@ class Renderer {
             ctx.fillRect(px + 8, py + 18, 6, 12);
             ctx.fillRect(px + 34, py + 18, 6, 12);
         }
-        
+
         // 头
         ctx.fillStyle = '#f5d6b8';
         ctx.fillRect(px + 14, py + 4 + bodyBob, 20, 14);
-        
+
         // 帽子
         ctx.fillStyle = '#c4a96a';
         ctx.fillRect(px + 10, py + bodyBob, 28, 6);
         ctx.fillRect(px + 16, py - 4 + bodyBob, 16, 8);
-        
+
         // 眼睛 (根据方向)
         ctx.fillStyle = '#333';
-        if (state.playerDir === 0) { // 朝下
+        if (state.playerDir === 0) {
             ctx.fillRect(px + 18, py + 10 + bodyBob, 3, 3);
             ctx.fillRect(px + 27, py + 10 + bodyBob, 3, 3);
-        } else if (state.playerDir === 1) { // 朝上
-            // 不画眼睛
-        } else if (state.playerDir === 2) { // 朝左
+        } else if (state.playerDir === 2) {
             ctx.fillRect(px + 16, py + 10 + bodyBob, 3, 3);
-        } else { // 朝右
+        } else if (state.playerDir === 3) {
             ctx.fillRect(px + 29, py + 10 + bodyBob, 3, 3);
-        }
-        
-        // 工具指示
-        const toolEmojis = ['⛏️', '🚿', '🌱', '🧺', '🗑️'];
-        if (state.playerDir === 0) {
-            ctx.font = '14px serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(toolEmojis[state.currentTool], px + TILE/2, py - 8);
         }
     }
     

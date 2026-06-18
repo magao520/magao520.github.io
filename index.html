@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🌾 快乐农场 - 星露谷风格</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
@@ -27,6 +27,7 @@
             display: block;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
+            touch-action: none;
         }
         
         /* ===== 登录界面 ===== */
@@ -279,6 +280,119 @@
             color: #c4a96a;
             font-family: monospace;
         }
+
+        /* ===== 触控控件 (仅触摸设备显示) ===== */
+        @media (hover: none) and (pointer: coarse) {
+            #touch-controls {
+                display: flex !important;
+            }
+            #controls-hint {
+                display: none !important;
+            }
+        }
+
+        #touch-controls {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            pointer-events: none;
+            z-index: 80;
+        }
+
+        /* 虚拟摇杆 */
+        #joystick-zone {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            pointer-events: auto;
+            touch-action: none;
+        }
+
+        #joystick-base {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+
+        #joystick-thumb {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: none;
+        }
+
+        /* 互动按钮 */
+        #touch-interact {
+            position: fixed;
+            bottom: 40px;
+            right: 20px;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(255, 217, 61, 0.4);
+            border: 3px solid rgba(255, 217, 61, 0.7);
+            color: #ffd93d;
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #touch-interact:active {
+            background: rgba(255, 217, 61, 0.7);
+            transform: scale(0.95);
+        }
+
+        /* 触控工具栏 */
+        #touch-toolbar {
+            position: fixed;
+            bottom: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            pointer-events: auto;
+            touch-action: none;
+        }
+
+        .touch-tool-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            background: rgba(20, 15, 10, 0.8);
+            border: 2px solid #5c3d1e;
+            color: #f4e8c1;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .touch-tool-btn.active {
+            border-color: #ffd93d;
+            background: rgba(255, 217, 61, 0.3);
+            box-shadow: 0 0 8px rgba(255, 217, 61, 0.5);
+        }
     </style>
 </head>
 <body>
@@ -359,6 +473,26 @@
     
     <!-- 提示 -->
     <div id="toast"></div>
+
+    <!-- 触控控件 (仅触摸设备显示) -->
+    <div id="touch-controls">
+        <!-- 虚拟摇杆 -->
+        <div id="joystick-zone">
+            <div id="joystick-base">
+                <div id="joystick-thumb"></div>
+            </div>
+        </div>
+        <!-- 互动按钮 -->
+        <div id="touch-interact">A</div>
+        <!-- 工具切换 -->
+        <div id="touch-toolbar">
+            <div class="touch-tool-btn active" data-tool="0">⛏️</div>
+            <div class="touch-tool-btn" data-tool="1">🚿</div>
+            <div class="touch-tool-btn" data-tool="2">🌱</div>
+            <div class="touch-tool-btn" data-tool="3">🧺</div>
+            <div class="touch-tool-btn" data-tool="4">🗑️</div>
+        </div>
+    </div>
     
     <!-- 控制提示 -->
     <div id="controls-hint">
@@ -371,9 +505,111 @@
     <script src="js/config.js"></script>
     <script src="js/github-backend.js"></script>
     <script src="js/webrtc.js"></script>
+    <script src="js/assets-loader.js"></script>
     <script src="js/game-engine.js"></script>
     <script src="js/renderer.js"></script>
     <script src="js/input.js"></script>
     <script src="js/main.js"></script>
+
+    <!-- 触控控件初始化 -->
+    <script>
+    (function() {
+        // ===== 虚拟摇杆 =====
+        const joystickZone = document.getElementById('joystick-zone');
+        const joystickThumb = document.getElementById('joystick-thumb');
+        const joystickBase = document.getElementById('joystick-base');
+        let joystickActive = false;
+        const joystickRadius = 35; // 摇杆最大偏移半径
+
+        function handleJoystickStart(e) {
+            e.preventDefault();
+            joystickActive = true;
+            handleJoystickMove(e);
+        }
+
+        function handleJoystickMove(e) {
+            if (!joystickActive) return;
+            e.preventDefault();
+
+            const touch = e.touches ? e.touches[0] : e;
+            const rect = joystickBase.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            // 限制在半径内
+            if (dist > joystickRadius) {
+                dx = (dx / dist) * joystickRadius;
+                dy = (dy / dist) * joystickRadius;
+            }
+
+            // 移动摇杆拇指
+            joystickThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+            // 计算方向 (归一化)
+            const deadzone = 8;
+            if (dist > deadzone) {
+                const ndx = dx / joystickRadius;
+                const ndy = dy / joystickRadius;
+                // 设置摇杆方向
+                if (typeof input !== 'undefined' && input) {
+                    input.setJoystickDir(ndx, ndy);
+                }
+            } else {
+                if (typeof input !== 'undefined' && input) {
+                    input.setJoystickDir(0, 0);
+                }
+            }
+        }
+
+        function handleJoystickEnd(e) {
+            e.preventDefault();
+            joystickActive = false;
+            joystickThumb.style.transform = 'translate(-50%, -50%)';
+            if (typeof input !== 'undefined' && input) {
+                input.setJoystickDir(0, 0);
+                input.joystickActive = false;
+            }
+        }
+
+        joystickZone.addEventListener('touchstart', handleJoystickStart, { passive: false });
+        joystickZone.addEventListener('touchmove', handleJoystickMove, { passive: false });
+        joystickZone.addEventListener('touchend', handleJoystickEnd, { passive: false });
+        joystickZone.addEventListener('touchcancel', handleJoystickEnd, { passive: false });
+
+        // 鼠标支持 (调试用)
+        joystickZone.addEventListener('mousedown', handleJoystickStart);
+        window.addEventListener('mousemove', handleJoystickMove);
+        window.addEventListener('mouseup', handleJoystickEnd);
+
+        // ===== 互动按钮 =====
+        const interactBtn = document.getElementById('touch-interact');
+        interactBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            if (typeof input !== 'undefined' && input) {
+                input.triggerInteract();
+            }
+        }, { passive: false });
+
+        // ===== 工具切换按钮 =====
+        document.querySelectorAll('.touch-tool-btn').forEach(function(btn) {
+            btn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                const tool = parseInt(btn.dataset.tool);
+                if (typeof input !== 'undefined' && input) {
+                    input.setTool(tool);
+                }
+                // 更新触控工具栏高亮
+                document.querySelectorAll('.touch-tool-btn').forEach(function(b) {
+                    b.classList.remove('active');
+                });
+                btn.classList.add('active');
+            }, { passive: false });
+        });
+    })();
+    </script>
 </body>
 </html>
