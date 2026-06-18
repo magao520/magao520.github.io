@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌱 联机种菜游戏</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 登录界面 -->
+        <div id="login-screen" class="screen active">
+            <div class="login-box">
+                <h1>🌾 快乐农场</h1>
+                <p class="subtitle">多人联机种菜游戏</p>
+                <div class="input-group">
+                    <input type="text" id="player-name" placeholder="输入你的名字" maxlength="12">
+                </div>
+                <div class="input-group">
+                    <input type="text" id="room-id" placeholder="房间号 (留空创建新房)" maxlength="20">
+                </div>
+                <div class="github-config">
+                    <details>
+                        <summary>⚙️ GitHub 配置 (可选)</summary>
+                        <input type="text" id="github-token" placeholder="GitHub Personal Access Token">
+                        <input type="text" id="github-repo" placeholder="仓库 (格式: 用户名/仓库名)">
+                        <p class="hint">用于数据持久化存储，不填则使用本地存储</p>
+                    </details>
+                </div>
+                <button id="join-btn" class="btn-primary">🚀 进入农场</button>
+                <div class="features">
+                    <span>🌱 种菜</span>
+                    <span>💧 浇水</span>
+                    <span>🤝 互助</span>
+                    <span>🏆 排行</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 游戏主界面 -->
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <div class="player-info">
+                    <span id="current-player">👤 玩家</span>
+                    <span id="player-coins">💰 100</span>
+                </div>
+                <div class="room-info">
+                    <span id="room-display">🏠 房间: -</span>
+                    <span id="online-count">🟢 在线: 1</span>
+                </div>
+                <div class="actions">
+                    <button id="invite-btn" class="btn-small">📋 邀请</button>
+                    <button id="save-btn" class="btn-small">💾 保存</button>
+                    <button id="quit-btn" class="btn-small">🚪 退出</button>
+                </div>
+            </div>
+
+            <div class="game-main">
+                <!-- 左侧：农场网格 -->
+                <div class="farm-area">
+                    <div class="farm-title">🌾 我的农场</div>
+                    <div id="farm-grid" class="farm-grid"></div>
+                </div>
+
+                <!-- 右侧：侧边栏 -->
+                <div class="sidebar">
+                    <!-- 种子商店 -->
+                    <div class="panel">
+                        <h3>🛒 种子商店</h3>
+                        <div id="seed-shop" class="seed-list"></div>
+                    </div>
+
+                    <!-- 在线玩家 -->
+                    <div class="panel">
+                        <h3>👥 在线玩家</h3>
+                        <div id="player-list" class="player-list"></div>
+                    </div>
+
+                    <!-- 游戏日志 -->
+                    <div class="panel">
+                        <h3>📜 农场动态</h3>
+                        <div id="game-log" class="game-log"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部工具栏 -->
+            <div class="toolbar">
+                <div class="tool" data-tool="cursor" title="选择">
+                    <span>👆</span>
+                    <small>选择</small>
+                </div>
+                <div class="tool" data-tool="water" title="浇水">
+                    <span>💧</span>
+                    <small>浇水</small>
+                </div>
+                <div class="tool" data-tool="fertilize" title="施肥">
+                    <span>🧪</span>
+                    <small>施肥</small>
+                </div>
+                <div class="tool" data-tool="harvest" title="收获">
+                    <span>✂️</span>
+                    <small>收获</small>
+                </div>
+                <div class="tool" data-tool="remove" title="铲除">
+                    <span>🗑️</span>
+                    <small>铲除</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 邀请弹窗 -->
+        <div id="invite-modal" class="modal">
+            <div class="modal-content">
+                <h3>📋 邀请好友</h3>
+                <p>分享以下链接给好友，一起种菜：</p>
+                <input type="text" id="invite-link" readonly>
+                <button id="copy-link-btn" class="btn-primary">复制链接</button>
+                <button class="btn-secondary close-modal">关闭</button>
+            </div>
+        </div>
+
+        <!-- 提示消息 -->
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/github-backend.js"></script>
+    <script src="js/webrtc.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
