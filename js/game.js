@@ -49,14 +49,14 @@ $('auth-btn').onclick=()=>{
   if(!n){$('auth-hint').textContent='代号不能为空';return}
   G.user=n;if(!load())G.chips=50;
   save();$('user-name').textContent=n;updateChips();
-  showScreen('main');initPeer();initMQTT();checkURLJoin();
+  showScreen('main');initPeer();initMQTT();
 };
 function logout(){
   G.user=null;localStorage.removeItem('wl_user');
   unregisterRoom();
   showScreen('auth');
 }
-if(load()){$('user-name').textContent=G.user;updateChips();showScreen('main');initPeer();initMQTT();setTimeout(checkURLJoin,2000)}
+if(load()){$('user-name').textContent=G.user;updateChips();showScreen('main');initPeer();initMQTT()}
 
 // ==================== MQTT 房间发现 ====================
 function initMQTT(){
@@ -68,18 +68,12 @@ function initMQTT(){
     });
     G.mqtt.on('connect',()=>{
       G.mqttConnected=true;
-      // 订阅房间列表频道
       G.mqtt.subscribe('wasteland_exchange/rooms',{qos:0});
-      G.mqtt.subscribe('wasteland_exchange/heartbeat',{qos:0});
     });
     G.mqtt.on('message',(topic,payload)=>{
       try{
         const msg=JSON.parse(payload.toString());
-        if(topic==='wasteland_exchange/rooms'){
-          handleRoomMessage(msg);
-        }else if(topic==='wasteland_exchange/heartbeat'){
-          handleHeartbeat(msg);
-        }
+        if(topic==='wasteland_exchange/rooms')handleRoomMessage(msg);
       }catch(e){}
     });
     G.mqtt.on('error',()=>{});
@@ -107,13 +101,6 @@ function handleRoomMessage(msg){
   }
 }
 
-function handleHeartbeat(msg){
-  // 收到心跳，更新时间戳，防止被清理
-  if(G.knownRooms[msg.code]){
-    G.knownRooms[msg.code].ts=Date.now();
-  }
-}
-
 function publishRoom(action,extra){
   if(!G.mqtt||!G.mqttConnected)return;
   const msg={action,code:G.roomCode,hostName:G.user,game:G.gameType,...extra};
@@ -125,7 +112,6 @@ function startHeartbeat(){
   G.heartbeatTimer=setInterval(()=>{
     if(G.roomCode&&G.isHost){
       publishRoom('update',{players:G.roomPeers.length});
-      // 清理超过30秒没心跳的房间
       const now=Date.now();
       for(const code in G.knownRooms){
         if(now-G.knownRooms[code].ts>30000)delete G.knownRooms[code];
@@ -143,20 +129,6 @@ function unregisterRoom(){
     publishRoom('close',{});
     delete G.knownRooms[G.roomCode];
   }
-}
-
-// ==================== URL邀请（保留作为备用） ====================
-function checkURLJoin(){
-  const p=new URLSearchParams(location.search);
-  const room=p.get('room');
-  if(room){toast('正在前往牌桌...');doJoin(room.toUpperCase())}
-}
-function getInviteURL(){return location.origin+location.pathname+'?room='+G.roomCode}
-function copyInviteLink(){
-  const url=getInviteURL();
-  navigator.clipboard.writeText(url).then(()=>toast('链接已复制')).catch(()=>{
-    const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('链接已复制');
-  });
 }
 
 // ==================== PeerJS ====================
@@ -186,13 +158,11 @@ function setupPeerHandlers(){
 
 function handleConnection(conn){
   conn.on('data',d=>handleMsg(d,conn));
-  conn.on('open',()=>{});
   conn.on('close',()=>{
     G.roomPeers=G.roomPeers.filter(p=>p.conn!==conn);
     updateWaitPlayers();
     if(G.isHost){
       publishRoom('update',{players:G.roomPeers.length});
-      broadcast({type:'player-left',name:'某幸存者'});
     }
   });
 }
@@ -221,7 +191,6 @@ function handleMsg(d,fromConn){
       toast('已到达牌桌，等待搭桌人开始...');
       break;
     }
-    case 'player-left':{log(d.name+' 离开了牌桌','system');break}
     case 'start-game':{
       G.gameType=d.game;G.inGame=true;
       G.deck=d.deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
@@ -268,15 +237,12 @@ function updateCandleUI(){
 // ==================== 大厅渲染 ====================
 function renderLobby(){
   const grid=$('tables-grid');
-  // 收集所有房间：已知房间 + 自己创建的
   const rooms={};
   for(const code in G.knownRooms){
     const r=G.knownRooms[code];
-    // 30秒过期
     if(Date.now()-r.ts>30000){delete G.knownRooms[code];continue}
     rooms[code]=r;
   }
-  // 自己的房间优先显示
   if(G.isHost&&G.roomCode){
     rooms[G.roomCode]={name:G.user,game:G.gameType,players:G.roomPeers.length,ts:Date.now(),isMine:true};
   }
@@ -311,9 +277,10 @@ function renderTableCard(code,gameType,hostName,playerCount,maxSeats,isMyTable){
   }
   const statusClass=count>=2?'playing':'waiting';
   const statusText=count>=2?'可开局':'等待中';
-  const clickAction=isMyTable?'':`joinTableByCode('${code}')`;
+  // 自己的桌子显示等待面板，别人的桌子加入
+  const clickHandler=isMyTable?'showWaitPanel(true)':`joinTableByCode('${code}')`;
   return `
-    <div class="table-card" onclick="${clickAction}">
+    <div class="table-card" onclick="${clickHandler}">
       <div class="table-visual">
         <div class="candle-glow"></div>
         <div class="seats">${seats}</div>
@@ -343,7 +310,6 @@ function createRoom(gameType){
     $('conn-status').textContent='在线 · 搭桌人';
     $('conn-status').style.color='var(--green)';
     G.roomPeers=[{id:'host',name:G.user,conn:null}];
-    // 广播房间到MQTT
     publishRoom('create',{players:1});
     startHeartbeat();
     showWaitPanel(true);renderLobby();
@@ -362,15 +328,10 @@ function showWaitPanel(isHost){
   $('wait-title').textContent=isHost?'你的牌桌':'已到达牌桌';
   updateWaitPlayers();
   if(isHost){
-    $('invite-link').textContent=getInviteURL();
-    $('invite-link').style.display='block';
-    $('invite-link').nextElementSibling.style.display='block';
     $('start-btn').style.display='inline-block';
     $('start-btn').disabled=G.roomPeers.length<2;
     $('start-btn').textContent=G.roomPeers.length>=2?`开局 (${G.roomPeers.length}人)`:'等待幸存者... (至少2人)';
   }else{
-    $('invite-link').style.display='none';
-    $('invite-link').nextElementSibling.style.display='none';
     $('start-btn').style.display='none';
   }
 }
@@ -390,10 +351,7 @@ function updateWaitPlayers(){
 
 // ==================== 加入牌桌（点击桌子直接加入） ====================
 function joinTableByCode(code){
-  if(G.isHost&&G.roomCode===code){
-    // 点击自己的桌子，显示等待面板
-    showWaitPanel(true);return;
-  }
+  if(G.isHost&&G.roomCode===code){showWaitPanel(true);return}
   toast('正在前往'+code+'号桌...');
   doJoin(code);
 }
@@ -422,12 +380,10 @@ function connectToHost(code){
 function closeRoom(){
   $('wait-panel').style.display='none';
   unregisterRoom();
-  broadcast({type:'room-closed'});
   for(const p of G.roomPeers){if(p.conn&&p.conn.open)p.conn.close()}
   G.roomPeers=[];G.conn=null;G.roomCode=null;G.isHost=false;G.hostPeerId=null;
   try{G.peer.destroy()}catch(e){}G.peer=null;initPeer();
   renderLobby();
-  if(location.search)history.replaceState(null,'',location.pathname);
 }
 
 // ==================== 开始游戏 ====================

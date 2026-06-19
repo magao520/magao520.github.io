@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>废土交易所 - 生存物资赌场</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Special+Elite&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
@@ -33,8 +33,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .top-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(26,22,16,.95);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
 .top-bar .logo-sm{font-family:'Special Elite',cursive;font-size:16px;color:var(--gold);letter-spacing:1px}
 .user-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-物资-display{display:flex;align-items:center;gap:6px;background:rgba(184,150,15,.08);border:1px solid rgba(184,150,15,.2);padding:5px 12px;border-radius:2px;font-size:13px;color:var(--gold)}
-物资-icon{font-size:16px}
+.res-display{display:flex;align-items:center;gap:6px;background:rgba(184,150,15,.08);border:1px solid rgba(184,150,15,.2);padding:5px 12px;border-radius:2px;font-size:13px;color:var(--gold)}
+.res-icon{font-size:16px}
 .online-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 4px var(--green);display:inline-block;margin-right:3px}
 .online-dot.off{background:#555;box-shadow:none}
 .sm-btn{background:transparent;border:1px solid var(--border);color:var(--dim);padding:5px 12px;border-radius:2px;cursor:pointer;font-size:11px;transition:.3s;font-family:inherit}
@@ -103,9 +103,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .game-opt .icon{font-size:28px;margin-bottom:4px}
 .game-opt .name{font-size:12px;font-weight:700;color:var(--text)}
 .game-opt .desc{font-size:10px;color:var(--dim);margin-top:2px}
-.invite-link{width:100%;padding:8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:11px;word-break:break-all;margin-top:10px;cursor:pointer;text-align:left}
-.invite-link:hover{border-color:var(--gold)}
-.invite-hint{font-size:10px;color:var(--dim);margin-top:4px}
 
 /* 等待面板 */
 .wait-panel{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:24px;max-width:500px;margin:16px auto;text-align:center}
@@ -203,7 +200,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div class="user-info">
       <span class="online-dot off" id="online-dot"></span>
       <span id="conn-status" style="font-size:11px;color:var(--dim)">信号搜索中...</span>
-      <div class="物资-display"><span class="物资-icon">💊</span><span id="user-chips">50</span><span style="font-size:10px;color:var(--dim)">单位</span></div>
+      <div class="res-display"><span class="res-icon">💊</span><span id="user-chips">50</span><span style="font-size:10px;color:var(--dim)">单位</span></div>
       <span id="user-name" style="font-size:12px;color:var(--dim)">幸存者</span>
       <button class="sm-btn" onclick="logout()">离开交易所</button>
     </div>
@@ -229,8 +226,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="wait-panel" id="wait-panel" style="display:none">
     <h3 id="wait-title">等待幸存者</h3>
     <div class="wait-players" id="wait-players"></div>
-    <div class="invite-link" id="invite-link" onclick="copyInviteLink()">...</div>
-    <div class="invite-hint">点击链接复制，发给其他幸存者直接加入</div>
     <button class="start-game-btn" id="start-btn" disabled onclick="hostStartGame()">等待幸存者... (至少2人)</button>
     <div style="margin-top:10px"><button class="sm-btn" onclick="closeRoom()">撤掉牌桌</button></div>
   </div>
@@ -260,7 +255,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-header">
     <button class="sm-btn" onclick="leaveGame()">撤离牌桌</button>
     <div class="game-title" id="game-title">物资炸金花</div>
-    <div class="物资-display"><span class="物资-icon">💊</span><span id="game-chips">50</span></div>
+    <div class="res-display"><span class="res-icon">💊</span><span id="game-chips">50</span></div>
   </div>
   <div class="candle-bar"><div class="candle-fill" id="candle-fill" style="width:100%"></div></div>
   <div class="candle-label" id="candle-label">蜡烛剩余时间 --:--</div>
@@ -276,6 +271,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=21"></script>
+<script src="js/game.js?v=22"></script>
 </body>
 </html>
