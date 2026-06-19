@@ -45,14 +45,15 @@ $('auth-btn').onclick=()=>{
   save();$('user-name').textContent=n;updateChips();
   showScreen('main');initPeer();
 };
-function logout(){G.user=null;localStorage.removeItem('wl_user');if(G.peer)G.peer.destroy();showScreen('auth')}
+function logout(){G.user=null;localStorage.removeItem('wl_user');if(G.peer){G.peer.destroy();G.peer=null}showScreen('auth')}
 if(load()){$('user-name').textContent=G.user;updateChips();showScreen('main');initPeer()}
 
 // ==================== PeerJS 联机 ====================
 function genCode(){return Math.random().toString(36).substring(2,8).toUpperCase()}
 
 function initPeer(){
-  if(G.peer)return;
+  if(G.peer&&G.peer.open)return;
+  if(G.peer&&!G.peer.open){G.peer.destroy();G.peer=null}
   G.peer=new Peer();
   G.peer.on('open',id=>{
     $('online-dot').classList.remove('off');
@@ -179,19 +180,44 @@ function joinRoom(){
   const code=$('join-code').value.trim().toUpperCase();
   if(code.length<4){$('join-status').textContent='请输入有效的房间码';$('join-status').className='status-text error';return}
   
+  if(!G.peer||G.peer.disconnected){
+    $('join-status').textContent='正在重新连接...';
+    $('join-status').className='status-text';
+    G.peer=null;initPeer();
+    const waitForPeer=setInterval(()=>{
+      if(G.peer&&G.peer.open){
+        clearInterval(waitForPeer);
+        doJoin(code);
+      }
+    },500);
+    setTimeout(()=>{clearInterval(waitForPeer);if(!G.conn||!G.conn.open){$('join-status').textContent='连接超时';$('join-status').className='status-text error'}},10000);
+  }else{
+    doJoin(code);
+  }
+}
+
+function doJoin(code){
   $('join-status').textContent='正在连接...';
   $('join-status').className='status-text';
   
   const hostId='wl-'+code.toLowerCase()+'-host';
-  G.conn=G.peer.connect(hostId);
+  const conn=G.peer.connect(hostId);
   
-  G.conn.on('open',()=>{
+  if(!conn){
+    $('join-status').textContent='连接失败，请重试';
+    $('join-status').className='status-text error';
+    return;
+  }
+  
+  G.conn=conn;
+  
+  conn.on('open',()=>{
     G.conn.send({type:'join',name:G.user});
   });
   
-  G.conn.on('data',d=>handleMsg(d,G.conn));
+  conn.on('data',d=>handleMsg(d,G.conn));
   
-  G.conn.on('error',err=>{
+  conn.on('error',err=>{
     if(err.type==='peer-unavailable'){
       $('join-status').textContent='房间不存在或已关闭';
       $('join-status').className='status-text error';
@@ -199,6 +225,11 @@ function joinRoom(){
       $('join-status').textContent='连接失败';
       $('join-status').className='status-text error';
     }
+  });
+  
+  conn.on('close',()=>{
+    $('join-status').textContent='连接已断开';
+    $('join-status').className='status-text error';
   });
 }
 
