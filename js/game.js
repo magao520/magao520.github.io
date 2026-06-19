@@ -67,6 +67,11 @@ function initPeer(){
       G.peer=new Peer();
       setupPeerHandlers();
     }
+    // 通知加入面板
+    if(err.type==='peer-unavailable'&&$('join-panel').style.display!=='none'){
+      $('join-status').textContent='房间不存在或已关闭';
+      $('join-status').className='status-text error';
+    }
   });
   G.peer.on('connection',conn=>{
     handleConnection(conn);
@@ -79,10 +84,12 @@ function setupPeerHandlers(){
 }
 
 function handleConnection(conn){
+  // 先注册data handler，防止消息在open后丢失
+  conn.on('data',d=>handleMsg(d,conn));
   conn.on('open',()=>{
-    conn.on('data',d=>handleMsg(d,conn));
-    conn.on('close',()=>{G.roomPeers=G.roomPeers.filter(p=>p.conn!==conn);updateRoomPlayers()});
+    // 连接已建立，等待对方发送join消息
   });
+  conn.on('close',()=>{G.roomPeers=G.roomPeers.filter(p=>p.conn!==conn);updateRoomPlayers()});
 }
 
 function send(data){if(G.conn&&G.conn.open)G.conn.send(data)}
@@ -191,37 +198,66 @@ function joinRoom(){
   const code=$('join-code').value.trim().toUpperCase();
   if(code.length<4){$('join-status').textContent='请输入有效的房间码';$('join-status').className='status-text error';return}
 
-  if(!G.peer||G.peer.disconnected){
-    $('join-status').textContent='正在重新连接...';
+  // 检查Peer是否可用
+  if(!G.peer||!G.peer.open){
+    $('join-status').textContent='正在连接服务器...';
     $('join-status').className='status-text';
-    G.peer=null;initPeer();
+    if(G.peer){G.peer.destroy();G.peer=null}
+    initPeer();
     const waitForPeer=setInterval(()=>{
-      if(G.peer&&G.peer.open){clearInterval(waitForPeer);doJoin(code)}
-    },500);
-    setTimeout(()=>{clearInterval(waitForPeer);if(!G.conn||!G.conn.open){$('join-status').textContent='连接超时';$('join-status').className='status-text error'}},10000);
+      if(G.peer&&G.peer.open){
+        clearInterval(waitForPeer);
+        doJoin(code);
+      }
+    },300);
+    setTimeout(()=>{
+      clearInterval(waitForPeer);
+      if(!G.conn||!G.conn.open){
+        $('join-status').textContent='服务器连接超时，请刷新重试';
+        $('join-status').className='status-text error';
+      }
+    },15000);
   }else{
     doJoin(code);
   }
 }
 
 function doJoin(code){
-  $('join-status').textContent='正在连接...';
+  $('join-status').textContent='正在连接房间...';
   $('join-status').className='status-text';
 
   const hostId='wl-'+code.toLowerCase()+'-host';
-  const conn=G.peer.connect(hostId);
+  const conn=G.peer.connect(hostId,{reliable:true});
 
-  if(!conn){$('join-status').textContent='连接失败，请重试';$('join-status').className='status-text error';return}
+  if(!conn){
+    $('join-status').textContent='连接失败，请重试';
+    $('join-status').className='status-text error';
+    return;
+  }
 
   G.conn=conn;
 
-  conn.on('open',()=>{G.conn.send({type:'join',name:G.user})});
+  // 先注册data handler，再等open
   conn.on('data',d=>handleMsg(d,G.conn));
-  conn.on('error',err=>{
-    if(err.type==='peer-unavailable'){$('join-status').textContent='房间不存在或已关闭';$('join-status').className='status-text error'}
-    else{$('join-status').textContent='连接失败';$('join-status').className='status-text error'}
+  conn.on('open',()=>{
+    $('join-status').textContent='已连接，正在加入...';
+    G.conn.send({type:'join',name:G.user});
   });
-  conn.on('close',()=>{$('join-status').textContent='连接已断开';$('join-status').className='status-text error'});
+  conn.on('close',()=>{
+    if(!$('join-status').textContent.includes('已加入')){
+      $('join-status').textContent='连接已断开';
+      $('join-status').className='status-text error';
+    }
+  });
+
+  // 超时检测
+  setTimeout(()=>{
+    if(!conn.open){
+      $('join-status').textContent='连接超时，请检查房间码是否正确';
+      $('join-status').className='status-text error';
+      conn.close();
+    }
+  },10000);
 }
 
 function copyCode(){
