@@ -76,7 +76,7 @@ function initMQTT(){
     G.mqtt=mqtt.connect(MQTT_BROKER,{
       clientId:'wl_'+G.myId||genId(),
       clean:true,connectTimeout:10000,reconnectPeriod:3000,
-      keepalive:30
+      keepalive:60
     });
     G.mqtt.on('connect',()=>{
       G.mqttConnected=true;
@@ -87,8 +87,12 @@ function initMQTT(){
       // 订阅大厅事件频道 + 所有房间列表（retained）
       G.mqtt.subscribe(TOPIC_LOBBY,{qos:0});
       G.mqtt.subscribe(TOPIC_ROOMS,{qos:0});
-      // 如果已有房间，补发 retained
-      if(G.roomCode&&G.isHost)publishRoomInfo();
+      // 如果在房间里，重新订阅房间聊天频道
+      if(G.roomCode){
+        G.mqtt.subscribe(roomTopic(G.roomCode),{qos:0});
+        // 如果是主机，补发房间信息
+        if(G.isHost)publishRoomInfo();
+      }
     });
     G.mqtt.on('message',(topic,payload)=>{
       try{
@@ -192,7 +196,7 @@ function handleRoomMsg(msg){
       publishLobby('update');
       // 发送欢迎消息（包含完整玩家列表+当前游戏状态）
       publishRoom({type:'welcome',targetId:msg.playerId,
-        players:G.roomPeers.map(p=>({id:p.id,name:p.name})),
+        players:G.roomPeers.filter(p=>p.id!==G.myId).map(p=>({id:p.id,name:p.name})),
         hostName:G.user,game:G.gameType,roomCode:G.roomCode,
         inGame:G.inGame,
         gameState:G.inGame?serializeGameState():null
@@ -221,7 +225,7 @@ function handleRoomMsg(msg){
     case 'start-game':
       G.gameType=msg.game;G.inGame=true;G.gameOver=false;G.myTurn=false;
       G.deck=msg.deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
-      G.players=msg.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}))}));
+      G.players=msg.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:p.id===G.myId}));
       G.pot=msg.pot;G.currentBet=msg.currentBet;
       G.playerOrder=msg.playerOrder||G.players.map(p=>p.id);
       G.turnIndex=msg.turnIndex||0;
@@ -264,7 +268,7 @@ function deserializeGameState(state){
   G.gameType=state.gameType;
   G.deck=state.deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
   G.pot=state.pot;G.currentBet=state.currentBet;
-  G.players=state.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}))}));
+  G.players=state.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:p.id===G.myId}));
   G.playerOrder=state.playerOrder;G.turnIndex=state.turnIndex;G.gameOver=state.gameOver;
   G.inGame=true;
   checkMyTurn();
@@ -390,7 +394,11 @@ function showWaitPanel(isHost){
 
 function updateWaitPlayers(){
   const el=$('wait-players');if(!el)return;
-  el.innerHTML=G.roomPeers.map(p=>`<div class="wait-player"><div class="dot"></div><div class="name">${escHTML(p.name)}${p.id===G.myId?' (搭桌人)':''}</div><div class="tag">${p.id===G.myId?'已连接':'已到达'}</div></div>`).join('');
+  el.innerHTML=G.roomPeers.map(p=>{
+    const isHostPlayer=(G.isHost&&p.id===G.myId)||(!G.isHost&&p.id==='host');
+    const isMe=p.id===G.myId;
+    return`<div class="wait-player"><div class="dot"></div><div class="name">${escHTML(p.name)}${isHostPlayer?' (搭桌人)':''}</div><div class="tag">${isMe?'已连接':'已到达'}</div></div>`;
+  }).join('');
   if(G.isHost){
     const c=G.roomPeers.length;
     $('start-btn').disabled=c<2;
@@ -454,6 +462,7 @@ function cleanupAll(){
 // ==================== 开始游戏 ====================
 function hostStartGame(){
   if(!G.isHost||G.roomPeers.length<2)return;
+  if(!G.mqttConnected){toast('信号断开，无法开局');return}
   const deck=makeDeck();const players=[];
   G.playerOrder=G.roomPeers.map(p=>p.id);
 
@@ -466,22 +475,17 @@ function hostStartGame(){
   }
   G.players=players;G.gameOver=false;G.inGame=true;G.turnIndex=0;
 
-  // 广播游戏开始（每个人看到自己的isMe）
-  const baseMsg={
+  // 广播游戏开始（所有人收到相同的消息，客户端自行判断isMe）
+  const gameMsg={
     type:'start-game',game:G.gameType,
     deck:deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),
+    players:players.map(pl=>({id:pl.id,name:pl.name,cards:pl.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),chips:pl.chips,bet:pl.bet,folded:pl.folded,seen:pl.seen,busted:pl.busted})),
     pot:G.pot,currentBet:G.currentBet,
     playerOrder:G.playerOrder,turnIndex:0
   };
-  // 给每个玩家发带isMe标记的版本
-  for(const p of G.roomPeers){
-    const msg=JSON.parse(JSON.stringify(baseMsg));
-    msg.players=players.map(pl=>({...pl,cards:pl.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:pl.id===p.id}));
-    msg._targetId=p.id;
-    publishRoom(msg);
-  }
+  publishRoom(gameMsg);
 
-  // 主机自己
+  // 主机自己标记isMe
   G.players.forEach(pl=>{pl.isMe=pl.id===G.myId});
   checkMyTurn();
   $('wait-panel').style.display='none';
