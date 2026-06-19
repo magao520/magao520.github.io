@@ -3,161 +3,182 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>末日赌场 - 废土娱乐</title>
+<title>废土交易所 - 生存物资赌场</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Special+Elite&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0a0a0f;--panel:#12121a;--accent:#ff2a2a;--glow:rgba(255,42,42,.3);--gold:#d4a017;--gold-glow:rgba(212,160,23,.3);--green:#2ecc71;--text:#e0e0e0;--dim:#666;--border:#2a2a3a}
+:root{--bg:#1a1610;--panel:#231f18;--accent:#c4463a;--glow:rgba(196,70,58,.3);--gold:#b8960f;--gold-glow:rgba(184,150,15,.3);--green:#5a8a3c;--text:#d4c8a8;--dim:#7a7060;--border:#3a352a;--red:#8b2020}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-serif;min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.15) 2px,rgba(0,0,0,.15) 4px);pointer-events:none;z-index:1000}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.08) 3px,rgba(0,0,0,.08) 6px);pointer-events:none;z-index:1000}
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(255,200,100,.04),transparent 60%);pointer-events:none;z-index:999}
 
-/* 登录 */
-#auth-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#1a1a2e,#0a0a0f);z-index:100}
-.auth-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:40px;width:400px;text-align:center;position:relative;overflow:hidden}
-.auth-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--gold),var(--accent));background-size:200% 100%;animation:scan 3s linear infinite}
-@keyframes scan{0%{background-position:-200% 0}100%{background-position:200% 0}}
-.logo{font-family:'Orbitron',sans-serif;font-size:32px;font-weight:900;color:var(--accent);text-shadow:0 0 20px var(--glow);margin-bottom:8px;letter-spacing:4px}
-.logo-sub{font-size:12px;color:var(--dim);letter-spacing:6px;margin-bottom:30px}
-.auth-input{width:100%;padding:12px 16px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;margin-bottom:12px;outline:none;transition:.3s}
-.auth-input:focus{border-color:var(--accent);box-shadow:0 0 10px var(--glow)}
-.auth-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),#c41e1e);border:none;border-radius:6px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;transition:.3s;margin-top:8px;text-transform:uppercase;letter-spacing:2px}
-.auth-btn:hover{box-shadow:0 0 20px var(--glow);transform:translateY(-1px)}
+/* 登录 - 消杀缓冲区 */
+#auth-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#2a2418,#1a1610);z-index:100}
+.auth-box{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:36px;width:380px;text-align:center;position:relative;overflow:hidden}
+.auth-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:repeating-linear-gradient(90deg,var(--accent),var(--gold),var(--accent));background-size:40px 100%}
+.auth-box::after{content:'';position:absolute;bottom:0;right:0;width:60px;height:60px;background:radial-gradient(circle,rgba(255,200,100,.05),transparent);pointer-events:none}
+.logo{font-family:'Special Elite',cursive;font-size:28px;color:var(--gold);text-shadow:0 0 20px var(--gold-glow);margin-bottom:4px;letter-spacing:2px}
+.logo-sub{font-size:11px;color:var(--dim);letter-spacing:8px;margin-bottom:8px}
+.logo-warn{font-size:10px;color:var(--accent);margin-bottom:24px;padding:6px;border:1px dashed var(--accent);letter-spacing:1px}
+.auth-input{width:100%;padding:12px 16px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:14px;margin-bottom:12px;outline:none;transition:.3s;font-family:inherit}
+.auth-input:focus{border-color:var(--gold);box-shadow:0 0 10px var(--gold-glow)}
+.auth-input::placeholder{color:var(--dim)}
+.auth-btn{width:100%;padding:14px;background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border:1px solid var(--gold);border-radius:2px;color:var(--gold);font-size:14px;font-weight:700;cursor:pointer;transition:.3s;letter-spacing:4px;font-family:inherit}
+.auth-btn:hover{background:linear-gradient(135deg,#4a3a2a,#3a2a1a);box-shadow:0 0 20px var(--gold-glow)}
 
 /* 顶栏 */
 #main-screen{display:none;min-height:100vh}
-.top-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:rgba(10,10,15,.9);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;backdrop-filter:blur(10px)}
-.top-bar .logo-sm{font-family:'Orbitron',sans-serif;font-size:18px;color:var(--accent);letter-spacing:2px}
-.user-info{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.chip-display{display:flex;align-items:center;gap:8px;background:rgba(212,160,23,.1);border:1px solid rgba(212,160,23,.3);padding:6px 14px;border-radius:20px;font-family:'Orbitron',sans-serif;font-size:14px;color:var(--gold)}
-.chip-icon{width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#b8860b);border:2px solid #fff;box-shadow:0 0 8px var(--gold-glow)}
-.online-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);display:inline-block;margin-right:4px}
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(26,22,16,.95);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.top-bar .logo-sm{font-family:'Special Elite',cursive;font-size:16px;color:var(--gold);letter-spacing:1px}
+.user-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+物资-display{display:flex;align-items:center;gap:6px;background:rgba(184,150,15,.08);border:1px solid rgba(184,150,15,.2);padding:5px 12px;border-radius:2px;font-size:13px;color:var(--gold)}
+物资-icon{font-size:16px}
+.online-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 4px var(--green);display:inline-block;margin-right:3px}
 .online-dot.off{background:#555;box-shadow:none}
-.sm-btn{background:transparent;border:1px solid var(--border);color:var(--dim);padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;transition:.3s}
+.sm-btn{background:transparent;border:1px solid var(--border);color:var(--dim);padding:5px 12px;border-radius:2px;cursor:pointer;font-size:11px;transition:.3s;font-family:inherit}
 .sm-btn:hover{border-color:var(--accent);color:var(--accent)}
 
 /* 大厅 */
-.lobby{padding:30px 24px;max-width:1100px;margin:0 auto}
-.lobby-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
-.lobby-title{font-family:'Orbitron',sans-serif;font-size:20px;color:var(--text)}
-.create-btn{padding:10px 24px;background:linear-gradient(135deg,var(--accent),#8b0000);border:none;border-radius:6px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:1px;transition:.3s}
-.create-btn:hover{box-shadow:0 0 20px var(--glow);transform:translateY(-1px)}
+.lobby{padding:24px 20px;max-width:1100px;margin:0 auto}
+.lobby-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.lobby-title{font-family:'Special Elite',cursive;font-size:18px;color:var(--gold)}
+.lobby-subtitle{font-size:11px;color:var(--dim);margin-top:4px;letter-spacing:1px}
+.create-btn{padding:8px 20px;background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border:1px solid var(--gold);border-radius:2px;color:var(--gold);font-size:13px;font-weight:700;cursor:pointer;letter-spacing:2px;transition:.3s;font-family:inherit}
+.create-btn:hover{box-shadow:0 0 15px var(--gold-glow)}
 
 /* 牌桌网格 */
-.tables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+.tables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
 
-/* 单个牌桌卡片 */
-.table-card{background:var(--panel);border:2px solid var(--border);border-radius:16px;overflow:hidden;transition:.4s;cursor:pointer;position:relative}
-.table-card:hover{border-color:var(--accent);box-shadow:0 0 30px rgba(255,42,42,.15);transform:translateY(-3px)}
+/* 牌桌卡片 */
+.table-card{background:var(--panel);border:1px solid var(--border);border-radius:4px;overflow:hidden;transition:.4s;cursor:pointer;position:relative}
+.table-card:hover{border-color:var(--gold);box-shadow:0 0 20px rgba(184,150,15,.1);transform:translateY(-2px)}
 .table-card.full{opacity:.5;cursor:not-allowed}
 .table-card.full:hover{transform:none;border-color:var(--border);box-shadow:none}
 
-/* 牌桌视觉 */
-.table-visual{position:relative;height:160px;background:radial-gradient(ellipse at center,#1a3a1a,#0d1f0d 60%,#0a0f0a);border-bottom:2px solid #2a4a2a;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.table-visual::before{content:'';position:absolute;inset:6px;border:1px dashed rgba(46,204,113,.15);border-radius:10px;pointer-events:none}
-.table-visual::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(46,204,113,.08),transparent 60%);pointer-events:none}
+/* 牌桌视觉 - 仓储货架风格 */
+.table-visual{position:relative;height:150px;background:radial-gradient(ellipse at center,#2a3a20,#1a2a10 60%,#0f1a0a);border-bottom:1px solid #3a4a2a;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.table-visual::before{content:'';position:absolute;inset:4px;border:1px dashed rgba(90,138,60,.15);border-radius:2px;pointer-events:none}
+.table-visual::after{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:60%;height:40%;background:radial-gradient(ellipse,rgba(255,200,100,.06),transparent);pointer-events:none}
+
+/* 蜡烛光效 */
+.candle-glow{position:absolute;top:8px;right:12px;width:8px;height:12px;background:radial-gradient(circle,#ffcc44,#ff8800,transparent);border-radius:50% 50% 30% 30%;box-shadow:0 0 20px 8px rgba(255,180,60,.3);animation:flicker 3s ease-in-out infinite alternate}
+@keyframes flicker{0%{opacity:.8;transform:scale(1)}25%{opacity:.6;transform:scale(.95)}50%{opacity:.9;transform:scale(1.02)}75%{opacity:.7;transform:scale(.98)}100%{opacity:.85;transform:scale(1)}}
 
 /* 座位 */
-.seats{position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
-.seat{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:12px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.1);transition:.3s}
-.seat.occupied{border-color:var(--green);background:rgba(46,204,113,.1)}
+.seats{position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.seat{display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:2px;font-size:11px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08);transition:.3s}
+.seat.occupied{border-color:var(--green);background:rgba(90,138,60,.1);color:var(--text)}
 .seat.empty{border-color:var(--dim);color:var(--dim)}
-.seat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.seat.occupied .seat-dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+.seat-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.seat.occupied .seat-dot{background:var(--green);box-shadow:0 0 4px var(--green)}
 .seat.empty .seat-dot{background:var(--dim)}
 
 /* 牌桌信息 */
-.table-info{padding:14px 16px}
-.table-name{font-family:'Orbitron',sans-serif;font-size:14px;color:var(--gold);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
-.table-game{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:2px}
-.table-meta{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
-.table-players{font-size:12px;color:var(--dim)}
-.table-status{font-size:11px;padding:3px 10px;border-radius:10px;font-weight:700}
-.table-status.waiting{background:rgba(212,160,23,.15);color:var(--gold);border:1px solid rgba(212,160,23,.3)}
-.table-status.playing{background:rgba(255,42,42,.15);color:var(--accent);border:1px solid rgba(255,42,42,.3)}
+.table-info{padding:12px 14px}
+.table-name{font-family:'Special Elite',cursive;font-size:13px;color:var(--gold);margin-bottom:3px;display:flex;align-items:center;justify-content:space-between}
+.table-game{font-size:10px;color:var(--dim);letter-spacing:2px}
+.table-meta{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+.table-players{font-size:11px;color:var(--dim)}
+.table-status{font-size:10px;padding:2px 8px;border-radius:2px;font-weight:700}
+.table-status.waiting{background:rgba(184,150,15,.1);color:var(--gold);border:1px solid rgba(184,150,15,.2)}
+.table-status.playing{background:rgba(196,70,58,.1);color:var(--accent);border:1px solid rgba(196,70,58,.2)}
 
-/* 空桌提示 */
-.empty-lobby{text-align:center;padding:60px 20px;color:var(--dim)}
-.empty-lobby .icon{font-size:64px;margin-bottom:16px;opacity:.3}
-.empty-lobby p{font-size:14px;margin-bottom:20px}
+/* 空大厅 */
+.empty-lobby{text-align:center;padding:50px 20px;color:var(--dim)}
+.empty-lobby .icon{font-size:48px;margin-bottom:12px;opacity:.3}
+.empty-lobby p{font-size:13px;margin-bottom:8px}
 
-/* 创建弹窗 */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:200}
+/* 弹窗 */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:200}
 .modal-overlay.open{display:flex}
-.modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:30px;text-align:center;max-width:420px;width:90%}
-.modal h3{font-family:'Orbitron',sans-serif;font-size:18px;color:var(--gold);margin-bottom:20px}
-.modal-btn{padding:12px 32px;background:linear-gradient(135deg,var(--accent),#8b0000);border:none;border-radius:6px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:2px;margin-top:16px}
-.game-option{display:flex;gap:12px;margin-bottom:20px}
-.game-opt{flex:1;padding:16px;background:rgba(255,255,255,.03);border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:.3s;text-align:center}
-.game-opt:hover{border-color:var(--accent);background:rgba(255,42,42,.05)}
-.game-opt.selected{border-color:var(--accent);background:rgba(255,42,42,.1)}
-.game-opt .icon{font-size:32px;margin-bottom:6px}
-.game-opt .name{font-size:13px;font-weight:700}
-.invite-link{width:100%;padding:10px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;word-break:break-all;margin-top:12px;cursor:pointer;text-align:left}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:28px;text-align:center;max-width:420px;width:90%}
+.modal h3{font-family:'Special Elite',cursive;font-size:16px;color:var(--gold);margin-bottom:16px}
+.modal-btn{padding:10px 28px;background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border:1px solid var(--gold);border-radius:2px;color:var(--gold);font-size:13px;font-weight:700;cursor:pointer;letter-spacing:2px;font-family:inherit}
+.game-option{display:flex;gap:10px;margin-bottom:16px}
+.game-opt{flex:1;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px;cursor:pointer;transition:.3s;text-align:center}
+.game-opt:hover{border-color:var(--gold);background:rgba(184,150,15,.05)}
+.game-opt.selected{border-color:var(--gold);background:rgba(184,150,15,.08)}
+.game-opt .icon{font-size:28px;margin-bottom:4px}
+.game-opt .name{font-size:12px;font-weight:700;color:var(--text)}
+.game-opt .desc{font-size:10px;color:var(--dim);margin-top:2px}
+.invite-link{width:100%;padding:8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:11px;word-break:break-all;margin-top:10px;cursor:pointer;text-align:left}
 .invite-link:hover{border-color:var(--gold)}
-.invite-hint{font-size:11px;color:var(--dim);margin-top:6px}
+.invite-hint{font-size:10px;color:var(--dim);margin-top:4px}
 
 /* 等待面板 */
-.wait-panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:30px;max-width:500px;margin:20px auto;text-align:center}
-.wait-panel h3{font-family:'Orbitron',sans-serif;font-size:16px;color:var(--gold);margin-bottom:16px}
-.wait-players{margin:16px 0}
-.wait-player{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:6px;margin:6px 0;background:rgba(255,255,255,.02)}
-.wait-player .dot{width:10px;height:10px;border-radius:50%;background:var(--green)}
-.wait-player .name{flex:1;text-align:left;font-size:14px}
-.wait-player .tag{font-size:11px;color:var(--dim)}
-.start-game-btn{margin-top:16px;padding:14px 40px;background:linear-gradient(135deg,var(--green),#1e7e34);border:none;border-radius:6px;color:#fff;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:2px}
+.wait-panel{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:24px;max-width:500px;margin:16px auto;text-align:center}
+.wait-panel h3{font-family:'Special Elite',cursive;font-size:15px;color:var(--gold);margin-bottom:12px}
+.wait-players{margin:12px 0}
+.wait-player{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--border);border-radius:2px;margin:4px 0;background:rgba(255,255,255,.01)}
+.wait-player .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.wait-player .name{flex:1;text-align:left;font-size:13px}
+.wait-player .tag{font-size:10px;color:var(--dim)}
+.start-game-btn{margin-top:12px;padding:12px 36px;background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border:1px solid var(--gold);border-radius:2px;color:var(--gold);font-size:14px;font-weight:700;cursor:pointer;letter-spacing:3px;font-family:inherit}
 .start-game-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* 汇率板 */
+.exchange-rate{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;padding:10px 14px;margin:16px auto;max-width:500px;font-size:11px;color:var(--dim)}
+.exchange-rate .title{font-family:'Special Elite',cursive;color:var(--accent);font-size:12px;margin-bottom:6px;letter-spacing:1px}
+.exchange-rate .rate-row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.exchange-rate .rate-row:last-child{border-bottom:none}
 
 /* 游戏界面 */
 #game-screen{display:none;min-height:100vh;padding-bottom:40px}
-.game-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;background:rgba(10,10,15,.95);border-bottom:1px solid var(--border)}
-.game-title{font-family:'Orbitron',sans-serif;font-size:18px}
-.table-area{max-width:900px;margin:30px auto;padding:0 20px}
-.poker-table{background:radial-gradient(ellipse at center,#1a3a1a,#0d1f0d 60%,#0a0f0a);border:3px solid #2a4a2a;border-radius:20px;padding:30px;position:relative;box-shadow:inset 0 0 60px rgba(0,0,0,.5),0 0 40px rgba(46,204,113,.1)}
-.poker-table::before{content:'';position:absolute;inset:8px;border:1px dashed rgba(46,204,113,.2);border-radius:14px;pointer-events:none}
-.player-area{display:flex;flex-direction:column;align-items:center;margin:16px 0}
-.player-name{font-size:13px;color:var(--dim);margin-bottom:8px}
-.player-name.active{color:var(--accent);text-shadow:0 0 10px var(--glow)}
-.cards-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
-.card{width:72px;height:100px;background:#fff;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4);transition:.3s;font-family:'Orbitron',sans-serif;user-select:none}
-.card.red{color:#d32f2f}.card.black{color:#212121}
-.card-back{width:72px;height:100px;background:linear-gradient(135deg,#1a237e,#0d47a1);border-radius:8px;border:2px solid #3949ab;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4)}
-.card-back::after{content:'\2620';font-size:28px;color:rgba(255,255,255,.3)}
-.card-rank{font-size:24px;font-weight:700}.card-suit{font-size:28px}
-.card:hover{transform:translateY(-4px);box-shadow:0 6px 16px rgba(0,0,0,.5)}
-.pot-area{text-align:center;padding:20px;margin:20px 0}
-.pot-label{font-size:12px;color:var(--dim);letter-spacing:3px;text-transform:uppercase}
-.pot-amount{font-family:'Orbitron',sans-serif;font-size:36px;color:var(--gold);text-shadow:0 0 20px var(--gold-glow);margin-top:4px}
-.action-bar{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:12px;border:1px solid var(--border)}
-.action-btn{padding:12px 28px;border:1px solid var(--border);border-radius:6px;background:rgba(255,255,255,.03);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;transition:.3s;min-width:100px;text-transform:uppercase;letter-spacing:1px}
-.action-btn:hover:not(:disabled){border-color:var(--accent);box-shadow:0 0 15px var(--glow)}
+.game-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:rgba(26,22,16,.95);border-bottom:1px solid var(--border)}
+.game-title{font-family:'Special Elite',cursive;font-size:16px;color:var(--gold)}
+.table-area{max-width:900px;margin:24px auto;padding:0 16px}
+.poker-table{background:radial-gradient(ellipse at center,#2a3a20,#1a2a10 60%,#0f1a0a);border:2px solid #3a4a2a;border-radius:8px;padding:24px;position:relative;box-shadow:inset 0 0 40px rgba(0,0,0,.5),0 0 20px rgba(90,138,60,.08)}
+.poker-table::before{content:'';position:absolute;inset:6px;border:1px dashed rgba(90,138,60,.12);border-radius:4px;pointer-events:none}
+.player-area{display:flex;flex-direction:column;align-items:center;margin:12px 0}
+.player-name{font-size:12px;color:var(--dim);margin-bottom:6px}
+.player-name.active{color:var(--accent);text-shadow:0 0 8px var(--glow)}
+.cards-row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.card{width:64px;height:90px;background:#f0e8d0;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);transition:.3s;font-family:'Special Elite',cursive;user-select:none;border:1px solid #c0b890}
+.card.red{color:#8b2020}.card.black{color:#2a2a2a}
+.card-back{width:64px;height:90px;background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border-radius:4px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.card-back::after{content:'\2620';font-size:24px;color:rgba(184,150,15,.2)}
+.card-rank{font-size:22px;font-weight:700}.card-suit{font-size:24px}
+.card:hover{transform:translateY(-3px);box-shadow:0 4px 12px rgba(0,0,0,.5)}
+.pot-area{text-align:center;padding:16px;margin:16px 0}
+.pot-label{font-size:10px;color:var(--dim);letter-spacing:3px}
+.pot-amount{font-family:'Special Elite',cursive;font-size:32px;color:var(--gold);text-shadow:0 0 15px var(--gold-glow);margin-top:2px}
+.action-bar{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px;padding:16px;background:rgba(0,0,0,.3);border-radius:4px;border:1px solid var(--border)}
+.action-btn{padding:10px 24px;border:1px solid var(--border);border-radius:2px;background:rgba(255,255,255,.02);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;transition:.3s;min-width:80px;font-family:inherit}
+.action-btn:hover:not(:disabled){border-color:var(--gold);box-shadow:0 0 10px var(--gold-glow)}
 .action-btn:disabled{opacity:.3;cursor:not-allowed}
-.action-btn.primary{background:linear-gradient(135deg,var(--accent),#8b0000);border-color:var(--accent);color:#fff}
-.action-btn.success{background:linear-gradient(135deg,var(--green),#1e7e34);border-color:var(--green);color:#fff}
-.action-btn.warning{background:linear-gradient(135deg,var(--gold),#8b6914);border-color:var(--gold);color:#1a1a1a}
-.game-log{max-width:900px;margin:20px auto;padding:0 20px}
-.log-panel{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;padding:16px;max-height:200px;overflow-y:auto;font-size:13px}
-.log-entry{padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03);color:var(--dim)}
+.action-btn.primary{background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border-color:var(--gold);color:var(--gold)}
+.action-btn.success{background:linear-gradient(135deg,#2a3a1a,#1a2a0a);border-color:var(--green);color:var(--green)}
+.action-btn.warning{background:linear-gradient(135deg,#3a3020,#2a2010);border-color:var(--gold);color:var(--gold)}
+.action-btn.danger{background:linear-gradient(135deg,#3a1a1a,#2a0a0a);border-color:var(--accent);color:var(--accent)}
+.game-log{max-width:900px;margin:16px auto;padding:0 16px}
+.log-panel{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;padding:12px;max-height:180px;overflow-y:auto;font-size:12px}
+.log-entry{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.02);color:var(--dim)}
 .log-entry:last-child{border-bottom:none}
 .log-entry.system{color:var(--accent)}.log-entry.win{color:var(--gold)}.log-entry.lose{color:#888}
-.modal-title{font-family:'Orbitron',sans-serif;font-size:28px;margin-bottom:16px}
-.modal-title.win{color:var(--gold);text-shadow:0 0 20px var(--gold-glow)}
+.modal-title{font-family:'Special Elite',cursive;font-size:24px;margin-bottom:12px}
+.modal-title.win{color:var(--gold);text-shadow:0 0 15px var(--gold-glow)}
 .modal-title.lose{color:var(--dim)}
-.modal-text{font-size:15px;color:var(--text);margin-bottom:24px;line-height:1.6}
-.hand-type{font-size:11px;color:var(--gold);margin-top:4px;text-align:center}
+.modal-text{font-size:14px;color:var(--text);margin-bottom:20px;line-height:1.6}
+.hand-type{font-size:10px;color:var(--gold);margin-top:3px;text-align:center}
+
+/* 蜡烛计时条 */
+.candle-bar{position:relative;height:6px;background:var(--border);border-radius:3px;margin:12px auto;max-width:400px;overflow:hidden}
+.candle-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--accent));border-radius:3px;transition:width 1s linear}
+.candle-label{font-size:10px;color:var(--dim);text-align:center;margin-top:2px}
 
 /* toast */
-.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);padding:12px 24px;background:var(--green);color:#fff;border-radius:8px;font-size:14px;font-weight:700;z-index:999;animation:toastIn .3s ease-out,toastOut .3s ease-in 2.7s forwards;pointer-events:none}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);padding:10px 20px;background:rgba(42,32,16,.95);border:1px solid var(--gold);color:var(--gold);border-radius:2px;font-size:13px;font-weight:700;z-index:999;animation:toastIn .3s ease-out,toastOut .3s ease-in 2.7s forwards;pointer-events:none;font-family:inherit}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @keyframes toastOut{from{opacity:1}to{opacity:0}}
 
 @media(max-width:640px){
-  .auth-box{width:90%;padding:30px 20px}.logo{font-size:24px}
+  .auth-box{width:90%;padding:24px 16px}.logo{font-size:22px}
   .tables-grid{grid-template-columns:1fr}
-  .card,.card-back{width:56px;height:78px}.card-rank{font-size:18px}.card-suit{font-size:22px}
-  .action-btn{padding:10px 18px;font-size:12px;min-width:80px}.pot-amount{font-size:24px}
+  .card,.card-back{width:52px;height:72px}.card-rank{font-size:18px}.card-suit{font-size:20px}
+  .action-btn{padding:8px 16px;font-size:11px;min-width:70px}.pot-amount{font-size:24px}
 }
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .fade-in{animation:fadeIn .5s ease-out}
 </style>
@@ -166,76 +187,87 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 
 <div id="auth-screen">
   <div class="auth-box fade-in">
-    <div class="logo">WASTELAND</div>
-    <div class="logo-sub">末日赌场</div>
-    <input type="text" class="auth-input" id="auth-name" placeholder="输入昵称" maxlength="12">
-    <button class="auth-btn" id="auth-btn">进入赌场</button>
-    <div style="margin-top:16px;font-size:13px;color:var(--dim)"><span id="auth-hint">输入昵称即可开始</span></div>
+    <div class="logo">WASTELAND EXCHANGE</div>
+    <div class="logo-sub">废 土 交 易 所</div>
+    <div class="logo-warn">咳嗽者禁止入内 | 入场需缴纳物资税</div>
+    <input type="text" class="auth-input" id="auth-name" placeholder="输入代号（昵称）" maxlength="12">
+    <button class="auth-btn" id="auth-btn">通 过 消 杀</button>
+    <div style="margin-top:12px;font-size:11px;color:var(--dim)"><span id="auth-hint">体温正常方可入场</span></div>
   </div>
 </div>
 
 <div id="main-screen">
   <div class="top-bar">
-    <div class="logo-sm">WASTELAND</div>
+    <div class="logo-sm">WASTELAND EXCHANGE</div>
     <div class="user-info">
       <span class="online-dot off" id="online-dot"></span>
-      <span id="conn-status" style="font-size:12px;color:var(--dim)">连接中...</span>
-      <div class="chip-display"><div class="chip-icon"></div><span id="user-chips">10000</span></div>
-      <span id="user-name" style="font-size:13px;color:var(--dim)">玩家</span>
-      <button class="sm-btn" onclick="logout()">退出</button>
+      <span id="conn-status" style="font-size:11px;color:var(--dim)">信号搜索中...</span>
+      <div class="物资-display"><span class="物资-icon">💊</span><span id="user-chips">50</span><span style="font-size:10px;color:var(--dim)">单位</span></div>
+      <span id="user-name" style="font-size:12px;color:var(--dim)">幸存者</span>
+      <button class="sm-btn" onclick="logout()">离开交易所</button>
     </div>
   </div>
   <div class="lobby">
     <div class="lobby-header">
-      <div class="lobby-title">牌桌大厅</div>
-      <button class="create-btn" onclick="showCreateModal()">+ 开新桌</button>
+      <div>
+        <div class="lobby-title">仓储区赌桌</div>
+        <div class="lobby-subtitle">货架之间的折叠桌，应急灯照明，电压不稳</div>
+      </div>
+      <button class="create-btn" onclick="showCreateModal()">+ 搭新桌</button>
     </div>
     <div class="tables-grid" id="tables-grid"></div>
+    <div class="exchange-rate" id="exchange-rate">
+      <div class="title">今日汇率（物资估价师鉴定）</div>
+      <div class="rate-row"><span>阿莫西林 x1</span><span>= 5 单位</span></div>
+      <div class="rate-row"><span>压缩饼干 x1</span><span>= 1 单位</span></div>
+      <div class="rate-row"><span>汽油 5L</span><span>= 20 单位</span></div>
+      <div class="rate-row"><span>N95口罩 x1</span><span>= 2 单位</span></div>
+      <div class="rate-row"><span>5号电池 x4</span><span>= 3 单位</span></div>
+    </div>
   </div>
-  <!-- 等待面板(房主) -->
   <div class="wait-panel" id="wait-panel" style="display:none">
-    <h3 id="wait-title">等待玩家</h3>
+    <h3 id="wait-title">等待幸存者</h3>
     <div class="wait-players" id="wait-players"></div>
     <div class="invite-link" id="invite-link" onclick="copyInviteLink()">...</div>
-    <div class="invite-hint">点击链接复制，发给好友直接加入</div>
-    <button class="start-game-btn" id="start-btn" disabled>等待玩家加入... (至少2人)</button>
-    <div style="margin-top:12px"><button class="sm-btn" onclick="closeRoom()">关闭牌桌</button></div>
+    <div class="invite-hint">点击链接复制，发给其他幸存者直接加入</div>
+    <button class="start-game-btn" id="start-btn" disabled onclick="hostStartGame()">等待幸存者... (至少2人)</button>
+    <div style="margin-top:10px"><button class="sm-btn" onclick="closeRoom()">撤掉牌桌</button></div>
   </div>
 </div>
 
-<!-- 创建弹窗 -->
 <div class="modal-overlay" id="create-modal">
   <div class="modal">
-    <h3>开新桌</h3>
+    <h3>搭新桌</h3>
     <div class="game-option">
-      <div class="game-opt selected" onclick="selectGame('zjh',this)"><div class="icon">🔥</div><div class="name">炸金花</div></div>
-      <div class="game-opt" onclick="selectGame('bj',this)"><div class="icon">♠</div><div class="name">二十一点</div></div>
+      <div class="game-opt selected" onclick="selectGame('zjh',this)"><div class="icon">🥫</div><div class="name">物资炸金花</div><div class="desc">低端局 · 罐头级</div></div>
+      <div class="game-opt" onclick="selectGame('bj',this)"><div class="icon">⛽</div><div class="name">物资二十一点</div><div class="desc">中端局 · 汽油级</div></div>
     </div>
-    <button class="modal-btn" onclick="doCreateTable()">开桌</button>
-    <div style="margin-top:12px"><button class="sm-btn" onclick="hideCreateModal()">取消</button></div>
+    <button class="modal-btn" onclick="doCreateTable()">搭桌</button>
+    <div style="margin-top:10px"><button class="sm-btn" onclick="hideCreateModal()">算了</button></div>
   </div>
 </div>
 
-<!-- 游戏结果弹窗 -->
 <div class="modal-overlay" id="result-modal">
   <div class="modal">
-    <div class="modal-title" id="modal-title">胜利</div>
-    <div class="modal-text" id="modal-text">描述</div>
-    <button class="modal-btn" onclick="closeModal()">确定</button>
+    <div class="modal-title" id="modal-title">结算</div>
+    <div class="modal-text" id="modal-text">...</div>
+    <button class="modal-btn" onclick="closeModal()">领物资 / 认栽</button>
   </div>
 </div>
 
 <div id="game-screen">
   <div class="game-header">
-    <button class="sm-btn" onclick="leaveGame()">退出游戏</button>
-    <div class="game-title" id="game-title">炸金花</div>
-    <div class="chip-display"><div class="chip-icon"></div><span id="game-chips">10000</span></div>
+    <button class="sm-btn" onclick="leaveGame()">撤离牌桌</button>
+    <div class="game-title" id="game-title">物资炸金花</div>
+    <div class="物资-display"><span class="物资-icon">💊</span><span id="game-chips">50</span></div>
   </div>
+  <div class="candle-bar"><div class="candle-fill" id="candle-fill" style="width:100%"></div></div>
+  <div class="candle-label" id="candle-label">蜡烛剩余时间 --:--</div>
   <div class="table-area">
     <div class="poker-table">
-      <div class="player-area" id="p2-area"><div class="player-name" id="p2-name">等待中...</div><div class="cards-row" id="p2-cards"></div><div class="hand-type" id="p2-hand"></div></div>
-      <div class="pot-area"><div class="pot-label">底池</div><div class="pot-amount" id="pot-amount">0</div></div>
-      <div class="player-area" id="p1-area"><div class="player-name" id="p1-name">等待中...</div><div class="cards-row" id="p1-cards"></div><div class="hand-type" id="p1-hand"></div></div>
+      <div class="player-area" id="p2-area"><div class="player-name" id="p2-name">空位</div><div class="cards-row" id="p2-cards"></div><div class="hand-type" id="p2-hand"></div></div>
+      <div class="pot-area"><div class="pot-label">底池物资</div><div class="pot-amount" id="pot-amount">0</div></div>
+      <div class="player-area" id="p1-area"><div class="player-name" id="p1-name">空位</div><div class="cards-row" id="p1-cards"></div><div class="hand-type" id="p1-hand"></div></div>
       <div class="player-area" id="p0-area"><div class="player-name" id="p0-name">你</div><div class="cards-row" id="p0-cards"></div><div class="hand-type" id="p0-hand"></div></div>
       <div class="action-bar" id="action-bar"></div>
     </div>
@@ -243,6 +275,6 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=15"></script>
+<script src="js/game.js?v=20"></script>
 </body>
 </html>
