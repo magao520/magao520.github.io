@@ -2,498 +2,896 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>星露谷 - 像素农场</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>末日赌场 - 废土娱乐</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@400;700&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  
+
+  :root {
+    --bg-dark: #0a0a0f;
+    --bg-panel: #12121a;
+    --accent: #ff2a2a;
+    --accent-glow: rgba(255, 42, 42, 0.3);
+    --gold: #d4a017;
+    --gold-glow: rgba(212, 160, 23, 0.3);
+    --green: #2ecc71;
+    --text: #e0e0e0;
+    --text-dim: #666;
+    --border: #2a2a3a;
+  }
+
   body {
-    background: #1a1a2e;
-    overflow: hidden;
-    font-family: 'ZCOOL QingKe HuangYou', sans-serif;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: none;
+    background: var(--bg-dark);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
   }
 
-  #gameCanvas {
-    display: block;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    position: absolute;
-    top: 0; left: 0;
-  }
-
-  /* ===== HUD 顶部信息栏 ===== */
-  #hud {
+  body::before {
+    content: '';
     position: fixed;
-    top: 12px; left: 12px; right: 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px);
     pointer-events: none;
-    z-index: 10;
+    z-index: 1000;
   }
 
-  .hud-panel {
-    background: rgba(30, 20, 10, 0.85);
-    border: 2px solid #8B6914;
-    border-radius: 8px;
-    padding: 8px 14px;
-    color: #E8D5A3;
-    font-size: 14px;
-    pointer-events: auto;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-    line-height: 1.6;
-  }
-
-  .hud-panel .label { color: #A89060; font-size: 12px; }
-  .hud-panel .value { color: #FFD700; font-size: 16px; }
-
-  #hud-left { min-width: 140px; }
-  #hud-right { text-align: right; min-width: 120px; }
-
-  /* ===== 工具栏 底部 ===== */
-  #toolbar {
+  body::after {
+    content: '';
     position: fixed;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 4px;
-    background: rgba(30, 20, 10, 0.9);
-    border: 2px solid #8B6914;
-    border-radius: 10px;
-    padding: 6px 10px;
-    z-index: 10;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
   }
 
-  .tool-slot {
-    width: 52px; height: 52px;
-    background: rgba(60, 40, 20, 0.7);
-    border: 2px solid #5A4020;
-    border-radius: 6px;
+  #auth-screen {
+    position: fixed;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    position: relative;
-    transition: all 0.15s;
-  }
-
-  .tool-slot:hover { border-color: #8B6914; }
-  .tool-slot.active {
-    border-color: #FFD700;
-    background: rgba(100, 70, 30, 0.8);
-    box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
-  }
-
-  .tool-slot canvas {
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-  }
-
-  .tool-slot .tool-name {
-    position: absolute;
-    bottom: -18px;
-    font-size: 10px;
-    color: #E8D5A3;
-    white-space: nowrap;
-    text-shadow: 1px 1px 2px #000;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  .tool-slot.active .tool-name,
-  .tool-slot:hover .tool-name { opacity: 1; }
-
-  .tool-slot .hotkey {
-    position: absolute;
-    top: 2px; right: 4px;
-    font-size: 9px;
-    color: #8B6914;
-  }
-
-  /* ===== 背包面板 ===== */
-  #inventory {
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(30, 20, 10, 0.95);
-    border: 3px solid #8B6914;
-    border-radius: 12px;
-    padding: 20px;
+    background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%);
     z-index: 100;
-    display: none;
-    min-width: 360px;
-    max-height: 80vh;
-    overflow-y: auto;
   }
 
-  #inventory.open { display: block; }
-
-  #inventory h2 {
-    color: #FFD700;
-    font-size: 20px;
-    margin-bottom: 12px;
+  .auth-box {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    width: 380px;
     text-align: center;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    position: relative;
+    overflow: hidden;
   }
 
-  #inv-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 48px);
-    gap: 4px;
-    justify-content: center;
+  .auth-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--gold), var(--accent));
+    background-size: 200% 100%;
+    animation: scan 3s linear infinite;
   }
 
-  .inv-slot {
-    width: 48px; height: 48px;
-    background: rgba(60, 40, 20, 0.6);
-    border: 1px solid #5A4020;
-    border-radius: 4px;
+  @keyframes scan {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--accent);
+    text-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(255,42,42,0.1);
+    margin-bottom: 8px;
+    letter-spacing: 4px;
+  }
+
+  .logo-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 6px;
+    margin-bottom: 30px;
+  }
+
+  .auth-input {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 12px;
+    outline: none;
+    transition: all 0.3s;
+  }
+
+  .auth-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+
+  .auth-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--accent), #c41e1e);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .auth-btn:hover {
+    box-shadow: 0 0 20px var(--accent-glow);
+    transform: translateY(-1px);
+  }
+
+  .auth-toggle {
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .auth-toggle a {
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  #main-screen { display: none; min-height: 100vh; }
+
+  .top-bar {
     display: flex;
     align-items: center;
-    justify-content: center;
-    position: relative;
-    cursor: pointer;
-  }
-
-  .inv-slot:hover { border-color: #8B6914; }
-
-  .inv-slot .count {
-    position: absolute;
-    bottom: 1px; right: 3px;
-    font-size: 10px;
-    color: #FFD700;
-    text-shadow: 1px 1px 1px #000;
-  }
-
-  .inv-slot .item-name {
-    position: absolute;
-    bottom: -16px;
-    font-size: 9px;
-    color: #E8D5A3;
-    white-space: nowrap;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  .inv-slot:hover .item-name { opacity: 1; }
-
-  /* ===== 对话框 ===== */
-  #dialog {
-    position: fixed;
-    bottom: 90px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(600px, calc(100vw - 40px));
-    background: rgba(30, 20, 10, 0.95);
-    border: 3px solid #8B6914;
-    border-radius: 10px;
-    padding: 16px 20px;
+    justify-content: space-between;
+    padding: 12px 24px;
+    background: rgba(10,10,15,0.9);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
     z-index: 50;
-    display: none;
-    color: #E8D5A3;
-    font-size: 15px;
-    line-height: 1.6;
+    backdrop-filter: blur(10px);
   }
 
-  #dialog.open { display: block; }
+  .top-bar .logo-small {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
 
-  #dialog .speaker {
-    color: #FFD700;
-    font-size: 16px;
+  .user-info { display: flex; align-items: center; gap: 20px; }
+
+  .chip-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(212,160,23,0.1);
+    border: 1px solid rgba(212,160,23,0.3);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    color: var(--gold);
+  }
+
+  .chip-icon {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold), #b8860b);
+    border: 2px solid #fff;
+    box-shadow: 0 0 8px var(--gold-glow);
+  }
+
+  .logout-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.3s;
+  }
+
+  .logout-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .lobby {
+    padding: 40px 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .lobby-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 24px;
+    color: var(--text);
+    margin-bottom: 30px;
+    text-align: center;
+  }
+
+  .game-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 24px;
+  }
+
+  .game-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.4s;
+    position: relative;
+  }
+
+  .game-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 30px rgba(255,42,42,0.15);
+    transform: translateY(-4px);
+  }
+
+  .game-card-header {
+    padding: 30px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .game-card-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.1;
+  }
+
+  .game-card:nth-child(1) .game-card-header::before {
+    background: radial-gradient(circle at center, var(--accent), transparent 70%);
+  }
+
+  .game-card:nth-child(2) .game-card-header::before {
+    background: radial-gradient(circle at center, var(--gold), transparent 70%);
+  }
+
+  .game-icon { font-size: 48px; margin-bottom: 12px; }
+
+  .game-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
     margin-bottom: 6px;
   }
 
-  #dialog .text { min-height: 40px; }
+  .game-card:nth-child(1) .game-name { color: var(--accent); }
+  .game-card:nth-child(2) .game-name { color: var(--gold); }
 
-  #dialog .hint {
-    color: #8B6914;
-    font-size: 11px;
-    text-align: right;
-    margin-top: 6px;
+  .game-desc { font-size: 13px; color: var(--text-dim); }
+
+  .game-card-body {
+    padding: 20px 30px;
+    border-top: 1px solid var(--border);
   }
 
-  /* ===== 小地图 ===== */
-  #minimap-container {
-    position: fixed;
-    bottom: 80px;
-    right: 12px;
-    z-index: 10;
-    border: 2px solid #8B6914;
+  .game-stats {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 16px;
+  }
+
+  .stat { text-align: center; }
+
+  .stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 20px;
+    color: var(--text);
+  }
+
+  .stat-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+  .play-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
     border-radius: 6px;
-    overflow: hidden;
-    opacity: 0.85;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 3px;
   }
 
-  #minimap {
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
+  .game-card:nth-child(1) .play-btn {
+    background: linear-gradient(135deg, var(--accent), #8b0000);
+    color: #fff;
   }
 
-  /* ===== Toast 提示 ===== */
-  .toast {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(30, 20, 10, 0.9);
-    border: 2px solid #FFD700;
-    border-radius: 8px;
-    padding: 10px 20px;
-    color: #FFD700;
-    font-size: 16px;
-    z-index: 200;
-    animation: toastAnim 2s ease-out forwards;
+  .game-card:nth-child(2) .play-btn {
+    background: linear-gradient(135deg, var(--gold), #8b6914);
+    color: #1a1a1a;
+  }
+
+  .play-btn:hover {
+    box-shadow: 0 0 20px rgba(255,255,255,0.1);
+    transform: scale(1.02);
+  }
+
+  #game-screen { display: none; min-height: 100vh; padding-bottom: 40px; }
+
+  .game-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    background: rgba(10,10,15,0.95);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .back-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.3s;
+  }
+
+  .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .game-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+  }
+
+  .table-area {
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 0 20px;
+  }
+
+  .poker-table {
+    background: radial-gradient(ellipse at center, #1a3a1a 0%, #0d1f0d 60%, #0a0f0a 100%);
+    border: 3px solid #2a4a2a;
+    border-radius: 20px;
+    padding: 30px;
+    position: relative;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.5), 0 0 40px rgba(46,204,113,0.1);
+  }
+
+  .poker-table::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border: 1px dashed rgba(46,204,113,0.2);
+    border-radius: 14px;
     pointer-events: none;
   }
 
-  @keyframes toastAnim {
-    0% { opacity: 0; transform: translate(-50%, -40%); }
-    15% { opacity: 1; transform: translate(-50%, -50%); }
-    70% { opacity: 1; }
-    100% { opacity: 0; transform: translate(-50%, -60%); }
+  .player-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 16px 0;
   }
 
-  /* ===== 加载画面 ===== */
-  #loading {
-    position: fixed;
-    inset: 0;
-    background: #1a1a2e;
+  .player-name {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .player-name.active {
+    color: var(--accent);
+    text-shadow: 0 0 10px var(--accent-glow);
+  }
+
+  .cards-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .card {
+    width: 72px;
+    height: 100px;
+    background: #fff;
+    border-radius: 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
-    color: #E8D5A3;
-    font-size: 24px;
-  }
-
-  #loading .title {
-    font-size: 36px;
-    color: #FFD700;
-    margin-bottom: 20px;
-    text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
-  }
-
-  #load-bar-outer {
-    width: 300px;
-    height: 16px;
-    background: rgba(60, 40, 20, 0.8);
-    border: 2px solid #8B6914;
-    border-radius: 8px;
-    overflow: hidden;
-    margin-top: 16px;
-  }
-
-  #load-bar {
-    width: 0%;
-    height: 100%;
-    background: linear-gradient(90deg, #4CAF50, #8BC34A);
-    border-radius: 6px;
-    transition: width 0.3s;
-  }
-
-  #load-text {
-    margin-top: 8px;
-    font-size: 14px;
-    color: #A89060;
-  }
-
-  /* ===== 触摸控制 (仅移动端) ===== */
-  #touch-controls {
-    position: fixed;
-    bottom: 80px;
-    left: 16px;
-    z-index: 10;
-    display: none;
-  }
-
-  @media (hover: none) and (pointer: coarse) {
-    #touch-controls { display: block; }
-    #toolbar { bottom: 10px; }
-    .tool-slot { width: 44px; height: 44px; }
-    #minimap-container { bottom: 70px; right: 8px; }
-  }
-
-  .dpad {
-    width: 120px; height: 120px;
     position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    transition: all 0.3s;
+    font-family: 'Orbitron', sans-serif;
+    user-select: none;
   }
 
-  .dpad-btn {
-    position: absolute;
-    width: 40px; height: 40px;
-    background: rgba(30, 20, 10, 0.7);
-    border: 2px solid #8B6914;
-    border-radius: 6px;
+  .card.red { color: #d32f2f; }
+  .card.black { color: #212121; }
+
+  .card-back {
+    width: 72px;
+    height: 100px;
+    background: linear-gradient(135deg, #1a237e, #0d47a1);
+    border-radius: 8px;
+    border: 2px solid #3949ab;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #E8D5A3;
-    font-size: 18px;
-    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   }
 
-  .dpad-btn:active { background: rgba(100, 70, 30, 0.8); }
-  .dpad-up { top: 0; left: 40px; }
-  .dpad-down { bottom: 0; left: 40px; }
-  .dpad-left { top: 40px; left: 0; }
-  .dpad-right { top: 40px; right: 0; }
-
-  /* ===== 商店面板 ===== */
-  #shop {
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(30, 20, 10, 0.95);
-    border: 3px solid #8B6914;
-    border-radius: 12px;
-    padding: 20px;
-    z-index: 100;
-    display: none;
-    min-width: 400px;
-    max-height: 80vh;
-    overflow-y: auto;
-    color: #E8D5A3;
+  .card-back::after {
+    content: '\2620';
+    font-size: 28px;
+    color: rgba(255,255,255,0.3);
   }
 
-  #shop.open { display: block; }
+  .card-rank { font-size: 24px; font-weight: 700; }
+  .card-suit { font-size: 28px; }
 
-  #shop h2 {
-    color: #FFD700;
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+  }
+
+  .pot-area {
     text-align: center;
-    margin-bottom: 12px;
+    padding: 20px;
+    margin: 20px 0;
   }
 
-  .shop-item {
+  .pot-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .pot-amount {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 36px;
+    color: var(--gold);
+    text-shadow: 0 0 20px var(--gold-glow);
+    margin-top: 4px;
+  }
+
+  .action-bar {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 24px;
+    padding: 20px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+
+  .action-btn {
+    padding: 12px 28px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 100px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .action-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px var(--accent-glow);
+  }
+
+  .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .action-btn.primary {
+    background: linear-gradient(135deg, var(--accent), #8b0000);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .action-btn.success {
+    background: linear-gradient(135deg, var(--green), #1e7e34);
+    border-color: var(--green);
+    color: #fff;
+  }
+
+  .action-btn.warning {
+    background: linear-gradient(135deg, var(--gold), #8b6914);
+    border-color: var(--gold);
+    color: #1a1a1a;
+  }
+
+  .bet-control {
     display: flex;
     align-items: center;
-    padding: 8px;
-    border: 1px solid #5A4020;
-    border-radius: 6px;
-    margin-bottom: 6px;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .bet-slider {
+    flex: 1;
+    max-width: 300px;
+    -webkit-appearance: none;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .bet-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--accent);
+    border-radius: 50%;
     cursor: pointer;
-    transition: background 0.15s;
+    box-shadow: 0 0 10px var(--accent-glow);
   }
 
-  .shop-item:hover { background: rgba(100, 70, 30, 0.4); }
+  .bet-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    color: var(--gold);
+    min-width: 80px;
+    text-align: right;
+  }
 
-  .shop-item .item-icon { width: 32px; height: 32px; margin-right: 10px; }
-  .shop-item .item-info { flex: 1; }
-  .shop-item .item-name { color: #E8D5A3; font-size: 14px; }
-  .shop-item .item-desc { color: #8B6914; font-size: 11px; }
-  .shop-item .item-price { color: #FFD700; font-size: 14px; white-space: nowrap; }
+  .game-log {
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 0 20px;
+  }
 
-  /* ===== 季节/天气指示器 ===== */
-  #season-badge {
+  .log-panel {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 13px;
+  }
+
+  .log-entry {
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: var(--text-dim);
+  }
+
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry.system { color: var(--accent); }
+  .log-entry.win { color: var(--gold); }
+  .log-entry.lose { color: #888; }
+
+  .modal-overlay {
     position: fixed;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(30, 20, 10, 0.85);
-    border: 2px solid #8B6914;
-    border-radius: 20px;
-    padding: 4px 16px;
-    color: #FFD700;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+  }
+
+  .modal-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 28px;
+    margin-bottom: 16px;
+  }
+
+  .modal-title.win { color: var(--gold); text-shadow: 0 0 20px var(--gold-glow); }
+  .modal-title.lose { color: var(--text-dim); }
+
+  .modal-text {
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .modal-btn {
+    padding: 12px 32px;
+    background: linear-gradient(135deg, var(--accent), #8b0000);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
     font-size: 14px;
-    z-index: 10;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 2px;
   }
 
-  /* ===== 浮动文字 ===== */
-  .float-text {
-    position: fixed;
-    color: #FFD700;
-    font-size: 14px;
-    font-weight: bold;
-    text-shadow: 1px 1px 2px #000;
-    pointer-events: none;
-    z-index: 50;
-    animation: floatUp 1.5s ease-out forwards;
+  .leaderboard {
+    max-width: 600px;
+    margin: 30px auto;
+    padding: 0 20px;
   }
 
-  @keyframes floatUp {
-    0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-40px); }
+  .leaderboard h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    color: var(--gold);
+    margin-bottom: 16px;
+    text-align: center;
   }
 
-  /* ===== 滚动条美化 ===== */
+  .lb-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .lb-table th, .lb-table td {
+    padding: 10px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .lb-table th {
+    color: var(--text-dim);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 11px;
+  }
+
+  .lb-table td { color: var(--text); }
+
+  .lb-rank {
+    font-family: 'Orbitron', sans-serif;
+    color: var(--gold);
+    font-weight: 700;
+  }
+
+  @media (max-width: 640px) {
+    .auth-box { width: 90%; padding: 30px 20px; }
+    .logo { font-size: 24px; }
+    .game-cards { grid-template-columns: 1fr; }
+    .card, .card-back { width: 56px; height: 78px; }
+    .card-rank { font-size: 18px; }
+    .card-suit { font-size: 22px; }
+    .action-btn { padding: 10px 18px; font-size: 12px; min-width: 80px; }
+    .pot-amount { font-size: 24px; }
+  }
+
   ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: rgba(30, 20, 10, 0.5); }
-  ::-webkit-scrollbar-thumb { background: #8B6914; border-radius: 3px; }
+  ::-webkit-scrollbar-track { background: var(--bg-dark); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-in { animation: fadeIn 0.5s ease-out; }
+
+  .hand-type {
+    font-size: 11px;
+    color: var(--gold);
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  .dealer-tag {
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(255,42,42,0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 6px;
+  }
 </style>
 </head>
 <body>
 
-<!-- 加载画面 -->
-<div id="loading">
-  <div class="title">星露谷物语</div>
-  <div style="color:#A89060;font-size:14px;margin-bottom:8px;">像素农场</div>
-  <div id="load-bar-outer"><div id="load-bar"></div></div>
-  <div id="load-text">正在加载素材...</div>
-</div>
-
-<!-- 游戏画布 -->
-<canvas id="gameCanvas"></canvas>
-
-<!-- HUD -->
-<div id="hud" style="display:none;">
-  <div class="hud-panel" id="hud-left">
-    <div><span class="label">时间 </span><span class="value" id="hud-time">6:00</span></div>
-    <div><span class="label">日期 </span><span class="value" id="hud-day">第 1 天</span></div>
-    <div><span class="label">金币 </span><span class="value" id="hud-gold">500G</span></div>
-  </div>
-  <div class="hud-panel" id="hud-right">
-    <div><span class="label">区域 </span><span class="value" id="hud-area">农场</span></div>
-    <div><span class="label">体力 </span><span class="value" id="hud-energy">100</span></div>
+<!-- 登录/注册 -->
+<div id="auth-screen">
+  <div class="auth-box fade-in">
+    <div class="logo">WASTELAND</div>
+    <div class="logo-sub">末日赌场</div>
+    <input type="text" class="auth-input" id="auth-username" placeholder="用户名" maxlength="16">
+    <input type="password" class="auth-input" id="auth-password" placeholder="密码" maxlength="20">
+    <button class="auth-btn" id="auth-btn">进入赌场</button>
+    <div class="auth-toggle">
+      <span id="auth-hint">首次访问自动注册</span>
+    </div>
   </div>
 </div>
 
-<!-- 季节 -->
-<div id="season-badge" style="display:none;">
-  <span id="season-icon">🌸</span> <span id="season-name">春天</span> · <span id="year-num">第 1 年</span>
+<!-- 主界面 -->
+<div id="main-screen">
+  <div class="top-bar">
+    <div class="logo-small">WASTELAND</div>
+    <div class="user-info">
+      <div class="chip-display">
+        <div class="chip-icon"></div>
+        <span id="user-chips">10000</span>
+      </div>
+      <span id="user-name" style="font-size:13px;color:var(--text-dim)">玩家</span>
+      <button class="logout-btn" onclick="logout()">退出</button>
+    </div>
+  </div>
+
+  <div class="lobby">
+    <div class="lobby-title">选择游戏</div>
+    <div class="game-cards">
+      <!-- 炸金花 -->
+      <div class="game-card" onclick="startGame('zjh')">
+        <div class="game-card-header">
+          <div class="game-icon">🔥</div>
+          <div class="game-name">炸金花</div>
+          <div class="game-desc">三人对抗，牌型决胜</div>
+        </div>
+        <div class="game-card-body">
+          <div class="game-stats">
+            <div class="stat">
+              <div class="stat-value">3</div>
+              <div class="stat-label">玩家</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">1v2</div>
+              <div class="stat-label">模式</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">高</div>
+              <div class="stat-label">刺激</div>
+            </div>
+          </div>
+          <button class="play-btn">立即开局</button>
+        </div>
+      </div>
+      <!-- 二十一点 -->
+      <div class="game-card" onclick="startGame('bj')">
+        <div class="game-card-header">
+          <div class="game-icon">♠</div>
+          <div class="game-name">二十一点</div>
+          <div class="game-desc">经典 Blackjack，挑战庄家</div>
+        </div>
+        <div class="game-card-body">
+          <div class="game-stats">
+            <div class="stat">
+              <div class="stat-value">1</div>
+              <div class="stat-label">玩家</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">vs</div>
+              <div class="stat-label">庄家</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">中</div>
+              <div class="stat-label">策略</div>
+            </div>
+          </div>
+          <button class="play-btn">立即开局</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 排行榜 -->
+    <div class="leaderboard">
+      <h3>财富榜</h3>
+      <table class="lb-table">
+        <thead>
+          <tr><th>排名</th><th>玩家</th><th>筹码</th></tr>
+        </thead>
+        <tbody id="lb-body">
+          <tr><td class="lb-rank">1</td><td>废土之王</td><td style="color:var(--gold)">99,999</td></tr>
+          <tr><td class="lb-rank">2</td><td>幸运儿</td><td style="color:var(--gold)">88,888</td></tr>
+          <tr><td class="lb-rank">3</td><td>赌神</td><td style="color:var(--gold)">77,777</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
-<!-- 工具栏 -->
-<div id="toolbar" style="display:none;"></div>
+<!-- 游戏界面 -->
+<div id="game-screen">
+  <div class="game-header">
+    <button class="back-btn" onclick="backToLobby()">返回大厅</button>
+    <div class="game-title" id="game-title">炸金花</div>
+    <div class="chip-display">
+      <div class="chip-icon"></div>
+      <span id="game-chips">10000</span>
+    </div>
+  </div>
 
-<!-- 小地图 -->
-<div id="minimap-container" style="display:none;">
-  <canvas id="minimap" width="120" height="120"></canvas>
+  <div class="table-area">
+    <div class="poker-table">
+      <!-- AI玩家1 -->
+      <div class="player-area" id="ai1-area">
+        <div class="player-name" id="ai1-name">AI-掠夺者</div>
+        <div class="cards-row" id="ai1-cards"></div>
+        <div class="hand-type" id="ai1-hand"></div>
+      </div>
+
+      <!-- 底池 -->
+      <div class="pot-area">
+        <div class="pot-label">底池</div>
+        <div class="pot-amount" id="pot-amount">0</div>
+      </div>
+
+      <!-- AI玩家2 -->
+      <div class="player-area" id="ai2-area">
+        <div class="player-name" id="ai2-name">AI-拾荒者</div>
+        <div class="cards-row" id="ai2-cards"></div>
+        <div class="hand-type" id="ai2-hand"></div>
+      </div>
+
+      <!-- 玩家 -->
+      <div class="player-area" id="player-area">
+        <div class="player-name active" id="player-name">你</div>
+        <div class="cards-row" id="player-cards"></div>
+        <div class="hand-type" id="player-hand"></div>
+      </div>
+
+      <!-- 操作区 -->
+      <div class="action-bar" id="action-bar">
+        <button class="action-btn" id="btn-fold" onclick="gameAction('fold')">弃牌</button>
+        <button class="action-btn" id="btn-check" onclick="gameAction('check')">看牌</button>
+        <button class="action-btn warning" id="btn-call" onclick="gameAction('call')">跟注</button>
+        <button class="action-btn primary" id="btn-raise" onclick="gameAction('raise')">加注</button>
+        <button class="action-btn success" id="btn-allin" onclick="gameAction('allin')">All In</button>
+      </div>
+
+      <!-- 下注控制 -->
+      <div class="bet-control" id="bet-control" style="display:none;">
+        <input type="range" class="bet-slider" id="bet-slider" min="100" max="10000" step="100" value="100">
+        <div class="bet-value" id="bet-display">100</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 消息日志 -->
+  <div class="game-log">
+    <div class="log-panel" id="game-log"></div>
+  </div>
 </div>
 
-<!-- 对话框 -->
-<div id="dialog">
-  <div class="speaker" id="dialog-speaker"></div>
-  <div class="text" id="dialog-text"></div>
-  <div class="hint">按 空格键 继续</div>
-</div>
-
-<!-- 背包 -->
-<div id="inventory">
-  <h2>背包</h2>
-  <div id="inv-grid"></div>
-</div>
-
-<!-- 商店 -->
-<div id="shop">
-  <h2 id="shop-title">皮埃尔杂货店</h2>
-  <div id="shop-list"></div>
-  <div style="text-align:center;margin-top:10px;color:#8B6914;font-size:12px;">按 ESC 关闭</div>
-</div>
-
-<!-- 触摸控制 -->
-<div id="touch-controls">
-  <div class="dpad">
-    <div class="dpad-btn dpad-up" data-dir="up">▲</div>
-    <div class="dpad-btn dpad-down" data-dir="down">▼</div>
-    <div class="dpad-btn dpad-left" data-dir="left">◀</div>
-    <div class="dpad-btn dpad-right" data-dir="right">▶</div>
+<!-- 结算弹窗 -->
+<div class="modal-overlay" id="result-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">胜利</div>
+    <div class="modal-text" id="modal-text">你赢了 1000 筹码</div>
+    <button class="modal-btn" onclick="closeModal()">再来一局</button>
   </div>
 </div>
 
