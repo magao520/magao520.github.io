@@ -226,7 +226,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <h3 id="wait-title">等待幸存者</h3>
     <div class="wait-players" id="wait-players"></div>
     <button class="start-game-btn" id="start-btn" disabled onclick="hostStartGame()">等待幸存者... (至少2人)</button>
-    <div style="margin-top:10px"><button class="sm-btn" onclick="closeRoom()">撤掉牌桌</button></div>
+    <div style="margin-top:10px"><button class="sm-btn" id="close-btn" onclick="closeRoom()">撤掉牌桌</button></div>
   </div>
 </div>
 
@@ -270,6 +270,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=32"></script>
+<script src="js/game.js?v=33"></script>
 </body>
 </html>

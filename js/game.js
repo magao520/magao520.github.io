@@ -45,7 +45,14 @@ function cardHTML(c,hidden){if(hidden)return'<div class="card-back"></div>';retu
 
 // ==================== UI ====================
 function showScreen(n){$('auth-screen').style.display=n==='auth'?'flex':'none';$('main-screen').style.display=n==='main'?'block':'none';$('game-screen').style.display=n==='game'?'block':'none'}
-function updateChips(){$('user-chips').textContent=G.chips;$('game-chips').textContent=G.chips;save()}
+function updateChips(){
+  // 如果在游戏中，使用玩家的游戏筹码
+  if(G.inGame){
+    const me=G.players.find(p=>p.isMe);
+    if(me&&me.chips!==undefined)G.chips=me.chips;
+  }
+  $('user-chips').textContent=G.chips;$('game-chips').textContent=G.chips;save()
+}
 function log(m,t=''){G.logs.push({m,t});if(G.logs.length>50)G.logs.shift();const p=$('game-log'),e=document.createElement('div');e.className='log-entry '+t;e.textContent=m;p.appendChild(e);p.scrollTop=p.scrollHeight}
 function clearLog(){G.logs=[];$('game-log').innerHTML=''}
 function showModal(t,m,w){$('modal-title').textContent=t;$('modal-title').className='modal-title '+(w?'win':'lose');$('modal-text').textContent=m;$('result-modal').classList.add('open')}
@@ -247,12 +254,16 @@ function handleRoomMsg(msg){
       renderTable();
       break;
 
-    case 'result':
-      showModal(msg.title,msg.text,msg.win);
+    case 'result':{
+      const isMe=msg.winnerId===G.myId;
+      const title=msg.title||'牌局结算';
+      const text=isMe?(msg.winnerId===G.myId?'你赢了！'+msg.text:msg.text):msg.text;
+      showModal(isMe?'物资归你':'物资被收走',text,isMe);
       G.gameOver=true;stopCandle();
       if(msg.players){for(const rp of msg.players){const lp=G.players.find(p=>p.id===rp.id);if(lp)lp.chips=rp.chips}}
       renderTable();
       break;
+    }
   }
 }
 
@@ -317,7 +328,7 @@ function hostForceSettle(){
   else{for(let i=1;i<active.length;i++){if(bjValue(active[i].cards)>bjValue(best.cards))best=active[i]}}
   best.chips+=G.pot;
   const isMe=best.isMe;
-  publishRoom({type:'result',title:'蜡烛烧尽',text:`强制结算！${best.name} 获得底池 ${G.pot} 单位`,win:isMe,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+  publishRoom({type:'result',title:'蜡烛烧尽',text:`${best.name} 获得底池 ${G.pot} 单位`,winnerId:best.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
   showModal('蜡烛烧尽',isMe?`强制结算！你获得底池 ${G.pot} 单位`:`强制结算！${best.name} 获得底池 ${G.pot} 单位`,isMe);
   renderTable();
 }
@@ -387,8 +398,12 @@ function showWaitPanel(isHost){
     $('start-btn').style.display='inline-block';
     $('start-btn').disabled=G.roomPeers.length<2;
     $('start-btn').textContent=G.roomPeers.length>=2?`开局 (${G.roomPeers.length}人)`:'等待幸存者... (至少2人)';
+    $('close-btn').textContent='撤掉牌桌';
+    $('close-btn').onclick=closeRoom;
   }else{
     $('start-btn').style.display='none';
+    $('close-btn').textContent='离开牌桌';
+    $('close-btn').onclick=leaveRoom;
   }
 }
 
@@ -430,6 +445,21 @@ function joinTableByCode(code){
 }
 
 // ==================== 关闭/清理 ====================
+function leaveRoom(){
+  // 客人离开房间，但不关闭桌子
+  publishRoom({type:'leave',playerId:G.myId,playerName:G.user});
+  if(G.mqtt&&G.mqttConnected){
+    try{G.mqtt.unsubscribe(roomTopic(G.roomCode))}catch(e){}
+  }
+  G.roomPeers=[];G.roomCode=null;G.isHost=false;
+  G.inGame=false;G.gameOver=false;G.myTurn=false;
+  stopCandle();
+  $('wait-panel').style.display='none';
+  showScreen('main');
+  renderLobby();
+  toast('已离开牌桌');
+}
+
 function closeRoom(){
   $('wait-panel').style.display='none';
   cleanupRoom();
@@ -605,7 +635,7 @@ function checkZJHEnd(){
   if(active.length<=1){
     const winner=active[0]||G.players[0];winner.chips+=G.pot;G.gameOver=true;stopCandle();
     const isMe=winner.isMe;
-    publishRoom({type:'result',title:isMe?'物资归你':'物资被收走',text:isMe?`你赢得了底池 ${G.pot} 单位物资`:`${winner.name} 赢得了 ${G.pot} 单位物资`,win:isMe,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+    publishRoom({type:'result',title:'牌局结算',text:`${winner.name} 赢得了 ${G.pot} 单位物资`,winnerId:winner.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
     showModal(isMe?'物资归你':'物资被收走',isMe?`你赢得了底池 ${G.pot} 单位物资`:`${winner.name} 赢得了 ${G.pot} 单位物资`,isMe);
   }
 }
@@ -626,7 +656,7 @@ function checkBJEnd(){
   for(let i=1;i<active.length;i++){if(bjValue(active[i].cards)>bjValue(best.cards))best=active[i]}
   best.chips+=G.pot;G.gameOver=true;stopCandle();
   const isMe=best.isMe;
-  publishRoom({type:'result',title:isMe?'物资归你':'物资被收走',text:isMe?`你以 ${bjValue(best.cards)} 点获胜，获得 ${G.pot} 单位`:`${best.name} 以 ${bjValue(best.cards)} 点获胜`,win:isMe,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+  publishRoom({type:'result',title:'牌局结算',text:`${best.name} 以 ${bjValue(best.cards)} 点获胜`,winnerId:best.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
   showModal(isMe?'物资归你':'物资被收走',isMe?`你以 ${bjValue(best.cards)} 点获胜，获得 ${G.pot} 单位`:`${best.name} 以 ${bjValue(best.cards)} 点获胜`,isMe);
 }
 
