@@ -146,10 +146,21 @@ function openRoom(gameType){
   $('join-status').textContent='';
 }
 
-function createRoom(){
+function createRoom(gameType){
+  G.gameType=gameType;
   G.isHost=true;
   G.roomCode=genCode();
   const peerId='wl-'+G.roomCode.toLowerCase()+'-host';
+  
+  // 打开面板
+  $('room-panel').style.display='block';
+  $('room-title').textContent='创建房间';
+  $('room-create-area').style.display='block';
+  $('room-join-area').style.display='none';
+  $('room-code').textContent='----';
+  $('room-players').innerHTML='';
+  $('start-btn').disabled=true;
+  $('start-btn').textContent='等待玩家加入...';
   
   // 用固定ID重新创建Peer
   if(G.peer)G.peer.destroy();
@@ -171,9 +182,6 @@ function createRoom(){
   G.peer.on('connection',conn=>{
     handleConnection(conn);
   });
-  
-  $('room-create-area').style.display='block';
-  $('room-join-area').style.display='none';
 }
 
 function joinRoom(){
