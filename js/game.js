@@ -1,6 +1,6 @@
 // ============================================================
 // 废土交易所 - 生存物资赌场
-// PeerJS 真人联机 | 房间持久化 | 蜡烛计时
+// MQTT房间发现 + PeerJS联机 + 蜡烛计时
 // ============================================================
 'use strict';
 
@@ -12,8 +12,11 @@ const G = {
   myTurn:false, gameOver:false, logs:[],
   roomPeers:[], createGameType:'zjh',
   candleTimer:null, candleTime:0, candleMax:180,
-  // 房间持久化：退出大厅不销毁peer
-  hostPeerId:null, inGame:false
+  hostPeerId:null, inGame:false,
+  // MQTT房间发现
+  mqtt:null, mqttConnected:false,
+  knownRooms:{}, // {code: {name,game,players,ts}}
+  heartbeatTimer:null
 };
 
 const SUITS=['♠','♥','♣','♦'];
@@ -46,16 +49,103 @@ $('auth-btn').onclick=()=>{
   if(!n){$('auth-hint').textContent='代号不能为空';return}
   G.user=n;if(!load())G.chips=50;
   save();$('user-name').textContent=n;updateChips();
-  showScreen('main');initPeer();checkURLJoin();
+  showScreen('main');initPeer();initMQTT();checkURLJoin();
 };
 function logout(){
   G.user=null;localStorage.removeItem('wl_user');
-  // 不销毁peer！房间持久化
+  unregisterRoom();
   showScreen('auth');
 }
-if(load()){$('user-name').textContent=G.user;updateChips();showScreen('main');initPeer();setTimeout(checkURLJoin,1500)}
+if(load()){$('user-name').textContent=G.user;updateChips();showScreen('main');initPeer();initMQTT();setTimeout(checkURLJoin,2000)}
 
-// ==================== URL邀请 ====================
+// ==================== MQTT 房间发现 ====================
+function initMQTT(){
+  if(G.mqtt)return;
+  try{
+    G.mqtt=mqtt.connect('wss://broker.hivemq.com:8884/mqtt',{
+      clientId:'wl_'+Math.random().toString(36).substr(2,8),
+      clean:true,connectTimeout:5000,reconnectPeriod:3000
+    });
+    G.mqtt.on('connect',()=>{
+      G.mqttConnected=true;
+      // 订阅房间列表频道
+      G.mqtt.subscribe('wasteland_exchange/rooms',{qos:0});
+      G.mqtt.subscribe('wasteland_exchange/heartbeat',{qos:0});
+    });
+    G.mqtt.on('message',(topic,payload)=>{
+      try{
+        const msg=JSON.parse(payload.toString());
+        if(topic==='wasteland_exchange/rooms'){
+          handleRoomMessage(msg);
+        }else if(topic==='wasteland_exchange/heartbeat'){
+          handleHeartbeat(msg);
+        }
+      }catch(e){}
+    });
+    G.mqtt.on('error',()=>{});
+    G.mqtt.on('close',()=>{G.mqttConnected=false});
+  }catch(e){console.warn('MQTT init failed:',e)}
+}
+
+function handleRoomMessage(msg){
+  switch(msg.action){
+    case 'create':
+      G.knownRooms[msg.code]={name:msg.hostName,game:msg.game,players:msg.players||1,ts:Date.now()};
+      renderLobby();
+      break;
+    case 'update':
+      if(G.knownRooms[msg.code]){
+        G.knownRooms[msg.code].players=msg.players;
+        G.knownRooms[msg.code].ts=Date.now();
+      }
+      renderLobby();
+      break;
+    case 'close':
+      delete G.knownRooms[msg.code];
+      renderLobby();
+      break;
+  }
+}
+
+function handleHeartbeat(msg){
+  // 收到心跳，更新时间戳，防止被清理
+  if(G.knownRooms[msg.code]){
+    G.knownRooms[msg.code].ts=Date.now();
+  }
+}
+
+function publishRoom(action,extra){
+  if(!G.mqtt||!G.mqttConnected)return;
+  const msg={action,code:G.roomCode,hostName:G.user,game:G.gameType,...extra};
+  G.mqtt.publish('wasteland_exchange/rooms',JSON.stringify(msg),{qos:0});
+}
+
+function startHeartbeat(){
+  stopHeartbeat();
+  G.heartbeatTimer=setInterval(()=>{
+    if(G.roomCode&&G.isHost){
+      publishRoom('update',{players:G.roomPeers.length});
+      // 清理超过30秒没心跳的房间
+      const now=Date.now();
+      for(const code in G.knownRooms){
+        if(now-G.knownRooms[code].ts>30000)delete G.knownRooms[code];
+      }
+      renderLobby();
+    }
+  },8000);
+}
+
+function stopHeartbeat(){if(G.heartbeatTimer){clearInterval(G.heartbeatTimer);G.heartbeatTimer=null}}
+
+function unregisterRoom(){
+  stopHeartbeat();
+  if(G.roomCode){
+    publishRoom('close',{});
+    delete G.knownRooms[G.roomCode];
+  }
+}
+
+// ==================== URL邀请（保留作为备用） ====================
 function checkURLJoin(){
   const p=new URLSearchParams(location.search);
   const room=p.get('room');
@@ -64,8 +154,8 @@ function checkURLJoin(){
 function getInviteURL(){return location.origin+location.pathname+'?room='+G.roomCode}
 function copyInviteLink(){
   const url=getInviteURL();
-  navigator.clipboard.writeText(url).then(()=>toast('邀请链接已复制')).catch(()=>{
-    const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('邀请链接已复制');
+  navigator.clipboard.writeText(url).then(()=>toast('链接已复制')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('链接已复制');
   });
 }
 
@@ -100,8 +190,10 @@ function handleConnection(conn){
   conn.on('close',()=>{
     G.roomPeers=G.roomPeers.filter(p=>p.conn!==conn);
     updateWaitPlayers();
-    // 如果是房主，通知其他人有人离开
-    if(G.isHost)broadcast({type:'player-left',name:'某幸存者'});
+    if(G.isHost){
+      publishRoom('update',{players:G.roomPeers.length});
+      broadcast({type:'player-left',name:'某幸存者'});
+    }
   });
 }
 
@@ -113,10 +205,10 @@ function broadcast(data){
 function handleMsg(d,fromConn){
   switch(d.type){
     case 'join':{
-      // 检查是否已在房间
       if(G.roomPeers.find(p=>p.id===fromConn.peer))return;
       G.roomPeers.push({id:fromConn.peer,name:d.name,conn:fromConn});
       updateWaitPlayers();
+      publishRoom('update',{players:G.roomPeers.length});
       fromConn.send({type:'welcome',players:G.roomPeers.map(p=>({id:p.id,name:p.name})),hostName:G.user,game:G.gameType,roomCode:G.roomCode});
       toast(d.name+' 到达了牌桌');
       break;
@@ -137,8 +229,7 @@ function handleMsg(d,fromConn){
       showScreen('game');
       $('game-title').textContent=d.game==='zjh'?'物资炸金花':'物资二十一点';
       clearLog();log('=== 牌局开始，物资已入底池 ===','system');
-      startCandle();
-      renderTable();
+      startCandle();renderTable();
       break;
     }
     case 'action':{handleRemoteAction(d);break}
@@ -148,25 +239,18 @@ function handleMsg(d,fromConn){
 
 // ==================== 蜡烛计时 ====================
 function startCandle(){
-  stopCandle();
-  G.candleTime=G.candleMax;
-  updateCandleUI();
+  stopCandle();G.candleTime=G.candleMax;updateCandleUI();
   G.candleTimer=setInterval(()=>{
-    G.candleTime--;
-    updateCandleUI();
+    G.candleTime--;updateCandleUI();
     if(G.candleTime<=0){
       stopCandle();
-      // 蜡烛烧尽，强制结算
       if(!G.gameOver){
-        G.gameOver=true;
-        log('蜡烛烧尽！强制结算！','system');
-        // 简单处理：底池归当前不下注的人
+        G.gameOver=true;log('蜡烛烧尽！强制结算！','system');
         const active=G.players.filter(p=>!p.folded&&!p.busted);
         if(active.length>0){
-          const winner=active[0];
-          winner.chips+=G.pot;
+          const winner=active[0];winner.chips+=G.pot;
           const isMe=winner.isMe;
-          showModal(isMe?'物资归你':'物资被收走',isMe?`蜡烛烧尽，你获得底池 ${G.pot} 单位物资`:`蜡烛烧尽，${winner.name} 获得底池`,isMe);
+          showModal(isMe?'物资归你':'物资被收走',isMe?`蜡烛烧尽，你获得底池 ${G.pot} 单位`:`蜡烛烧尽，${winner.name} 获得底池`,isMe);
           broadcast({type:'result',title:isMe?'物资归你':'物资被收走',text:isMe?`蜡烛烧尽，你获得底池 ${G.pot} 单位`:`蜡烛烧尽，${winner.name} 获得底池`,win:isMe});
         }
       }
@@ -181,36 +265,55 @@ function updateCandleUI(){
   const label=$('candle-label');if(label)label.textContent=`蜡烛剩余 ${m}:${s.toString().padStart(2,'0')}`;
 }
 
-// ==================== 大厅 ====================
+// ==================== 大厅渲染 ====================
 function renderLobby(){
   const grid=$('tables-grid');
+  // 收集所有房间：已知房间 + 自己创建的
+  const rooms={};
+  for(const code in G.knownRooms){
+    const r=G.knownRooms[code];
+    // 30秒过期
+    if(Date.now()-r.ts>30000){delete G.knownRooms[code];continue}
+    rooms[code]=r;
+  }
+  // 自己的房间优先显示
   if(G.isHost&&G.roomCode){
-    const names=G.roomPeers.map(p=>p.name);
-    grid.innerHTML=renderTableCard(G.roomCode,G.gameType,names,3,true);
-  }else{
+    rooms[G.roomCode]={name:G.user,game:G.gameType,players:G.roomPeers.length,ts:Date.now(),isMine:true};
+  }
+
+  const codes=Object.keys(rooms);
+  if(codes.length===0){
     grid.innerHTML=`
       <div class="empty-lobby">
         <div class="icon">🏚️</div>
-        <p>仓储区还没有搭桌</p>
-        <p style="font-size:11px">点击"搭新桌"开始，或让其他幸存者发来邀请链接</p>
+        <p>仓储区还没有牌桌</p>
+        <p style="font-size:11px">点击"搭新桌"开始，等其他人来</p>
       </div>`;
+    return;
   }
+
+  grid.innerHTML=codes.map(code=>{
+    const r=rooms[code];
+    return renderTableCard(code,r.game,r.name,r.players,3,!!r.isMine);
+  }).join('');
 }
 
-function renderTableCard(code,gameType,names,maxSeats,isMyTable){
+function renderTableCard(code,gameType,hostName,playerCount,maxSeats,isMyTable){
   const label=gameType==='zjh'?'物资炸金花':'物资二十一点';
   const icon=gameType==='zjh'?'🥫':'⛽';
   const tier=gameType==='zjh'?'低端局 · 罐头级':'中端局 · 汽油级';
   let seats='';
+  const count=Math.min(playerCount,maxSeats);
   for(let i=0;i<maxSeats;i++){
-    seats+=i<names.length
-      ?`<div class="seat occupied"><div class="seat-dot"></div>${names[i]}</div>`
-      :`<div class="seat empty"><div class="seat-dot"></div>空位</div>`;
+    if(i===0)seats+=`<div class="seat occupied"><div class="seat-dot"></div>${hostName}(搭桌人)</div>`;
+    else if(i<count)seats+=`<div class="seat occupied"><div class="seat-dot"></div>幸存者</div>`;
+    else seats+=`<div class="seat empty"><div class="seat-dot"></div>空位</div>`;
   }
-  const statusClass=names.length>=2?'playing':'waiting';
-  const statusText=names.length>=2?'可开局':'等待中';
+  const statusClass=count>=2?'playing':'waiting';
+  const statusText=count>=2?'可开局':'等待中';
+  const clickAction=isMyTable?'':`joinTableByCode('${code}')`;
   return `
-    <div class="table-card" onclick="${isMyTable?'':'joinTableByCode(\''+code+'\')'}">
+    <div class="table-card" onclick="${clickAction}">
       <div class="table-visual">
         <div class="candle-glow"></div>
         <div class="seats">${seats}</div>
@@ -218,7 +321,7 @@ function renderTableCard(code,gameType,names,maxSeats,isMyTable){
       <div class="table-info">
         <div class="table-name"><span>${icon} ${code}号桌</span><span class="table-status ${statusClass}">${statusText}</span></div>
         <div class="table-game">${label} · ${tier}</div>
-        <div class="table-meta"><div class="table-players">${names.length}/${maxSeats} 人</div></div>
+        <div class="table-meta"><div class="table-players">${count}/${maxSeats} 人</div></div>
       </div>
     </div>`;
 }
@@ -233,7 +336,6 @@ function createRoom(gameType){
   G.gameType=gameType;G.isHost=true;G.roomCode=genCode();
   G.hostPeerId='wl-'+G.roomCode.toLowerCase()+'-host';
 
-  // 关键：不销毁旧peer，而是创建新的固定ID peer
   if(G.peer){try{G.peer.destroy()}catch(e){}}
   G.peer=new Peer(G.hostPeerId);
   G.peer.on('open',()=>{
@@ -241,8 +343,11 @@ function createRoom(gameType){
     $('conn-status').textContent='在线 · 搭桌人';
     $('conn-status').style.color='var(--green)';
     G.roomPeers=[{id:'host',name:G.user,conn:null}];
+    // 广播房间到MQTT
+    publishRoom('create',{players:1});
+    startHeartbeat();
     showWaitPanel(true);renderLobby();
-    toast('牌桌已搭好！把邀请链接发给其他幸存者');
+    toast('牌桌已搭好！等待其他幸存者');
   });
   G.peer.on('error',err=>{
     console.warn('Room error:',err);
@@ -271,8 +376,7 @@ function showWaitPanel(isHost){
 }
 
 function updateWaitPlayers(){
-  const el=$('wait-players');
-  if(!el)return;
+  const el=$('wait-players');if(!el)return;
   el.innerHTML=G.roomPeers.map(p=>`
     <div class="wait-player"><div class="dot"></div><div class="name">${p.name}${p.id==='host'?' (搭桌人)':''}</div><div class="tag">${p.id==='host'?'已连接':'已到达'}</div></div>
   `).join('');
@@ -284,8 +388,15 @@ function updateWaitPlayers(){
   renderLobby();
 }
 
-// ==================== 加入牌桌 ====================
-function joinTableByCode(code){toast('正在前往牌桌...');doJoin(code)}
+// ==================== 加入牌桌（点击桌子直接加入） ====================
+function joinTableByCode(code){
+  if(G.isHost&&G.roomCode===code){
+    // 点击自己的桌子，显示等待面板
+    showWaitPanel(true);return;
+  }
+  toast('正在前往'+code+'号桌...');
+  doJoin(code);
+}
 
 function doJoin(code){
   if(!G.peer||!G.peer.open){
@@ -307,14 +418,13 @@ function connectToHost(code){
   setTimeout(()=>{if(!conn.open){toast('连接超时，牌桌可能不存在');conn.close()}},10000);
 }
 
-// ==================== 关闭房间（真正撤桌） ====================
+// ==================== 关闭房间 ====================
 function closeRoom(){
   $('wait-panel').style.display='none';
-  // 通知所有人房间关闭
+  unregisterRoom();
   broadcast({type:'room-closed'});
   for(const p of G.roomPeers){if(p.conn&&p.conn.open)p.conn.close()}
   G.roomPeers=[];G.conn=null;G.roomCode=null;G.isHost=false;G.hostPeerId=null;
-  // 重新初始化普通peer
   try{G.peer.destroy()}catch(e){}G.peer=null;initPeer();
   renderLobby();
   if(location.search)history.replaceState(null,'',location.pathname);
@@ -482,10 +592,17 @@ function leaveGame(){
   G.gameOver=true;G.myTurn=false;G.inGame=false;stopCandle();
   broadcast({type:'action',playerId:G.players.find(p=>p.isMe)?.id,action:'fold',data:{gameOver:true}});
   showScreen('main');
-  // 关键：不调用closeRoom()！房间保留，只是回到大厅
   $('wait-panel').style.display='none';
   renderLobby();
 }
 
-// 初始渲染
+// 初始渲染 + 定时清理过期房间
 renderLobby();
+setInterval(()=>{
+  const now=Date.now();
+  let changed=false;
+  for(const code in G.knownRooms){
+    if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}
+  }
+  if(changed)renderLobby();
+},5000);
