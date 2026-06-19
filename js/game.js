@@ -157,6 +157,9 @@ function setupPeerHandlers(){
 }
 
 function handleConnection(conn){
+  conn.on('open',()=>{
+    console.log('Peer connected:',conn.peer);
+  });
   conn.on('data',d=>handleMsg(d,conn));
   conn.on('close',()=>{
     G.roomPeers=G.roomPeers.filter(p=>p.conn!==conn);
@@ -164,6 +167,9 @@ function handleConnection(conn){
     if(G.isHost){
       publishRoom('update',{players:G.roomPeers.length});
     }
+  });
+  conn.on('error',err=>{
+    console.warn('Conn error:',err);
   });
 }
 
@@ -351,7 +357,9 @@ function updateWaitPlayers(){
 
 // ==================== 加入牌桌（点击桌子直接加入） ====================
 function joinTableByCode(code){
+  if(G.inGame){toast('你正在牌局中，先撤离');return}
   if(G.isHost&&G.roomCode===code){showWaitPanel(true);return}
+  if(G.conn){toast('你已在某张牌桌上，先撤掉');return}
   toast('正在前往'+code+'号桌...');
   doJoin(code);
 }
@@ -360,20 +368,45 @@ function doJoin(code){
   if(!G.peer||!G.peer.open){
     if(G.peer){try{G.peer.destroy()}catch(e){}G.peer=null}
     initPeer();
-    const w=setInterval(()=>{if(G.peer&&G.peer.open){clearInterval(w);connectToHost(code)}},300);
-    setTimeout(()=>{clearInterval(w);toast('信号超时，刷新重试')},15000);
+    let attempts=0;
+    const w=setInterval(()=>{
+      attempts++;
+      if(G.peer&&G.peer.open){
+        clearInterval(w);
+        connectToHost(code);
+      }else if(attempts>50){
+        clearInterval(w);
+        toast('信号超时，刷新页面重试');
+      }
+    },300);
   }else{connectToHost(code)}
 }
 
 function connectToHost(code){
   const hostId='wl-'+code.toLowerCase()+'-host';
+  // 先清理旧连接
+  if(G.conn){try{G.conn.close()}catch(e){}G.conn=null}
   const conn=G.peer.connect(hostId,{reliable:true});
   if(!conn){toast('连接失败');return}
   G.conn=conn;
-  conn.on('data',d=>handleMsg(d,G.conn));
-  conn.on('open',()=>{G.conn.send({type:'join',name:G.user})});
-  conn.on('close',()=>{if($('wait-panel').style.display==='none')toast('与牌桌断开连接')});
-  setTimeout(()=>{if(!conn.open){toast('连接超时，牌桌可能不存在');conn.close()}},10000);
+  // 等连接真正打开后再发消息
+  conn.on('open',()=>{
+    conn.send({type:'join',name:G.user});
+    toast('已连接到'+code+'号桌');
+  });
+  conn.on('data',d=>handleMsg(d,conn));
+  conn.on('close',()=>{
+    if(G.roomCode===code&&!G.inGame){
+      toast('与牌桌断开连接');
+      G.roomCode=null;G.conn=null;
+      renderLobby();
+    }
+  });
+  conn.on('error',err=>{
+    console.warn('Connection error:',err);
+    toast('连接出错: '+err);
+  });
+  setTimeout(()=>{if(!conn.open){toast('连接超时，牌桌可能不存在');try{conn.close()}catch(e){}G.conn=null}},10000);
 }
 
 // ==================== 关闭房间 ====================
