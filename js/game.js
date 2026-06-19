@@ -5,8 +5,9 @@
 'use strict';
 
 const MQTT_BROKER='wss://broker.emqx.io:8084/mqtt';
-const TOPIC_LOBBY='wl_lobby_v2';
-const TOPIC_PREFIX='wl_room_v2';
+const TOPIC_LOBBY='wl_lobby_v3';      // 大厅事件通知（create/update/close）
+const TOPIC_ROOMS='wl_rooms_v3/#';   // 房间列表（retained message，每个房间一条）
+const TOPIC_ROOM_PREFIX='wl_rooms_v3';
 
 const G = {
   user:null, chips:50,
@@ -83,17 +84,26 @@ function initMQTT(){
       $('online-dot').classList.remove('off');
       $('conn-status').textContent='信号正常';
       $('conn-status').style.color='var(--green)';
-      // 订阅大厅频道
+      // 订阅大厅事件频道 + 所有房间列表（retained）
       G.mqtt.subscribe(TOPIC_LOBBY,{qos:0});
-      // 如果已有房间，补发
-      if(G.roomCode&&G.isHost)publishLobby('create');
+      G.mqtt.subscribe(TOPIC_ROOMS,{qos:0});
+      // 如果已有房间，补发 retained
+      if(G.roomCode&&G.isHost)publishRoomInfo();
     });
     G.mqtt.on('message',(topic,payload)=>{
       try{
         const msg=JSON.parse(payload.toString());
-        if(topic===TOPIC_LOBBY)handleLobbyMsg(msg);
-        else if(topic===roomTopic(G.roomCode))handleRoomMsg(msg);
-        else if(topic.startsWith(TOPIC_PREFIX+'/'))handleRoomMsg(msg);
+        if(topic===TOPIC_LOBBY){
+          handleLobbyMsg(msg);
+        }else if(topic.startsWith(TOPIC_ROOM_PREFIX+'/')){
+          // 房间 retained message
+          const code=topic.split('/').pop();
+          handleRoomListMsg(code,msg);
+        }else if(topic===roomTopic(G.roomCode)){
+          handleRoomMsg(msg);
+        }else if(topic.startsWith(TOPIC_ROOM_PREFIX+'_chat/')){
+          handleRoomMsg(msg);
+        }
       }catch(e){console.warn('[MQTT] parse error:',e)}
     });
     G.mqtt.on('error',(err)=>{console.warn('[MQTT] error:',err.message);G.mqttConnected=false});
@@ -107,7 +117,21 @@ function initMQTT(){
   }catch(e){console.warn('MQTT init failed:',e)}
 }
 
-function roomTopic(code){return TOPIC_PREFIX+'/'+code}
+function roomTopic(code){return TOPIC_ROOM_PREFIX+'_chat/'+code}
+
+// 发布房间信息（retained message，新订阅者能立即收到）
+function publishRoomInfo(){
+  if(!G.mqtt||!G.mqttConnected||!G.roomCode)return;
+  const msg={code:G.roomCode,hostName:G.user,game:G.gameType,players:G.roomPeers.length,ts:Date.now(),hostId:G.myId};
+  G.mqtt.publish(TOPIC_ROOM_PREFIX+'/'+G.roomCode,JSON.stringify(msg),{qos:0,retain:true});
+}
+
+// 清除房间的 retained message
+function clearRoomInfo(){
+  if(!G.mqtt||!G.mqttConnected||!G.roomCode)return;
+  // 发布空 retained message 来清除
+  G.mqtt.publish(TOPIC_ROOM_PREFIX+'/'+G.roomCode,'',{qos:0,retain:true});
+}
 
 function publishLobby(action){
   if(!G.mqtt||!G.mqttConnected)return;
@@ -122,13 +146,19 @@ function publishRoom(msg){
   G.mqtt.publish(roomTopic(G.roomCode),JSON.stringify(msg),{qos:0});
 }
 
-// ==================== 大厅消息 ====================
-function handleLobbyMsg(msg){
-  // 忽略自己的消息
-  if(msg.hostId===G.myId)return;
-  // 忽略30秒前的过期消息
-  if(msg.ts&&Date.now()-msg.ts>30000)return;
+// ==================== 房间列表（retained message） ====================
+function handleRoomListMsg(code,msg){
+  if(!msg||!msg.code)return; // 空消息 = 被清除
+  if(msg.hostId===G.myId)return; // 忽略自己的
+  if(msg.ts&&Date.now()-msg.ts>60000)return; // 60秒过期
+  G.knownRooms[msg.code]={name:msg.hostName,game:msg.game,players:msg.players||1,ts:msg.ts||Date.now()};
+  renderLobby();
+}
 
+// ==================== 大厅事件 ====================
+function handleLobbyMsg(msg){
+  if(msg.hostId===G.myId)return;
+  if(msg.ts&&Date.now()-msg.ts>30000)return;
   switch(msg.action){
     case 'create':
       G.knownRooms[msg.code]={name:msg.hostName,game:msg.game,players:msg.players||1,ts:msg.ts||Date.now()};
@@ -245,10 +275,11 @@ function startHeartbeat(){
   stopHeartbeat();
   G.heartbeatTimer=setInterval(()=>{
     if(G.roomCode&&G.isHost){
+      publishRoomInfo(); // 更新 retained message
       publishLobby('update');
       // 清理过期房间
       const now=Date.now();
-      for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000)delete G.knownRooms[code]}
+      for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>60000)delete G.knownRooms[code]}
       renderLobby();
     }
   },8000);
@@ -333,8 +364,10 @@ function createRoom(gameType){
   if(G.roomCode)cleanupRoom();
   G.gameType=gameType;G.isHost=true;G.roomCode=genCode();
   G.roomPeers=[{id:G.myId,name:G.user}];
-  // 订阅房间频道
+  // 订阅房间聊天频道
   if(G.mqtt&&G.mqttConnected)G.mqtt.subscribe(roomTopic(G.roomCode),{qos:0});
+  // 发布房间 retained message + 大厅通知
+  publishRoomInfo();
   publishLobby('create');
   startHeartbeat();
   showWaitPanel(true);renderLobby();
@@ -399,6 +432,7 @@ function cleanupRoom(){
   stopHeartbeat();
   if(G.roomCode){
     publishLobby('close');
+    clearRoomInfo(); // 清除 retained message
     publishRoom({type:'leave',playerId:G.myId,playerName:G.user});
     // 取消订阅房间频道
     if(G.mqtt&&G.mqttConnected){
