@@ -68,7 +68,12 @@ function initMQTT(){
     });
     G.mqtt.on('connect',()=>{
       G.mqttConnected=true;
+      console.log('MQTT connected');
       G.mqtt.subscribe('wasteland_exchange/rooms',{qos:0});
+      // 如果有房间等待广播（MQTT之前没连上），现在补发
+      if(G.roomCode&&G.isHost){
+        publishRoom('create',{players:G.roomPeers.length});
+      }
     });
     G.mqtt.on('message',(topic,payload)=>{
       try{
@@ -76,7 +81,8 @@ function initMQTT(){
         if(topic==='wasteland_exchange/rooms')handleRoomMessage(msg);
       }catch(e){}
     });
-    G.mqtt.on('error',()=>{});
+    G.mqtt.on('error',(err)=>{console.warn('MQTT error:',err);G.mqttConnected=false});
+    G.mqtt.on('reconnect',()=>{console.log('MQTT reconnecting...')});
     G.mqtt.on('close',()=>{G.mqttConnected=false});
   }catch(e){console.warn('MQTT init failed:',e)}
 }
@@ -102,7 +108,11 @@ function handleRoomMessage(msg){
 }
 
 function publishRoom(action,extra){
-  if(!G.mqtt||!G.mqttConnected)return;
+  if(!G.mqtt)return;
+  if(!G.mqttConnected){
+    // MQTT还没连上，等连上后自动补发（在connect回调里处理）
+    return;
+  }
   const msg={action,code:G.roomCode,hostName:G.user,game:G.gameType,...extra};
   G.mqtt.publish('wasteland_exchange/rooms',JSON.stringify(msg),{qos:0});
 }
