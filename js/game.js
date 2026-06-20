@@ -1,13 +1,14 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场
+// 废土交易所 - 生存物资赌场 v5
 // 纯MQTT架构：EMQX公共broker + 实时房间发现 + 游戏同步
+// 修复：二十一点回合控制、游戏结束流程、牌同步、离开通知等19个bug
 // ============================================================
 'use strict';
 
 const MQTT_BROKER='wss://broker.emqx.io:8084/mqtt';
-const TOPIC_LOBBY='wl_lobby_v3';      // 大厅事件通知（create/update/close）
-const TOPIC_ROOMS='wl_rooms_v3/#';   // 房间列表（retained message，每个房间一条）
-const TOPIC_ROOM_PREFIX='wl_rooms_v3';
+const TOPIC_LOBBY='wl_lobby_v5';
+const TOPIC_ROOMS='wl_rooms_v5/#';
+const TOPIC_ROOM_PREFIX='wl_rooms_v5';
 
 const G = {
   user:null, chips:50,
@@ -17,26 +18,28 @@ const G = {
   roomPeers:[], createGameType:'zjh',
   candleTimer:null, candleTime:0, candleMax:180,
   inGame:false,
-  // MQTT
   mqtt:null, mqttConnected:false,
   knownRooms:{},
   heartbeatTimer:null,
-  myId:null, // 当前客户端唯一ID
-  // 轮次控制
-  turnIndex:0, playerOrder:[]
+  myId:null,
+  turnIndex:0, playerOrder:[],
+  roundCount:0,
+  resultShown:false // 防止重复弹结果
 };
 
 const SUITS=['♠','♥','♣','♦'];
 const RANKS=['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 const RV={'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13,'A':14};
+const MAX_ROUNDS=20;
+const MAX_SEATS=3;
 
 function $(id){return document.getElementById(id)}
 function genId(){return Math.random().toString(36).substr(2,10)}
 function genCode(){return Math.random().toString(36).substring(2,8).toUpperCase()}
 
 // ==================== 存储 ====================
-function load(){const s=localStorage.getItem('wl_user');if(s){const d=JSON.parse(s);G.user=d.n;G.chips=d.c||50;return true}return false}
-function save(){if(G.user)localStorage.setItem('wl_user',JSON.stringify({n:G.user,c:G.chips}))}
+function load(){try{const s=localStorage.getItem('wl_user');if(s){const d=JSON.parse(s);G.user=d.n;G.chips=d.c||50;return true}}catch(e){}return false}
+function save(){if(G.user)try{localStorage.setItem('wl_user',JSON.stringify({n:G.user,c:G.chips}))}catch(e){}}
 
 // ==================== 牌 ====================
 function makeDeck(){const d=[];for(const s of SUITS)for(const r of RANKS)d.push({s,r,v:RV[r],red:s==='♥'||s==='♦'});return shuffle(d)}
@@ -44,44 +47,95 @@ function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.fl
 function cardHTML(c,hidden){if(hidden)return'<div class="card-back"></div>';return`<div class="card ${c.red?'red':'black'}"><div class="card-rank">${c.r}</div><div class="card-suit">${c.s}</div></div>`}
 
 // ==================== UI ====================
-function showScreen(n){$('auth-screen').style.display=n==='auth'?'flex':'none';$('main-screen').style.display=n==='main'?'block':'none';$('game-screen').style.display=n==='game'?'block':'none'}
-function updateChips(){
-  // 如果在游戏中，使用玩家的游戏筹码
-  if(G.inGame){
-    const me=G.players.find(p=>p.isMe);
-    if(me&&me.chips!==undefined)G.chips=me.chips;
-  }
-  $('user-chips').textContent=G.chips;$('game-chips').textContent=G.chips;save()
+function showScreen(n){
+  $('auth-screen').style.display=n==='auth'?'flex':'none';
+  $('main-screen').style.display=n==='main'?'block':'none';
+  $('game-screen').style.display=n==='game'?'block':'none';
 }
-function log(m,t=''){G.logs.push({m,t});if(G.logs.length>50)G.logs.shift();const p=$('game-log'),e=document.createElement('div');e.className='log-entry '+t;e.textContent=m;p.appendChild(e);p.scrollTop=p.scrollHeight}
-function clearLog(){G.logs=[];$('game-log').innerHTML=''}
-function showModal(t,m,w){$('modal-title').textContent=t;$('modal-title').className='modal-title '+(w?'win':'lose');$('modal-text').textContent=m;$('result-modal').classList.add('open')}
-function closeModal(){$('result-modal').classList.remove('open')}
-function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3000)}
-function escHTML(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function updateChips(){
+  if(G.inGame){const me=G.players.find(p=>p.isMe);if(me&&me.chips!==undefined)G.chips=me.chips}
+  $('user-chips').textContent=G.chips;
+  $('game-chips').textContent=G.chips;
+  save();
+}
+function log(m,t=''){
+  G.logs.push({m,t});
+  if(G.logs.length>50)G.logs.shift();
+  const p=$('game-log');
+  if(!p)return;
+  const e=document.createElement('div');
+  e.className='log-entry '+(t||'');
+  e.textContent=m;
+  p.appendChild(e);
+  p.scrollTop=p.scrollHeight;
+}
+function clearLog(){G.logs=[];const p=$('game-log');if(p)p.innerHTML=''}
+function showModal(t,m,w){
+  $('modal-title').textContent=t;
+  $('modal-title').className='modal-title '+(w?'win':'lose');
+  $('modal-text').textContent=m;
+  $('result-modal').classList.add('open');
+}
+function closeModal(){
+  $('result-modal').classList.remove('open');
+  // 游戏结束后回到等待面板
+  if(G.roomCode&&G.gameOver){
+    G.inGame=false;G.gameOver=false;G.resultShown=false;
+    G.myTurn=false;
+    showScreen('main');
+    showWaitPanel(G.isHost);
+  }
+}
+function toast(msg){
+  const existing=document.querySelectorAll('.toast');
+  if(existing.length>=3)existing[0].remove();
+  const t=document.createElement('div');
+  t.className='toast';
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>{if(t.parentNode)t.remove()},3500);
+}
+function escHTML(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 // ==================== 登录 ====================
 $('auth-btn').onclick=()=>{
   const n=$('auth-name').value.trim();
-  if(!n){$('auth-hint').textContent='代号不能为空';return}
-  G.user=n;if(!load())G.chips=50;
+  if(!n){$('auth-hint').textContent='代号不能为空';$('auth-hint').style.color='var(--accent)';return}
+  if(n.length>12){$('auth-hint').textContent='代号最多12个字符';$('auth-hint').style.color='var(--accent)';return}
+  G.user=n;
+  if(!load())G.chips=50;
   G.myId=genId();
-  save();$('user-name').textContent=n;updateChips();
-  showScreen('main');initMQTT();
+  save();
+  $('user-name').textContent=n;
+  updateChips();
+  showScreen('main');
+  initMQTT();
 };
+
+$('auth-name').onkeydown=(e)=>{if(e.key==='Enter')$('auth-btn').click()};
+
 function logout(){
   cleanupAll();
-  G.user=null;localStorage.removeItem('wl_user');
+  G.user=null;
+  try{localStorage.removeItem('wl_user')}catch(e){}
   showScreen('auth');
 }
-if(load()){G.myId=genId();$('user-name').textContent=G.user;updateChips();showScreen('main');initMQTT()}
+
+// 自动登录
+if(load()){
+  G.myId=genId();
+  $('user-name').textContent=G.user;
+  updateChips();
+  showScreen('main');
+  initMQTT();
+}
 
 // ==================== MQTT ====================
 function initMQTT(){
   if(G.mqtt)return;
   try{
     G.mqtt=mqtt.connect(MQTT_BROKER,{
-      clientId:'wl_'+G.myId||genId(),
+      clientId:'wl_'+(G.myId||genId()),
       clean:true,connectTimeout:10000,reconnectPeriod:3000,
       keepalive:60
     });
@@ -91,31 +145,28 @@ function initMQTT(){
       $('online-dot').classList.remove('off');
       $('conn-status').textContent='信号正常';
       $('conn-status').style.color='var(--green)';
-      // 订阅大厅事件频道 + 所有房间列表（retained）
       G.mqtt.subscribe(TOPIC_LOBBY,{qos:0});
       G.mqtt.subscribe(TOPIC_ROOMS,{qos:0});
-      // 如果在房间里，重新订阅房间聊天频道
+      // 重连后重新订阅房间
       if(G.roomCode){
         G.mqtt.subscribe(roomTopic(G.roomCode),{qos:0});
-        // 如果是主机，补发房间信息
         if(G.isHost)publishRoomInfo();
       }
     });
     G.mqtt.on('message',(topic,payload)=>{
       try{
-        const msg=JSON.parse(payload.toString());
+        const raw=payload.toString();
+        if(!raw)return;
+        const msg=JSON.parse(raw);
         if(topic===TOPIC_LOBBY){
           handleLobbyMsg(msg);
-        }else if(topic.startsWith(TOPIC_ROOM_PREFIX+'/')){
-          // 房间 retained message
-          const code=topic.split('/').pop();
-          handleRoomListMsg(code,msg);
-        }else if(topic===roomTopic(G.roomCode)){
-          handleRoomMsg(msg);
         }else if(topic.startsWith(TOPIC_ROOM_PREFIX+'_chat/')){
           handleRoomMsg(msg);
+        }else if(topic.startsWith(TOPIC_ROOM_PREFIX+'/')&&!topic.includes('_chat')){
+          const code=topic.split('/').pop();
+          handleRoomListMsg(code,msg);
         }
-      }catch(e){console.warn('[MQTT] parse error:',e)}
+      }catch(e){console.warn('[MQTT] msg error:',e)}
     });
     G.mqtt.on('error',(err)=>{console.warn('[MQTT] error:',err.message);G.mqttConnected=false});
     G.mqtt.on('reconnect',()=>{console.log('[MQTT] reconnecting...')});
@@ -130,17 +181,14 @@ function initMQTT(){
 
 function roomTopic(code){return TOPIC_ROOM_PREFIX+'_chat/'+code}
 
-// 发布房间信息（retained message，新订阅者能立即收到）
 function publishRoomInfo(){
   if(!G.mqtt||!G.mqttConnected||!G.roomCode)return;
   const msg={code:G.roomCode,hostName:G.user,game:G.gameType,players:G.roomPeers.length,ts:Date.now(),hostId:G.myId};
   G.mqtt.publish(TOPIC_ROOM_PREFIX+'/'+G.roomCode,JSON.stringify(msg),{qos:0,retain:true});
 }
 
-// 清除房间的 retained message
 function clearRoomInfo(){
   if(!G.mqtt||!G.mqttConnected||!G.roomCode)return;
-  // 发布空 retained message 来清除
   G.mqtt.publish(TOPIC_ROOM_PREFIX+'/'+G.roomCode,'',{qos:0,retain:true});
 }
 
@@ -157,11 +205,11 @@ function publishRoom(msg){
   G.mqtt.publish(roomTopic(G.roomCode),JSON.stringify(msg),{qos:0});
 }
 
-// ==================== 房间列表（retained message） ====================
+// ==================== 房间列表 ====================
 function handleRoomListMsg(code,msg){
-  if(!msg||!msg.code)return; // 空消息 = 被清除
-  if(msg.hostId===G.myId)return; // 忽略自己的
-  if(msg.ts&&Date.now()-msg.ts>60000)return; // 60秒过期
+  if(!msg||!msg.code)return;
+  if(msg.hostId===G.myId)return;
+  if(msg.ts&&Date.now()-msg.ts>60000)return;
   G.knownRooms[msg.code]={name:msg.hostName,game:msg.game,players:msg.players||1,ts:msg.ts||Date.now()};
   renderLobby();
 }
@@ -191,17 +239,20 @@ function handleLobbyMsg(msg){
 
 // ==================== 房间消息 ====================
 function handleRoomMsg(msg){
-  if(msg._from===G.myId)return; // 忽略自己发的消息
-  console.log('[RoomMsg]',msg.type,msg);
+  if(msg._from===G.myId)return;
+  console.log('[RoomMsg]',msg.type);
   switch(msg.type){
     case 'join':
-      // 主机收到客人加入
       if(!G.isHost)return;
       if(G.roomPeers.find(p=>p.id===msg.playerId))return;
+      if(G.roomPeers.length>=MAX_SEATS){
+        publishRoom({type:'full',targetId:msg.playerId});
+        return;
+      }
       G.roomPeers.push({id:msg.playerId,name:msg.playerName});
       updateWaitPlayers();
+      publishRoomInfo();
       publishLobby('update');
-      // 发送欢迎消息（包含完整玩家列表+当前游戏状态）
       publishRoom({type:'welcome',targetId:msg.playerId,
         players:G.roomPeers.filter(p=>p.id!==G.myId).map(p=>({id:p.id,name:p.name})),
         hostName:G.user,game:G.gameType,roomCode:G.roomCode,
@@ -211,14 +262,23 @@ function handleRoomMsg(msg){
       toast(msg.playerName+' 到达了牌桌');
       break;
 
+    case 'full':
+      if(msg.targetId===G.myId){
+        // FIX BUG#7: 先保存code再清空
+        const code=G.roomCode;
+        G.roomCode=null;G.isHost=false;
+        try{G.mqtt.unsubscribe(roomTopic(code))}catch(e){}
+        renderLobby();
+        toast('牌桌已满');
+      }
+      break;
+
     case 'welcome':
-      // 客人收到主机欢迎
       if(msg.targetId!==G.myId)return;
       G.isHost=false;G.gameType=msg.game;G.roomCode=msg.roomCode;
       G.roomPeers=[{id:'host',name:msg.hostName}];
       for(const p of msg.players){if(p.id!=='host')G.roomPeers.push({id:p.id,name:p.name})}
       if(msg.inGame&&msg.gameState){
-        // 房间已经在游戏中，同步状态
         deserializeGameState(msg.gameState);
         showScreen('game');
         $('game-title').textContent=G.gameType==='zjh'?'物资炸金花':'物资二十一点';
@@ -229,13 +289,23 @@ function handleRoomMsg(msg){
       toast('已到达牌桌');
       break;
 
+    case 'leave':
+      if(!G.isHost)return;
+      G.roomPeers=G.roomPeers.filter(p=>p.id!==msg.playerId);
+      updateWaitPlayers();
+      publishRoomInfo();
+      publishLobby('update');
+      toast(msg.playerName+' 离开了牌桌');
+      break;
+
     case 'start-game':
-      G.gameType=msg.game;G.inGame=true;G.gameOver=false;G.myTurn=false;
+      G.gameType=msg.game;G.inGame=true;G.gameOver=false;G.myTurn=false;G.resultShown=false;
       G.deck=msg.deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
       G.players=msg.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:p.id===G.myId}));
       G.pot=msg.pot;G.currentBet=msg.currentBet;
       G.playerOrder=msg.playerOrder||G.players.map(p=>p.id);
       G.turnIndex=msg.turnIndex||0;
+      G.roundCount=0;
       checkMyTurn();
       showScreen('game');
       $('game-title').textContent=msg.game==='zjh'?'物资炸金花':'物资二十一点';
@@ -255,13 +325,35 @@ function handleRoomMsg(msg){
       break;
 
     case 'result':{
-      const isMe=msg.winnerId===G.myId;
-      const title=msg.title||'牌局结算';
-      const text=isMe?(msg.winnerId===G.myId?'你赢了！'+msg.text:msg.text):msg.text;
-      showModal(isMe?'物资归你':'物资被收走',text,isMe);
+      // FIX BUG#13: 防止重复弹窗
+      if(G.resultShown)return;
+      G.resultShown=true;
       G.gameOver=true;stopCandle();
-      if(msg.players){for(const rp of msg.players){const lp=G.players.find(p=>p.id===rp.id);if(lp)lp.chips=rp.chips}}
+      const isMe=msg.winnerId===G.myId;
+      showModal(isMe?'物资归你':'物资被收走',msg.text,isMe);
+      if(msg.players){
+        for(const rp of msg.players){
+          const lp=G.players.find(p=>p.id===rp.id);
+          if(lp)lp.chips=rp.chips;
+        }
+      }
+      // FIX BUG#14: 游戏结束后显示返回按钮
+      G.inGame=true; // 保持inGame=true，等closeModal时才设false
       renderTable();
+      break;
+    }
+
+    // FIX BUG#9/10: 处理游戏中玩家离开
+    case 'game-leave':{
+      if(!G.isHost)return;
+      const leaving=G.players.find(p=>p.id===msg.playerId);
+      if(leaving){
+        leaving.folded=true;
+        log(leaving.name+' 撤离了牌桌','system');
+        // 检查游戏是否因此结束
+        if(G.gameType==='zjh')checkZJHEnd();
+        else checkBJEnd();
+      }
       break;
     }
   }
@@ -270,8 +362,8 @@ function handleRoomMsg(msg){
 function serializeGameState(){
   return{
     gameType:G.gameType,deck:G.deck,pot:G.pot,currentBet:G.currentBet,
-    players:G.players.map(p=>({id:p.id,name:p.name,cards:p.cards,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,isMe:p.id===G.myId})),
-    playerOrder:G.playerOrder,turnIndex:G.turnIndex,gameOver:G.gameOver
+    players:G.players.map(p=>({id:p.id,name:p.name,cards:p.cards,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood})),
+    playerOrder:G.playerOrder,turnIndex:G.turnIndex,gameOver:G.gameOver,roundCount:G.roundCount
   };
 }
 
@@ -281,6 +373,7 @@ function deserializeGameState(state){
   G.pot=state.pot;G.currentBet=state.currentBet;
   G.players=state.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:p.id===G.myId}));
   G.playerOrder=state.playerOrder;G.turnIndex=state.turnIndex;G.gameOver=state.gameOver;
+  G.roundCount=state.roundCount||0;
   G.inGame=true;
   checkMyTurn();
 }
@@ -289,10 +382,9 @@ function deserializeGameState(state){
 function startHeartbeat(){
   stopHeartbeat();
   G.heartbeatTimer=setInterval(()=>{
-    if(G.roomCode&&G.isHost){
-      publishRoomInfo(); // 更新 retained message
+    if(G.roomCode&&G.isHost&&G.mqttConnected){
+      publishRoomInfo();
       publishLobby('update');
-      // 清理过期房间
       const now=Date.now();
       for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>60000)delete G.knownRooms[code]}
       renderLobby();
@@ -301,7 +393,7 @@ function startHeartbeat(){
 }
 function stopHeartbeat(){if(G.heartbeatTimer){clearInterval(G.heartbeatTimer);G.heartbeatTimer=null}}
 
-// ==================== 蜡烛计时 ====================
+// ==================== 蜡烛 ====================
 function startCandle(){
   stopCandle();G.candleTime=G.candleMax;updateCandleUI();
   G.candleTimer=setInterval(()=>{
@@ -321,21 +413,31 @@ function updateCandleUI(){
 }
 
 function hostForceSettle(){
+  // FIX BUG#18: 所有人弃牌/爆牌时退还底池
   const active=G.players.filter(p=>!p.folded&&!p.busted);
-  if(active.length===0)return;
+  if(active.length===0){
+    // 底池平分退还
+    const share=Math.floor(G.pot/G.players.length);
+    G.players.forEach(p=>p.chips+=share);
+    G.pot=0;
+    publishRoom({type:'result',text:'蜡烛烧尽！所有幸存者平分底池',winnerId:null,
+      players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+    showModal('蜡烛烧尽','底池物资已平分退还',false);
+    return;
+  }
   let best=active[0];
   if(G.gameType==='zjh'){for(let i=1;i<active.length;i++){if(evalZJH(active[i].cards).val>evalZJH(best.cards).val)best=active[i]}}
   else{for(let i=1;i<active.length;i++){if(bjValue(active[i].cards)>bjValue(best.cards))best=active[i]}}
   best.chips+=G.pot;
   const isMe=best.isMe;
-  publishRoom({type:'result',title:'蜡烛烧尽',text:`${best.name} 获得底池 ${G.pot} 单位`,winnerId:best.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
-  showModal('蜡烛烧尽',isMe?`强制结算！你获得底池 ${G.pot} 单位`:`强制结算！${best.name} 获得底池 ${G.pot} 单位`,isMe);
+  publishRoom({type:'result',text:`蜡烛烧尽！${best.name} 获得底池 ${G.pot} 单位`,winnerId:best.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+  showModal('蜡烛烧尽',isMe?`你获得底池 ${G.pot} 单位`:`${best.name} 获得底池 ${G.pot} 单位`,isMe);
   renderTable();
 }
 
 // ==================== 大厅渲染 ====================
 function renderLobby(){
-  const grid=$('tables-grid');
+  const grid=$('tables-grid');if(!grid)return;
   const rooms={};
   for(const code in G.knownRooms){
     const r=G.knownRooms[code];
@@ -350,7 +452,7 @@ function renderLobby(){
     grid.innerHTML=`<div class="empty-lobby"><div class="icon">🏚️</div><p>仓储区还没有牌桌</p><p style="font-size:11px">点击"搭新桌"开始，等其他人来</p></div>`;
     return;
   }
-  grid.innerHTML=codes.map(code=>{const r=rooms[code];return renderTableCard(code,r.game,r.name,r.players,3,!!r.isMine)}).join('');
+  grid.innerHTML=codes.map(code=>{const r=rooms[code];return renderTableCard(code,r.game,r.name,r.players,MAX_SEATS,!!r.isMine)}).join('');
 }
 
 function renderTableCard(code,gameType,hostName,playerCount,maxSeats,isMyTable){
@@ -364,9 +466,9 @@ function renderTableCard(code,gameType,hostName,playerCount,maxSeats,isMyTable){
     else seats+=`<div class="seat empty"><div class="seat-dot"></div>空位</div>`;
   }
   const statusClass=count>=2?'playing':'waiting';
-  const statusText=count>=2?'可开局':'等待中';
+  const statusText=count>=maxSeats?'已满':count>=2?'可开局':'等待中';
   const clickHandler=isMyTable?'showWaitPanel(true)':`joinTableByCode('${code}')`;
-  return `<div class="table-card" onclick="${clickHandler}"><div class="table-visual"><div class="candle-glow"></div><div class="seats">${seats}</div></div><div class="table-info"><div class="table-name"><span>${icon} ${code}号桌</span><span class="table-status ${statusClass}">${statusText}</span></div><div class="table-game">${label} · ${tier}</div><div class="table-meta"><div class="table-players">${count}/${maxSeats} 人</div></div></div></div>`;
+  return `<div class="table-card ${count>=maxSeats?'full':''}" onclick="${clickHandler}"><div class="table-visual"><div class="candle-glow"></div><div class="seats">${seats}</div></div><div class="table-info"><div class="table-name"><span>${icon} ${code}号桌</span><span class="table-status ${statusClass}">${statusText}</span></div><div class="table-game">${label} · ${tier}</div><div class="table-meta"><div class="table-players">${count}/${maxSeats} 人</div></div></div></div>`;
 }
 
 // ==================== 创建牌桌 ====================
@@ -377,11 +479,10 @@ function doCreateTable(){hideCreateModal();createRoom(G.createGameType)}
 
 function createRoom(gameType){
   if(G.roomCode)cleanupRoom();
+  // FIX BUG#6: 删除不存在的G.conn引用
   G.gameType=gameType;G.isHost=true;G.roomCode=genCode();
   G.roomPeers=[{id:G.myId,name:G.user}];
-  // 订阅房间聊天频道
   if(G.mqtt&&G.mqttConnected)G.mqtt.subscribe(roomTopic(G.roomCode),{qos:0});
-  // 发布房间 retained message + 大厅通知
   publishRoomInfo();
   publishLobby('create');
   startHeartbeat();
@@ -399,11 +500,11 @@ function showWaitPanel(isHost){
     $('start-btn').disabled=G.roomPeers.length<2;
     $('start-btn').textContent=G.roomPeers.length>=2?`开局 (${G.roomPeers.length}人)`:'等待幸存者... (至少2人)';
     $('close-btn').textContent='撤掉牌桌';
-    $('close-btn').onclick=closeRoom;
+    $('close-btn').onclick=()=>closeRoom();
   }else{
     $('start-btn').style.display='none';
     $('close-btn').textContent='离开牌桌';
-    $('close-btn').onclick=leaveRoom;
+    $('close-btn').onclick=()=>leaveRoom();
   }
 }
 
@@ -427,14 +528,11 @@ function joinTableByCode(code){
   if(G.inGame){toast('你正在牌局中，先撤离');return}
   if(G.isHost&&G.roomCode===code){showWaitPanel(true);return}
   if(G.roomCode&&!G.isHost){toast('你已在某张牌桌上');return}
-  // 清理旧房间
   if(G.roomCode)cleanupRoom();
   G.roomCode=code;G.isHost=false;
   toast('正在前往'+code+'号桌...');
-  // 订阅房间频道
   if(G.mqtt&&G.mqttConnected){
     G.mqtt.subscribe(roomTopic(code),{qos:0},()=>{
-      // 订阅成功后发送加入消息
       publishRoom({type:'join',playerId:G.myId,playerName:G.user});
       toast('已连接到'+code+'号桌');
     });
@@ -444,15 +542,14 @@ function joinTableByCode(code){
   }
 }
 
-// ==================== 关闭/清理 ====================
+// ==================== 离开/关闭 ====================
 function leaveRoom(){
-  // 客人离开房间，但不关闭桌子
   publishRoom({type:'leave',playerId:G.myId,playerName:G.user});
   if(G.mqtt&&G.mqttConnected){
     try{G.mqtt.unsubscribe(roomTopic(G.roomCode))}catch(e){}
   }
   G.roomPeers=[];G.roomCode=null;G.isHost=false;
-  G.inGame=false;G.gameOver=false;G.myTurn=false;
+  G.inGame=false;G.gameOver=false;G.myTurn=false;G.resultShown=false;
   stopCandle();
   $('wait-panel').style.display='none';
   showScreen('main');
@@ -470,22 +567,21 @@ function cleanupRoom(){
   stopHeartbeat();
   if(G.roomCode){
     publishLobby('close');
-    clearRoomInfo(); // 清除 retained message
+    clearRoomInfo();
     publishRoom({type:'leave',playerId:G.myId,playerName:G.user});
-    // 取消订阅房间频道
     if(G.mqtt&&G.mqttConnected){
       try{G.mqtt.unsubscribe(roomTopic(G.roomCode))}catch(e){}
     }
     delete G.knownRooms[G.roomCode];
   }
   G.roomPeers=[];G.roomCode=null;G.isHost=false;
-  G.inGame=false;G.gameOver=false;G.myTurn=false;
+  G.inGame=false;G.gameOver=false;G.myTurn=false;G.resultShown=false;
   stopCandle();
 }
 
 function cleanupAll(){
   cleanupRoom();
-  if(G.mqtt){try{G.mqtt.end()}catch(e){}G.mqtt=null}
+  if(G.mqtt){try{G.mqtt.end(true)}catch(e){}G.mqtt=null}
   G.mqttConnected=false;
 }
 
@@ -500,22 +596,28 @@ function hostStartGame(){
     for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,cards:[deck.pop(),deck.pop(),deck.pop()],chips:50,bet:5,folded:false,seen:false,isMe:false});
     G.pot=players.length*5;G.currentBet=5;
   }else{
-    for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,cards:[deck.pop(),deck.pop()],chips:50,bet:10,busted:false,isMe:false});
+    // FIX BUG#1/4: 二十一点增加stood属性
+    for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,cards:[deck.pop(),deck.pop()],chips:50,bet:10,busted:false,stood:false,isMe:false});
     G.pot=players.length*10;G.currentBet=10;
+    // FIX BUG#3: 检查初始Blackjack
+    for(const p of players){
+      if(bjValue(p.cards)===21){
+        p.stood=true;
+        log(p.name+' 天然21点！','system');
+      }
+    }
   }
-  G.players=players;G.gameOver=false;G.inGame=true;G.turnIndex=0;
+  G.players=players;G.gameOver=false;G.inGame=true;G.turnIndex=0;G.roundCount=0;G.resultShown=false;
 
-  // 广播游戏开始（所有人收到相同的消息，客户端自行判断isMe）
   const gameMsg={
     type:'start-game',game:G.gameType,
     deck:deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),
-    players:players.map(pl=>({id:pl.id,name:pl.name,cards:pl.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),chips:pl.chips,bet:pl.bet,folded:pl.folded,seen:pl.seen,busted:pl.busted})),
+    players:players.map(pl=>({id:pl.id,name:pl.name,cards:pl.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),chips:pl.chips,bet:pl.bet,folded:pl.folded,seen:pl.seen,busted:pl.busted,stood:pl.stood})),
     pot:G.pot,currentBet:G.currentBet,
     playerOrder:G.playerOrder,turnIndex:0
   };
   publishRoom(gameMsg);
 
-  // 主机自己标记isMe
   G.players.forEach(pl=>{pl.isMe=pl.id===G.myId});
   checkMyTurn();
   $('wait-panel').style.display='none';
@@ -523,18 +625,24 @@ function hostStartGame(){
   $('game-title').textContent=G.gameType==='zjh'?'物资炸金花':'物资二十一点';
   clearLog();log('=== 牌局开始，物资已入底池 ===','system');
   startCandle();renderTable();
+
+  // FIX BUG#5: 房主检查二十一点是否所有人初始就21点
+  if(G.gameType==='bj')checkBJEnd();
 }
 
-// ==================== 轮次检查 ====================
+// ==================== 轮次 ====================
 function checkMyTurn(){
   if(G.gameOver)return;
   if(G.gameType==='zjh'){
     const me=G.players.find(p=>p.isMe);
-    if(me&&!me.folded){const currentId=G.playerOrder[G.turnIndex%G.playerOrder.length];G.myTurn=(me.id===currentId)}
-    else G.myTurn=false;
+    if(me&&!me.folded){
+      const currentId=G.playerOrder[G.turnIndex%G.playerOrder.length];
+      G.myTurn=(me.id===currentId);
+    }else G.myTurn=false;
   }else{
+    // FIX BUG#4: 二十一点 - 只有自己没爆牌且没停牌才是我的回合
     const me=G.players.find(p=>p.isMe);
-    if(me&&!me.busted)G.myTurn=true;else G.myTurn=false;
+    if(me&&!me.busted&&!me.stood)G.myTurn=true;else G.myTurn=false;
   }
 }
 
@@ -558,8 +666,17 @@ function renderZJH(){
   }
   $('pot-amount').textContent=G.pot+'单位';
   if(G.myTurn&&!G.gameOver){
-    $('action-bar').innerHTML=`<button class="action-btn danger" onclick="doAction('fold')">弃牌</button><button class="action-btn" onclick="doAction('look')">看牌</button><button class="action-btn warning" onclick="doAction('call')">跟注 ${G.currentBet}</button><button class="action-btn primary" onclick="doAction('raise')">加注</button>`;
-  }else{$('action-bar').innerHTML=`<div style="color:var(--dim);font-size:12px">${G.gameOver?'牌局结束':'等待其他幸存者...'}</div>`}
+    $('action-bar').innerHTML=`
+      <button class="action-btn danger" onclick="doAction('fold')">弃牌</button>
+      ${me.seen?'':`<button class="action-btn" onclick="doAction('look')">看牌</button>`}
+      <button class="action-btn warning" onclick="doAction('call')">跟注 ${G.currentBet}</button>
+      <button class="action-btn primary" onclick="doAction('raise')">加注</button>`;
+  }else if(G.gameOver){
+    // FIX BUG#14: 游戏结束后显示返回按钮
+    $('action-bar').innerHTML=`<button class="action-btn primary" onclick="closeModal()">返回等待面板</button>`;
+  }else{
+    $('action-bar').innerHTML=`<div style="color:var(--dim);font-size:12px">等待其他幸存者...</div>`;
+  }
 }
 
 function renderBJ(){
@@ -575,26 +692,36 @@ function renderBJ(){
     const show=G.gameOver;
     $('p'+(i+1)+'-cards').innerHTML=show?p.cards.map(c=>cardHTML(c)).join(''):p.cards.map(()=>cardHTML(null,true)).join('');
     $('p'+(i+1)+'-hand').textContent=show?`点数: ${bjValue(p.cards)}`:'';
-    $('p'+(i+1)+'-name').textContent=escHTML(p.name);
+    $('p'+(i+1)+'-name').textContent=escHTML(p.name)+(p.busted?' (爆牌)':p.stood?' (停牌)':'');
   }
   $('pot-amount').textContent=G.pot+'单位';
   if(G.myTurn&&!G.gameOver&&!me.busted){
-    $('action-bar').innerHTML=`<button class="action-btn success" onclick="doAction('hit')">要牌</button><button class="action-btn" onclick="doAction('stand')">停牌</button>`;
-  }else{$('action-bar').innerHTML=`<div style="color:var(--dim);font-size:12px">${G.gameOver?'牌局结束':me&&me.busted?'爆牌了':'等待其他幸存者...'}</div>`}
+    $('action-bar').innerHTML=`
+      <button class="action-btn success" onclick="doAction('hit')">要牌</button>
+      <button class="action-btn" onclick="doAction('stand')">停牌</button>`;
+  }else if(G.gameOver){
+    // FIX BUG#14: 游戏结束后显示返回按钮
+    $('action-bar').innerHTML=`<button class="action-btn primary" onclick="closeModal()">返回等待面板</button>`;
+  }else{
+    const statusText=me&&me.busted?'爆牌了':me&&me.stood?'已停牌':'等待其他幸存者...';
+    $('action-bar').innerHTML=`<div style="color:var(--dim);font-size:12px">${statusText}</div>`;
+  }
 }
 
-// ==================== 牌型判定 ====================
+// ==================== 牌型 ====================
 function evalZJH(cards){
   const sorted=[...cards].sort((a,b)=>b.v-a.v);
   const[c1,c2,c3]=sorted;
   const flush=c1.s===c2.s&&c2.s===c3.s;
-  const straight=c1.v===c2.v+1&&c2.v===c3.v+1;
+  // FIX BUG#19: 处理A-2-3特殊顺子
+  const isA23=(c1.v===14&&c2.v===3&&c3.v===2);
+  const straight=(c1.v===c2.v+1&&c2.v===c3.v+1)||isA23;
   const three=c1.v===c2.v&&c2.v===c3.v;
   const pair=c1.v===c2.v||c2.v===c3.v||c1.v===c3.v;
   if(three)return{type:6,name:'豹子',val:c1.v*1e6};
-  if(flush&&straight)return{type:5,name:'同花顺',val:c1.v*1e5+c2.v*1e3+c3.v};
+  if(flush&&straight)return{type:5,name:'同花顺',val:isA23?3e5:c1.v*1e5+c2.v*1e3+c3.v};
   if(flush)return{type:4,name:'同花',val:c1.v*1e4+c2.v*100+c3.v};
-  if(straight)return{type:3,name:'顺子',val:c1.v*1e4+c2.v*100+c3.v};
+  if(straight)return{type:3,name:'顺子',val:isA23?3e4:c1.v*1e4+c2.v*100+c3.v};
   if(pair){const pv=c1.v===c2.v?c1.v:c3.v;const k=c1.v===c2.v?c3.v:c1.v;return{type:2,name:'对子',val:pv*1e4+k}}
   return{type:1,name:'散牌',val:c1.v*1e4+c2.v*100+c3.v};
 }
@@ -609,81 +736,186 @@ function bjValue(cards){
 function doAction(action){
   const me=G.players.find(p=>p.isMe);if(!me||!G.myTurn||G.gameOver)return;
   if(G.gameType==='zjh')doZJHAction(me,action);else doBJAction(me,action);
-  // 广播操作（不发送牌面数据）
+  // FIX BUG#8: 同步牌数据
   publishRoom({type:'action',playerId:me.id,action,
-    data:{cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted})),pot:G.pot,currentBet:G.currentBet,gameOver:G.gameOver}
+    data:{cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood,
+      myCards:p.id===me.id?p.cards:null})),pot:G.pot,currentBet:G.currentBet,gameOver:G.gameOver}
   });
   renderTable();
 }
 
 function doZJHAction(me,action){
   switch(action){
-    case 'fold':me.folded=true;G.myTurn=false;log(`${me.name} 弃牌`);checkZJHEnd();break;
-    case 'look':me.seen=true;log(`${me.name} 看了牌`);break;
-    case 'call':if(!me.seen)me.seen=true;me.chips-=G.currentBet;me.bet+=G.currentBet;G.pot+=G.currentBet;G.myTurn=false;log(`${me.name} 跟注 ${G.currentBet}单位`);advanceTurn();checkZJHEnd();break;
-    case 'raise':const amt=Math.min(me.chips,G.currentBet*2);if(!me.seen)me.seen=true;me.chips-=amt;me.bet+=amt;G.pot+=amt;G.currentBet=amt;G.myTurn=false;log(`${me.name} 加注到 ${amt}单位`);advanceTurn();checkZJHEnd();break;
+    case 'fold':
+      me.folded=true;G.myTurn=false;
+      log(`${me.name} 弃牌`);
+      checkZJHEnd();
+      break;
+    case 'look':
+      me.seen=true;
+      log(`${me.name} 看了牌`);
+      // 看牌不结束回合，不广播完整action（但外层已广播）
+      // FIX: 看牌后不清除myTurn，让玩家继续操作
+      return; // 不调用advanceTurn
+    case 'call':
+      if(!me.seen)me.seen=true;
+      me.chips-=G.currentBet;me.bet+=G.currentBet;G.pot+=G.currentBet;
+      G.myTurn=false;
+      log(`${me.name} 跟注 ${G.currentBet}单位`);
+      advanceTurn();
+      checkZJHEnd();
+      break;
+    case 'raise':
+      const amt=Math.min(me.chips,G.currentBet*2);
+      if(!me.seen)me.seen=true;
+      me.chips-=amt;me.bet+=amt;G.pot+=amt;G.currentBet=amt;
+      G.myTurn=false;
+      log(`${me.name} 加注到 ${amt}单位`);
+      advanceTurn();
+      checkZJHEnd();
+      break;
   }
 }
 
 function advanceTurn(){
   G.turnIndex++;
+  G.roundCount++;
   publishRoom({type:'turn',turnIndex:G.turnIndex,playerOrder:G.playerOrder});
 }
 
 function checkZJHEnd(){
   const active=G.players.filter(p=>!p.folded);
-  if(active.length<=1){
-    const winner=active[0]||G.players[0];winner.chips+=G.pot;G.gameOver=true;stopCandle();
+  // FIX BUG#17: 所有人弃牌时底池退还
+  if(active.length===0){
+    const share=Math.floor(G.pot/G.players.length);
+    G.players.forEach(p=>p.chips+=share);
+    G.pot=0;G.gameOver=true;stopCandle();
+    publishRoom({type:'result',text:'所有幸存者弃牌，底池退还',winnerId:null,
+      players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+    showModal('底池退还','所有幸存者弃牌，物资已退还',false);
+    return;
+  }
+  if(active.length===1){
+    const winner=active[0];
+    winner.chips+=G.pot;G.gameOver=true;stopCandle();
     const isMe=winner.isMe;
-    publishRoom({type:'result',title:'牌局结算',text:`${winner.name} 赢得了 ${G.pot} 单位物资`,winnerId:winner.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+    publishRoom({type:'result',text:`${winner.name} 赢得了 ${G.pot} 单位物资`,winnerId:winner.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
     showModal(isMe?'物资归你':'物资被收走',isMe?`你赢得了底池 ${G.pot} 单位物资`:`${winner.name} 赢得了 ${G.pot} 单位物资`,isMe);
+    return;
+  }
+  if(G.roundCount>=MAX_ROUNDS){
+    G.gameOver=true;stopCandle();
+    let best=active[0];
+    for(let i=1;i<active.length;i++){if(evalZJH(active[i].cards).val>evalZJH(best.cards).val)best=active[i]}
+    best.chips+=G.pot;
+    const isMe=best.isMe;
+    publishRoom({type:'result',text:`轮次耗尽！${best.name} 以${evalZJH(best.cards).name}获胜，获得 ${G.pot} 单位`,winnerId:best.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+    showModal(isMe?'物资归你':'物资被收走',isMe?`你以${evalZJH(best.cards).name}获胜，获得 ${G.pot} 单位`:`${best.name} 以${evalZJH(best.cards).name}获胜`,isMe);
   }
 }
 
 function doBJAction(me,action){
   switch(action){
-    case 'hit':me.cards.push(G.deck.pop());log(`${me.name} 要牌，点数 ${bjValue(me.cards)}`);if(bjValue(me.cards)>21){me.busted=true;G.myTurn=false;log(`${me.name} 爆牌！`);checkBJEnd()}break;
-    case 'stand':G.myTurn=false;log(`${me.name} 停牌，点数 ${bjValue(me.cards)}`);checkBJEnd();break;
+    case 'hit':
+      me.cards.push(G.deck.pop());
+      log(`${me.name} 要牌，点数 ${bjValue(me.cards)}`);
+      if(bjValue(me.cards)>21){
+        me.busted=true;me.stood=true;G.myTurn=false;
+        log(`${me.name} 爆牌！`);
+      }
+      // FIX BUG#5: 不在本地调用checkBJEnd，等所有操作通过action广播
+      break;
+    case 'stand':
+      me.stood=true;G.myTurn=false;
+      log(`${me.name} 停牌，点数 ${bjValue(me.cards)}`);
+      break;
   }
 }
 
+// FIX BUG#1/2/5: 完全重写checkBJEnd
 function checkBJEnd(){
-  const allDone=G.players.every(p=>p.busted||bjValue(p.cards)>=17||p.folded);
-  if(!allDone)return;
-  const active=G.players.filter(p=>!p.busted&&!p.folded);
-  if(active.length===0)return;
+  if(G.gameOver)return;
+  // 检查是否所有玩家都已操作（停牌或爆牌）
+  const allActed=G.players.every(p=>p.busted||p.stood);
+  if(!allActed)return;
+
+  const active=G.players.filter(p=>!p.busted);
+  // FIX BUG#18: 所有人爆牌
+  if(active.length===0){
+    const share=Math.floor(G.pot/G.players.length);
+    G.players.forEach(p=>p.chips+=share);
+    G.pot=0;G.gameOver=true;stopCandle();
+    publishRoom({type:'result',text:'所有幸存者爆牌，底池退还',winnerId:null,
+      players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+    showModal('底池退还','所有幸存者爆牌，物资已退还',false);
+    return;
+  }
+  // 找最大点数（不超过21的）
   let best=active[0];
-  for(let i=1;i<active.length;i++){if(bjValue(active[i].cards)>bjValue(best.cards))best=active[i]}
+  for(let i=1;i<active.length;i++){
+    if(bjValue(active[i].cards)<=21&&bjValue(active[i].cards)>bjValue(best.cards))best=active[i];
+  }
   best.chips+=G.pot;G.gameOver=true;stopCandle();
   const isMe=best.isMe;
-  publishRoom({type:'result',title:'牌局结算',text:`${best.name} 以 ${bjValue(best.cards)} 点获胜`,winnerId:best.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+  publishRoom({type:'result',text:`${best.name} 以 ${bjValue(best.cards)} 点获胜`,winnerId:best.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
   showModal(isMe?'物资归你':'物资被收走',isMe?`你以 ${bjValue(best.cards)} 点获胜，获得 ${G.pot} 单位`:`${best.name} 以 ${bjValue(best.cards)} 点获胜`,isMe);
 }
 
 function handleRemoteAction(d){
   const{playerId,action,data}=d;
   if(data){
-    G.pot=data.pot;G.currentBet=data.currentBet;G.gameOver=data.gameOver||false;
-    for(const rp of data.cards){const lp=G.players.find(p=>p.id===rp.id);if(lp){lp.chips=rp.chips;lp.bet=rp.bet;lp.folded=rp.folded;lp.seen=rp.seen;lp.busted=rp.busted}}
+    G.pot=data.pot;G.currentBet=data.currentBet;
+    if(data.gameOver)G.gameOver=true;
+    for(const rp of data.cards){
+      const lp=G.players.find(p=>p.id===rp.id);
+      if(lp){
+        lp.chips=rp.chips;lp.bet=rp.bet;lp.folded=rp.folded;lp.seen=rp.seen;lp.busted=rp.busted;lp.stood=rp.stood||false;
+        // FIX BUG#8: 同步牌数据
+        if(rp.myCards){
+          lp.cards=rp.myCards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
+        }
+      }
+    }
   }
   const rp=G.players.find(p=>p.id===playerId);
-  if(rp){const n={fold:'弃牌',look:'看牌',call:'跟注',raise:'加注',hit:'要牌',stand:'停牌'};log(`${rp.name} ${n[action]||action}`)}
+  if(rp){
+    const n={fold:'弃牌',look:'看牌',call:'跟注',raise:'加注',hit:'要牌',stand:'停牌'};
+    log(`${rp.name} ${n[action]||action}`);
+  }
   checkMyTurn();
   if(G.myTurn&&!G.gameOver)log('轮到你操作','system');
+  // FIX BUG#5: 房主在收到远程操作后检查二十一点结束
+  if(G.isHost&&G.gameType==='bj'&&!G.gameOver)checkBJEnd();
   renderTable();
 }
 
+// FIX BUG#9/10: leaveGame完整实现
 function leaveGame(){
   if(!G.inGame)return;
-  G.gameOver=true;G.myTurn=false;G.inGame=false;stopCandle();
+  G.gameOver=true;G.myTurn=false;
   const me=G.players.find(p=>p.isMe);
   if(me){
-    me.folded=true;
-    publishRoom({type:'action',playerId:me.id,action:'fold',data:{cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted})),pot:G.pot,currentBet:G.currentBet,gameOver:false}});
+    me.folded=true;me.stood=true;
+    // 通知其他玩家
+    publishRoom({type:'game-leave',playerId:me.id,playerName:me.name});
+    publishRoom({type:'action',playerId:me.id,action:'fold',data:{
+      cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood})),
+      pot:G.pot,currentBet:G.currentBet,gameOver:false
+    }});
   }
-  showScreen('main');
+  // 通知房间
+  publishRoom({type:'leave',playerId:G.myId,playerName:G.user});
+  // 取消订阅并清空状态
+  if(G.mqtt&&G.mqttConnected){
+    try{G.mqtt.unsubscribe(roomTopic(G.roomCode))}catch(e){}
+  }
+  G.inGame=false;G.resultShown=false;
+  G.roomPeers=[];G.roomCode=null;G.isHost=false;
+  stopCandle();
   $('wait-panel').style.display='none';
+  showScreen('main');
   renderLobby();
+  toast('已撤离牌桌');
 }
 
 // ==================== 初始化 ====================
