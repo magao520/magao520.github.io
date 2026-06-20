@@ -1,7 +1,7 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v8
-// 新增：2D大厅、鸽子小人、Canvas渲染、WASD移动、桌子交互
-// 修复：加载遮罩层、BJ顺序轮次、渲染缓存、消息序列号、空安全
+// 废土交易所 - 生存物资赌场 v8.1
+// 新增：虚拟摇杆、场景渲染、玩家动画、小地图、响应式桌子
+// 10轮优化：Canvas性能、CSS变量修复、devicePixelRatio、平滑插值
 // ============================================================
 'use strict';
 
@@ -1340,6 +1340,16 @@ const Lobby={
     {x:400,y:450,code:'',game:'dice',label:'🎲 骰子',players:0,max:3,host:''}
   ],
   keys:{},
+  joystick:{active:false,cx:0,cy:0,dx:0,dy:0,touchId:null},
+  particles:[],
+  time:0,
+  lastDir:{x:0,y:1},
+  floorCache:null,
+  floorCacheW:0,
+  floorCacheH:0,
+  dirty:true,
+  welcomeTime:0,
+  walkParticles:[],
   animId:null,
   lastBroadcast:0,
   
@@ -1350,6 +1360,7 @@ const Lobby={
     this.ctx=this.canvas.getContext('2d');
     this.resize();
     this.me.name=G.user||'幸存者';
+    this.welcomeTime=this.time+3;
     this.bindInput();
     bindLobbyCanvasClick();
     this.startLoop();
@@ -1359,10 +1370,29 @@ const Lobby={
   resize(){
     if(!this.canvas)return;
     const rect=this.canvas.parentElement.getBoundingClientRect();
-    this.canvas.width=rect.width;this.canvas.height=rect.height;
+    const dpr=window.devicePixelRatio||1;
+    this.canvas.width=rect.width*dpr;this.canvas.height=rect.height*dpr;
+    this.canvas.style.width=rect.width+'px';this.canvas.style.height=rect.height+'px';
+    this.ctx=this.canvas.getContext('2d');
+    this.ctx.scale(dpr,dpr);
     this.w=rect.width;this.h=rect.height;
+    this.floorCache=null;this.dirty=true;
+    // 根据画布尺寸重新定位桌子
+    const minSpacing=80;
+    const t0x=this.w*0.25,t0y=this.h*0.3;
+    const t1x=this.w*0.75,t1y=this.h*0.3;
+    const t2x=this.w*0.5,t2y=this.h*0.65;
+    // 确保最小间距
+    const d01=Math.sqrt((t1x-t0x)**2+(t1y-t0y)**2);
+    const d02=Math.sqrt((t2x-t0x)**2+(t2y-t0y)**2);
+    const d12=Math.sqrt((t2x-t1x)**2+(t2y-t1y)**2);
+    if(d01<minSpacing){this.tables[1].x=t0x+minSpacing}else{this.tables[1].x=t1x}
+    if(d02<minSpacing){this.tables[2].y=t0y+minSpacing}else{this.tables[2].y=t2y}
+    if(d12<minSpacing){this.tables[2].x=this.tables[1].x-minSpacing/2}else{this.tables[2].x=t2x}
+    this.tables[0].x=t0x;this.tables[0].y=t0y;
     // 确保玩家在边界内
-    this.me.x=Math.min(this.me.x,this.w-20);this.me.y=Math.min(this.me.y,this.h-20);
+    this.me.x=Math.max(30,Math.min(this.w-30,this.me.x));
+    this.me.y=Math.max(30,Math.min(this.h-30,this.me.y));
   },
   
   bindInput(){
@@ -1370,20 +1400,46 @@ const Lobby={
     // 键盘
     window.addEventListener('keydown',e=>{this.keys[e.key.toLowerCase()]=true;});
     window.addEventListener('keyup',e=>{this.keys[e.key.toLowerCase()]=false;});
-    // 点击移动
-    c.addEventListener('click',e=>{
-      const rect=c.getBoundingClientRect();
-      this.me.tx=e.clientX-rect.left;this.me.ty=e.clientY-rect.top;
-      this.me.moving=true;
-    });
-    // 触摸移动
+    // 触摸摇杆
     c.addEventListener('touchstart',e=>{
       e.preventDefault();
       const rect=c.getBoundingClientRect();
-      const t=e.touches[0];
-      this.me.tx=t.clientX-rect.left;this.me.ty=t.clientY-rect.top;
-      this.me.moving=true;
+      const t=e.changedTouches[0];
+      this.joystick.active=true;
+      this.joystick.touchId=t.identifier;
+      this.joystick.cx=t.clientX-rect.left;
+      this.joystick.cy=t.clientY-rect.top;
+      this.joystick.dx=0;
+      this.joystick.dy=0;
     },{passive:false});
+    c.addEventListener('touchmove',e=>{
+      e.preventDefault();
+      for(const t of e.changedTouches){
+        if(t.identifier===this.joystick.touchId){
+          const rect=c.getBoundingClientRect();
+          const tx=t.clientX-rect.left;
+          const ty=t.clientY-rect.top;
+          let ddx=tx-this.joystick.cx;
+          let ddy=ty-this.joystick.cy;
+          const dist=Math.sqrt(ddx*ddx+ddy*ddy);
+          if(dist>40){ddx=(ddx/dist)*40;ddy=(ddy/dist)*40}
+          this.joystick.dx=ddx/40;
+          this.joystick.dy=ddy/40;
+        }
+      }
+    },{passive:false});
+    const endJoystick=e=>{
+      for(const t of e.changedTouches){
+        if(t.identifier===this.joystick.touchId){
+          this.joystick.active=false;
+          this.joystick.dx=0;
+          this.joystick.dy=0;
+          this.joystick.touchId=null;
+        }
+      }
+    };
+    c.addEventListener('touchend',endJoystick);
+    c.addEventListener('touchcancel',endJoystick);
   },
   
   update(dt){
@@ -1397,8 +1453,14 @@ const Lobby={
     if(dx!==0||dy!==0){
       const len=Math.sqrt(dx*dx+dy*dy);
       dx/=len;dy/=len;
+      this.lastDir.x=dx;this.lastDir.y=dy;
       this.me.x+=dx*speed*dt;this.me.y+=dy*speed*dt;
-      this.me.moving=false; // 键盘优先，取消点击目标
+      this.me.moving=false;
+    }else if(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0)){
+      this.lastDir.x=this.joystick.dx;this.lastDir.y=this.joystick.dy;
+      this.me.x+=this.joystick.dx*speed*dt;
+      this.me.y+=this.joystick.dy*speed*dt;
+      this.me.moving=false;
     }else if(this.me.moving){
       const tx=this.me.tx,ty=this.me.ty;
       const ddx=tx-this.me.x,ddy=ty-this.me.y;
@@ -1425,6 +1487,26 @@ const Lobby={
     for(const[id,p]of this.others){
       if(now-p.lastSeen>10000)this.others.delete(id);
     }
+    // 平滑插值其他玩家位置
+    for(const[id,p]of this.others){
+      if(p.tx!==undefined){
+        p.x+=(p.tx-p.x)*0.15;
+        p.y+=(p.ty-p.y)*0.15;
+      }
+      if(p.fadeIn<1)p.fadeIn=Math.min(1,p.fadeIn+0.05);
+      if(p.reaction&&now-p.reactionTime>2000)p.reaction=null;
+    }
+    // 行走粒子
+    const isMovingNow=dx!==0||dy!==0||this.joystick.active;
+    if(isMovingNow&&Math.random()<.3){
+      this.walkParticles.push({x:this.me.x+(Math.random()-.5)*6,y:this.me.y+10,vy:-Math.random()*.5-.2,life:1});
+      if(Math.random()<.05)Sound._p(100+Math.random()*50,'sine',0.02);
+    }
+    for(let i=this.walkParticles.length-1;i>=0;i--){
+      const wp=this.walkParticles[i];
+      wp.y+=wp.vy;wp.life-=0.03;
+      if(wp.life<=0)this.walkParticles.splice(i,1);
+    }
   },
   
   checkTableInteraction(){
@@ -1436,9 +1518,15 @@ const Lobby={
       if(dist<60){nearTable=t;break}
     }
     if(nearTable){
+      const isMobile=('ontouchstart' in window)||this.w<640;
       const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';
-      hint.textContent=`${nearTable.label}${status} — 按 E 或点击加入`;
+      const actionText=isMobile?'点击加入':'按 E 或点击加入';
+      hint.textContent=`${nearTable.label}${status} — ${actionText}`;
       hint.style.display='block';
+      hint.style.fontSize=isMobile?'16px':'13px';
+      // 脉冲动画
+      const pulse=0.7+Math.sin(this.time*4)*.3;
+      hint.style.opacity=pulse;
       if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}
     }else{
       hint.style.display='none';
@@ -1459,103 +1547,304 @@ const Lobby={
   
   handlePos(msg,fromId){
     if(fromId===G.myId)return;
-    this.others.set(fromId,{x:msg.x||0,y:msg.y||0,emoji:msg.emoji||'🐦',name:msg.name||'幸存者',lastSeen:Date.now()});
+    const existing=this.others.get(fromId);
+    if(existing){
+      existing.tx=msg.x||0;existing.ty=msg.y||0;
+      existing.emoji=msg.emoji||'🐦';existing.name=msg.name||'幸存者';
+      existing.lastSeen=Date.now();
+    }else{
+      this.others.set(fromId,{x:msg.x||0,y:msg.y||0,tx:msg.x||0,ty:msg.y||0,emoji:msg.emoji||'🐦',name:msg.name||'幸存者',lastSeen:Date.now(),fadeIn:0,reaction:null,reactionTime:0});
+    }
   },
   
   updateTablesFromState(){
-    // 从 G.roomList 同步桌子状态
-    const grid=$('tables-grid');
-    if(!grid)return;
-    const cards=grid.querySelectorAll('.table-card');
-    // 清空现有桌子数据
+    // 从 G.knownRooms 同步桌子状态（不依赖隐藏的DOM）
     this.tables.forEach(t=>{t.code='';t.players=0;t.host=''});
-    cards.forEach(card=>{
-      const code=card.dataset.code;if(!code)return;
-      const game=card.dataset.game||'zjh';
-      const players=parseInt(card.dataset.players||'0');
-      const max=parseInt(card.dataset.max||'3');
-      const host=card.dataset.host||'';
-      // 找到对应类型的桌子更新
-      const t=this.tables.find(x=>x.game===game&&x.code==='');
-      if(t){t.code=code;t.players=players;t.max=max;t.host=host}
-    });
+    for(const code in G.knownRooms){
+      const r=G.knownRooms[code];
+      if(Date.now()-r.ts>30000)continue;
+      const t=this.tables.find(x=>x.game===r.game&&x.code==='');
+      if(t){t.code=code;t.players=r.players||1;t.max=MAX_SEATS;t.host=r.name||''}
+    }
+    // 自己的桌子
+    if(G.isHost&&G.roomCode){
+      const t=this.tables.find(x=>x.game===G.gameType);
+      if(t){t.code=G.roomCode;t.players=G.roomPeers.length;t.max=MAX_SEATS;t.host=G.user}
+    }
   },
   
   draw(){
     const ctx=this.ctx;
-    ctx.fillStyle='#1a1610';ctx.fillRect(0,0,this.w,this.h);
-    
-    // 地板纹理
-    ctx.strokeStyle='rgba(60,50,30,.3)';
-    ctx.lineWidth=1;
-    for(let x=0;x<this.w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,this.h);ctx.stroke()}
-    for(let y=0;y<this.h;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(this.w,y);ctx.stroke()}
-    
-    // 墙壁/货架
-    ctx.fillStyle='rgba(40,35,25,.6)';
-    ctx.fillRect(0,0,this.w,20);ctx.fillRect(0,this.h-20,this.w,20);
-    ctx.fillRect(0,0,20,this.h);ctx.fillRect(this.w-20,0,20,this.h);
-    
-    // 画桌子
+    const isMobile=this.w<640;
+    // 初始化粒子
+    const maxParticles=isMobile?10:20;
+    if(this.particles.length===0){
+      for(let i=0;i<maxParticles;i++){
+        this.particles.push({x:Math.random()*this.w,y:Math.random()*this.h,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,r:Math.random()*2+.5,a:Math.random()*.3+.1});
+      }
+    }else if(this.particles.length>maxParticles){
+      this.particles.length=maxParticles;
+    }
+    // 缓存地板
+    if(!this.floorCache||this.floorCacheW!==this.w||this.floorCacheH!==this.h){
+      this.floorCache=document.createElement('canvas');
+      this.floorCache.width=this.w;this.floorCache.height=this.h;
+      this.floorCacheW=this.w;this.floorCacheH=this.h;
+      const fc=this.floorCache.getContext('2d');
+      const tileSize=40;
+      for(let tx=0;tx<this.w;tx+=tileSize){
+        for(let ty=0;ty<this.h;ty+=tileSize){
+          const dark=((tx/tileSize+ty/tileSize)%2===0);
+          fc.fillStyle=dark?'#1e1a12':'#211d14';
+          fc.fillRect(tx,ty,tileSize,tileSize);
+          fc.strokeStyle='rgba(60,50,30,.2)';
+          fc.lineWidth=1;
+          fc.strokeRect(tx,ty,tileSize,tileSize);
+        }
+      }
+      // 墙壁砖块
+      const wallW=20;
+      fc.fillStyle='#3a3020';
+      fc.fillRect(0,0,this.w,wallW);fc.fillRect(0,this.h-wallW,this.w,wallW);
+      fc.fillRect(0,0,wallW,this.h);fc.fillRect(this.w-wallW,0,wallW,this.h);
+      fc.strokeStyle='rgba(80,70,50,.4)';fc.lineWidth=1;
+      for(let bx=0;bx<this.w;bx+=20){
+        const row=Math.floor(bx/20);
+        const off=(row%2)*10;
+        for(let by=0;by<wallW;by+=10){
+          fc.strokeRect(bx+off,by,20,10);
+          fc.strokeRect(bx+off,this.h-wallW+by,20,10);
+        }
+        for(let by=wallW;by<this.h-wallW;by+=20){
+          fc.strokeRect(0,by,wallW,10);
+          fc.strokeRect(this.w-wallW,by,wallW,10);
+        }
+      }
+      // 装饰也缓存
+      this._drawDecorOn(fc);
+      this.dirty=false;
+    }
+    // 绘制缓存地板
+    ctx.drawImage(this.floorCache,0|0,0|0);
+    // 画桌子（动态，不缓存）
     for(const t of this.tables){
       this.drawTable(t);
     }
-    
+    // JOIN 按钮覆盖层（靠近桌子时）
+    for(const t of this.tables){
+      const dx=t.x-this.me.x,dy=t.y-this.me.y;
+      if(Math.sqrt(dx*dx+dy*dy)<60){
+        const bx=t.x-20,by=t.y+30;
+        ctx.fillStyle='rgba(184,150,15,.85)';
+        ctx.fillRect(bx,by,40,18);
+        ctx.strokeStyle='#b8960f';ctx.lineWidth=1;ctx.strokeRect(bx,by,40,18);
+        ctx.fillStyle='#1a1610';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+        ctx.fillText('JOIN',t.x,by+13);
+      }
+    }
     // 画其他玩家
     for(const[id,p]of this.others){
-      this.drawPlayer(p.x,p.y,p.emoji,p.name,false);
+      const alpha=p.fadeIn!==undefined?p.fadeIn:1;
+      ctx.globalAlpha=alpha;
+      // 其他玩家行走动画
+      const ox=p.tx!==undefined?p.x:0;
+      const oy=p.tx!==undefined?p.y:0;
+      const prevX=p._prevX||ox;
+      const prevY=p._prevY||oy;
+      const isMovingOther=Math.abs(ox-prevX)>0.5||Math.abs(oy-prevY)>0.5;
+      const bobOther=isMovingOther?Math.sin(this.time*10)*2:0;
+      this.drawPlayer(Math.round(p.x),Math.round(p.y+bobOther),p.emoji,p.name,false);
+      // 反应表情
+      if(p.reaction){
+        ctx.font='14px sans-serif';ctx.textAlign='center';
+        ctx.fillText(p.reaction,Math.round(p.x),Math.round(p.y)-30);
+      }
+      p._prevX=ox;p._prevY=oy;
+      ctx.globalAlpha=1;
     }
-    
     // 画自己
-    this.drawPlayer(this.me.x,this.me.y,this.me.emoji,this.me.name,true);
+    this.drawPlayer(Math.round(this.me.x),Math.round(this.me.y),this.me.emoji,this.me.name,true);
+    // 行走粒子（灰尘）
+    for(const wp of this.walkParticles){
+      ctx.beginPath();ctx.arc(Math.round(wp.x),Math.round(wp.y),2*wp.life,0,Math.PI*2);
+      ctx.fillStyle=`rgba(180,160,120,${wp.life*0.4})`;ctx.fill();
+    }
+    // 欢迎消息
+    if(this.time<this.welcomeTime){
+      const alpha=Math.min(1,(this.welcomeTime-this.time)/1);
+      ctx.globalAlpha=alpha;
+      ctx.fillStyle='#b8960f';ctx.font='bold 22px "Noto Sans SC",sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('欢迎来到废土交易所',this.w/2,this.h/2-20);
+      ctx.font='13px "Noto Sans SC",sans-serif';ctx.fillStyle='#7a7060';
+      ctx.fillText('WASD移动 | 走近桌子加入',this.w/2,this.h/2+10);
+      ctx.globalAlpha=1;
+    }
+    // 粒子（灰尘）
+    for(const p of this.particles){
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0)p.x=this.w;if(p.x>this.w)p.x=0;
+      if(p.y<0)p.y=this.h;if(p.y>this.h)p.y=0;
+      ctx.beginPath();ctx.arc(Math.round(p.x),Math.round(p.y),p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(200,180,140,${p.a})`;ctx.fill();
+    }
+    // 暗角效果
+    const vg=ctx.createRadialGradient(this.w/2,this.h/2,Math.min(this.w,this.h)*.35,this.w/2,this.h/2,Math.max(this.w,this.h)*.75);
+    vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,.45)');
+    ctx.fillStyle=vg;ctx.fillRect(0,0,this.w,this.h);
+    // 小地图
+    this.drawMinimap();
+    // 画摇杆
+    this.drawJoystick();
   },
   
+  drawMinimap(){
+    const ctx=this.ctx;
+    const mw=100,mh=70;
+    const mx=this.w-mw-12,my=12;
+    const sx=mw/this.w,sy=mh/this.h;
+    // 背景
+    ctx.fillStyle='rgba(0,0,0,.6)';
+    ctx.fillRect(mx,my,mw,mh);
+    ctx.strokeStyle='rgba(184,150,15,.4)';ctx.lineWidth=1;
+    ctx.strokeRect(mx,my,mw,mh);
+    // 桌子
+    for(const t of this.tables){
+      const tx=mx+t.x*sx,ty=my+t.y*sy;
+      ctx.fillStyle=t.code?'#5a8a3c':'#7a7060';
+      ctx.fillRect(tx-3,ty-2,6,4);
+    }
+    // 其他玩家
+    for(const[id,p]of this.others){
+      ctx.fillStyle='#d4c8a8';
+      ctx.fillRect(mx+p.x*sx-1.5,my+p.y*sy-1.5,3,3);
+    }
+    // 自己
+    ctx.fillStyle='#c4463a';
+    ctx.fillRect(mx+this.me.x*sx-2,my+this.me.y*sy-2,4,4);
+  },
+
+  drawJoystick(){
+    if(!this.joystick.active)return;
+    const ctx=this.ctx;
+    const cx=this.joystick.cx,cy=this.joystick.cy;
+    // 外圈（渐变）
+    ctx.beginPath();ctx.arc(cx,cy,40,0,Math.PI*2);
+    const og=ctx.createRadialGradient(cx,cy,10,cx,cy,40);
+    og.addColorStop(0,'rgba(255,255,255,.15)');og.addColorStop(1,'rgba(255,255,255,.05)');
+    ctx.fillStyle=og;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=2;ctx.stroke();
+    // 内圈（渐变金色）
+    const ix=cx+this.joystick.dx*40;
+    const iy=cy+this.joystick.dy*40;
+    ctx.beginPath();ctx.arc(ix,iy,16,0,Math.PI*2);
+    const ig=ctx.createRadialGradient(ix-3,iy-3,2,ix,iy,16);
+    ig.addColorStop(0,'#d4a820');ig.addColorStop(1,'#8a6a08');
+    ctx.fillStyle=ig;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;ctx.stroke();
+  },
+
   drawTable(t){
     const ctx=this.ctx;
     const x=t.x,y=t.y;
     // 桌子光晕
-    const glow=ctx.createRadialGradient(x,y,10,x,y,50);
-    glow.addColorStop(0,'rgba(184,150,15,.15)');glow.addColorStop(1,'transparent');
-    ctx.fillStyle=glow;ctx.fillRect(x-50,y-50,100,100);
-    
-    // 桌子
-    ctx.fillStyle=t.code?'rgba(90,138,60,.3)':'rgba(60,50,40,.5)';
-    ctx.beginPath();ctx.arc(x,y,28,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle=t.code?'var(--green)':'var(--dim)';
-    ctx.lineWidth=2;ctx.stroke();
-    
+    const glow=ctx.createRadialGradient(x,y,10,x,y,60);
+    glow.addColorStop(0,'rgba(184,150,15,.12)');glow.addColorStop(1,'transparent');
+    ctx.fillStyle=glow;ctx.fillRect(x-60,y-60,120,120);
+    // 桌子（矩形）
+    const tw=56,th=36;
+    ctx.fillStyle=t.code?'rgba(90,138,60,.25)':'rgba(60,50,40,.5)';
+    ctx.fillRect(x-tw/2,y-th/2,tw,th);
+    ctx.strokeStyle=t.code?'#5a8a3c':'#7a7060';
+    ctx.lineWidth=2;ctx.strokeRect(x-tw/2,y-th/2,tw,th);
+    // 木纹
+    ctx.strokeStyle='rgba(120,100,60,.15)';ctx.lineWidth=1;
+    for(let i=0;i<3;i++){
+      ctx.beginPath();ctx.moveTo(x-tw/2+8,y-th/2+8+i*10);ctx.lineTo(x+tw/2-8,y-th/2+8+i*10);ctx.stroke();
+    }
+    // 椅子
+    const chairColor='rgba(80,65,45,.6)';
+    ctx.fillStyle=chairColor;
+    ctx.fillRect(x-tw/2-10,y-6,10,12); // 左
+    ctx.fillRect(x+tw/2,y-6,10,12);   // 右
+    ctx.fillRect(x-6,y-th/2-10,12,10); // 上
+    ctx.fillRect(x-6,y+th/2,12,10);   // 下
     // 蜡烛
     ctx.fillStyle='#ffcc44';
     ctx.beginPath();ctx.arc(x+20,y-20,4,0,Math.PI*2);ctx.fill();
     ctx.shadowColor='rgba(255,180,60,.5)';ctx.shadowBlur=15;
     ctx.fill();ctx.shadowBlur=0;
-    
     // 标签
-    ctx.fillStyle='var(--gold)';ctx.font='11px "Noto Sans SC",sans-serif';
-    ctx.textAlign='center';ctx.fillText(t.label,x,y+45);
-    ctx.fillStyle='var(--dim)';ctx.font='10px sans-serif';
-    ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',x,y+58);
+    ctx.fillStyle='#b8960f';ctx.font='11px "Noto Sans SC",sans-serif';
+    ctx.textAlign='center';ctx.fillText(t.label,x,y+th/2+16);
+    ctx.fillStyle='#7a7060';ctx.font='10px sans-serif';
+    ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',x,y+th/2+28);
+  },
+
+  _drawDecorOn(ctx){
+    // 左上角桶
+    ctx.fillStyle='#4a3a20';
+    ctx.fillRect(35,35,18,24);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,35,18,24);
+    ctx.strokeStyle='#8a7a5a';ctx.beginPath();ctx.moveTo(35,42);ctx.lineTo(53,42);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(35,50);ctx.lineTo(53,50);ctx.stroke();
+    // 右上角箱子
+    ctx.fillStyle='#5a4a30';
+    ctx.fillRect(this.w-55,35,22,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=1;ctx.strokeRect(this.w-55,35,22,18);
+    ctx.beginPath();ctx.moveTo(this.w-55,44);ctx.lineTo(this.w-33,44);ctx.stroke();
+    // 左下角箱子
+    ctx.fillStyle='#4a3a25';
+    ctx.fillRect(35,this.h-55,20,20);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,this.h-55,20,20);
+    // 右下角桶
+    ctx.fillStyle='#3a2a18';
+    ctx.fillRect(this.w-50,this.h-58,16,26);ctx.strokeStyle='#5a4a3a';ctx.lineWidth=1;ctx.strokeRect(this.w-50,this.h-58,16,26);
   },
   
   drawPlayer(x,y,emoji,name,isMe){
     const ctx=this.ctx;
-    // 阴影
-    ctx.fillStyle='rgba(0,0,0,.3)';
-    ctx.beginPath();ctx.ellipse(x,y+12,10,4,0,0,Math.PI*2);ctx.fill();
-    
+    const moving=isMe&&(this.keys['w']||this.keys['s']||this.keys['a']||this.keys['d']||this.keys['arrowup']||this.keys['arrowdown']||this.keys['arrowleft']||this.keys['arrowright']||this.joystick.active);
+    // 行走弹跳
+    const bob=moving?Math.sin(this.time*10)*3:0;
+    const py=y+bob;
+    // 阴影（椭圆，随弹跳缩放）
+    const shadowScale=moving?1-Math.abs(Math.sin(this.time*10))*.2:1;
+    ctx.fillStyle='rgba(0,0,0,.25)';
+    ctx.beginPath();ctx.ellipse(x,y+14,10*shadowScale,4*shadowScale,0,0,Math.PI*2);ctx.fill();
     // 玩家
     ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(emoji,x,y);
-    
-    // 名字
+    ctx.fillText(emoji,x,py);
+    // 方向指示三角
+    if(isMe){
+      const angle=Math.atan2(this.lastDir.y,this.lastDir.x);
+      const tx=x+Math.cos(angle)*18;
+      const ty=py+Math.sin(angle)*18;
+      ctx.save();ctx.translate(tx,ty);ctx.rotate(angle);
+      ctx.fillStyle='rgba(196,70,58,.7)';
+      ctx.beginPath();ctx.moveTo(6,0);ctx.lineTo(-3,-4);ctx.lineTo(-3,4);ctx.closePath();ctx.fill();
+      ctx.restore();
+    }
+    // 名字背景
     ctx.font=isMe?'bold 10px sans-serif':'10px sans-serif';
-    ctx.fillStyle=isMe?'var(--accent)':'var(--dim)';
-    ctx.fillText(name,x,y-18);
-    
+    const nameW=ctx.measureText(name).width;
+    ctx.fillStyle='rgba(0,0,0,.55)';
+    ctx.fillRect(x-nameW/2-3,y-28,nameW+6,14);
+    // 名字
+    ctx.fillStyle=isMe?'#c4463a':'#7a7060';
+    ctx.textAlign='center';ctx.fillText(name,x,y-18);
     // 自己标识
     if(isMe){
-      ctx.strokeStyle='var(--accent)';ctx.lineWidth=1;
-      ctx.beginPath();ctx.arc(x,y,14,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle='#c4463a';ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(x,py,14,0,Math.PI*2);ctx.stroke();
+    }
+    // 靠近桌子时显示聊天气泡图标
+    if(isMe){
+      for(const t of this.tables){
+        const ddx=t.x-x,ddy=t.y-y;
+        if(Math.sqrt(ddx*ddx+ddy*ddy)<60){
+          ctx.font='12px sans-serif';
+          ctx.fillText('💬',x,py-26);
+          break;
+        }
+      }
     }
   },
   
@@ -1563,6 +1852,7 @@ const Lobby={
     let last=performance.now();
     const loop=(now)=>{
       const dt=Math.min((now-last)/1000,0.05);last=now;
+      this.time+=dt;
       this.update(dt);this.draw();
       this.animId=requestAnimationFrame(loop);
     };
@@ -1571,7 +1861,7 @@ const Lobby={
   
   stop(){if(this.animId){cancelAnimationFrame(this.animId);this.animId=null}},
   
-  show(){this.init();},
+  show(){this.init();if(!this.animId)this.startLoop();},
   hide(){this.stop()}
 };
 
@@ -1599,7 +1889,7 @@ handleRoomMsg=function(topic,raw){
     try{const msg=JSON.parse(raw);Lobby.handlePos(msg,fromId)}catch(e){}
     return;
   }
-  _origHandleRoomMsg(topic,raw);
+  try{_origHandleRoomMsg(topic,raw)}catch(e){console.warn('[RoomMsg] handler error:',e)}
 };
 
 // 在 showScreen main 时启动大厅
