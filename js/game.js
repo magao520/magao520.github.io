@@ -933,7 +933,7 @@ const Lobby={
     // 环境粒子
     _drawAmbientParticles(ctx,this.ambientParticles);
     // 灰尘粒子
-    _drawDustParticles(ctx,this.dustParticles);
+    _drawDustParticles(ctx,this._dustParticles);
     ctx.restore();
     // 小地图
     Lobby._drawMinimap(ctx);
