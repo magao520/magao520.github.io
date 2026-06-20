@@ -2032,13 +2032,13 @@ const Lobby={
       for(let ty=startY;ty<endY;ty+=tileSize){
         if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
         const dark=((tx/tileSize+ty/tileSize)%2===0);
-        ctx.fillStyle=dark?'#3a3220':'#423820';
+        ctx.fillStyle=dark?'#4a4028':'#524830';
         ctx.fillRect(tx,ty,tileSize,tileSize);
       }
     }
 
     // === 4. 墙壁 ===
-    ctx.fillStyle='#5a4a30';
+    ctx.fillStyle='#7a6540';
     ctx.fillRect(0,0,this.mapW,20);
     ctx.fillRect(0,this.mapH-20,this.mapW,20);
     ctx.fillRect(0,0,20,this.mapH);
