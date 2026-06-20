@@ -1,6 +1,6 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v9.2
-// 修复：地板缓存地图尺寸、showScreen Lobby启动时机、DPR绘制
+// 废土交易所 - 生存物资赌场 v9.3
+// 修复：画面提亮、暗角减弱、玩家光源、地板缓存尺寸
 // ============================================================
 'use strict';
 
@@ -2027,7 +2027,7 @@ const Lobby={
       for(let tx=0;tx<this.mapW;tx+=tileSize){
         for(let ty=0;ty<this.mapH;ty+=tileSize){
           const dark=((tx/tileSize+ty/tileSize)%2===0);
-          fc.fillStyle=dark?'#1e1a12':'#211d14';
+          fc.fillStyle=dark?'#2a2418':'#302a1e';
           fc.fillRect(tx,ty,tileSize,tileSize);
           fc.strokeStyle='rgba(60,50,30,.2)';
           fc.lineWidth=1;
@@ -2039,7 +2039,7 @@ const Lobby={
       fc.fillStyle='#3a3020';
       fc.fillRect(0,0,this.mapW,wallW);fc.fillRect(0,this.mapH-wallW,this.mapW,wallW);
       fc.fillRect(0,0,wallW,this.mapH);fc.fillRect(this.mapW-wallW,0,wallW,this.mapH);
-      fc.strokeStyle='rgba(80,70,50,.4)';fc.lineWidth=1;
+      fc.strokeStyle='rgba(80,70,50,.5)';fc.lineWidth=1;
       for(let bx=0;bx<this.mapW;bx+=20){
         const row=Math.floor(bx/20);
         const off=(row%2)*10;
@@ -2172,6 +2172,10 @@ const Lobby={
       ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',tx,ty+12);
       ctx.restore();
     }
+    // 玩家周围光源（手电筒/火把效果）
+    const pl=ctx.createRadialGradient(this.me.x,this.me.y,10,this.me.x,this.me.y,120);
+    pl.addColorStop(0,'rgba(255,200,100,.08)');pl.addColorStop(1,'transparent');
+    ctx.fillStyle=pl;ctx.fillRect(this.me.x-120,this.me.y-120,240,240);
     // 日夜循环（基于真实时间）
     const hour=new Date().getHours();
     const isNight=hour<6||hour>20;
@@ -2187,9 +2191,9 @@ const Lobby={
       ctx.fillStyle=`rgba(180,160,100,${dustIntensity})`;
       ctx.fillRect(this.camera.x,this.camera.y,this.w,this.h);
     }
-    // 暗角效果
-    const vg=ctx.createRadialGradient(this.me.x,this.me.y,Math.min(this.w,this.h)*.35,this.me.x,this.me.y,Math.max(this.w,this.h)*.75);
-    vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,.45)');
+    // 暗角效果（减弱）
+    const vg=ctx.createRadialGradient(this.me.x,this.me.y,Math.min(this.w,this.h)*.3,this.me.x,this.me.y,Math.max(this.w,this.h)*.8);
+    vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,.2)');
     ctx.fillStyle=vg;ctx.fillRect(this.camera.x,this.camera.y,this.w,this.h);
     ctx.restore();
     // 小地图（在屏幕空间绘制）
