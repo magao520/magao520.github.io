@@ -1,6 +1,6 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v9.0
-// 大地图相机系统+6角色选择+聊天+任务+成就+设置+日夜循环+30轮优化
+// 废土交易所 - 生存物资赌场 v9.1
+// 20轮深度bug修复：相机坐标、DPR缓存、桌子分配、边界检查、内存泄漏、时区、成就触发
 // ============================================================
 'use strict';
 
@@ -126,6 +126,7 @@ const CHARACTERS=[
   {emoji:'🦎',name:'壁虎',desc:'攀爬专家'}
 ];
 let selectedChar=0;
+let _savedPos=null;
 
 function $(id){return document.getElementById(id)}
 function genId(){return Math.random().toString(36).substr(2,10)}
@@ -143,12 +144,11 @@ function resetGameState(){
 
 // ==================== 存储 ====================
 function load(){try{const s=localStorage.getItem('wl_user');if(s){const d=JSON.parse(s);G.user=d.n;G.chips=d.c||50;if(d.s!==undefined)selectedChar=d.s;if(d.px!==undefined&&d.py!==undefined){_savedPos={x:d.px,y:d.py}}return true}}catch(e){}return false}
-function save(){if(G.user)try{const px=typeof Lobby!=='undefined'?Lobby.me.x:0;const py=typeof Lobby!=='undefined'?Lobby.me.y:0;localStorage.setItem('wl_user',JSON.stringify({n:G.user,c:G.chips,s:selectedChar,px,py}))}catch(e){}}
-let _savedPos=null;
+function save(){if(G.user)try{const px=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.x:0;const py=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.y:0;localStorage.setItem('wl_user',JSON.stringify({n:G.user,c:G.chips,s:selectedChar,px,py}))}catch(e){}}
 function loadQuest(){try{const s=localStorage.getItem('wl_quest');if(s)return JSON.parse(s)}catch(e){}return {date:'',progress:0,claimed:false}}
 function saveQuest(q){try{localStorage.setItem('wl_quest',JSON.stringify(q))}catch(e){}}
 function checkQuest(){
-  const q=loadQuest();const today=new Date().toISOString().slice(0,10);
+  const q=loadQuest();const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   if(q.date!==today){q.date=today;q.progress=0;q.claimed=false;saveQuest(q);}
   return q;
 }
@@ -173,7 +173,8 @@ function completeGameQuest(){
   if(q.progress>=3&&!q.claimed){q.claimed=true;G.chips+=10;saveQuest(q);save();updateChips();toast('任务完成！获得10单位物资');}
 }
 function checkRelief(){
-  const today=new Date().toISOString().slice(0,10);
+  const d=new Date();
+  const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   try{
     const s=localStorage.getItem('wl_relief');
     const data=s?JSON.parse(s):{date:'',claimed:false};
@@ -320,11 +321,11 @@ function closeModal(){
 }
 let _confettiParticles=[],_confettiTimer=null,_shakeTimer=null;
 function startConfetti(){
+  stopConfetti();
   _confettiParticles=[];
   for(let i=0;i<60;i++){
     _confettiParticles.push({x:Math.random()*window.innerWidth,y:-Math.random()*200,vx:(Math.random()-.5)*4,vy:Math.random()*3+2,color:['#b8960f','#c4463a','#5a8a3c','#d4c8a8'][Math.floor(Math.random()*4)],rot:Math.random()*360,rotSpeed:(Math.random()-.5)*10,size:Math.random()*6+4});
   }
-  if(_confettiTimer)clearInterval(_confettiTimer);
   const c=document.createElement('canvas');c.id='confetti-canvas';c.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:9999';document.body.appendChild(c);
   const ctx=c.getContext('2d');c.width=window.innerWidth;c.height=window.innerHeight;
   _confettiTimer=setInterval(()=>{
@@ -379,7 +380,7 @@ function publishPresence(){
 function handlePresenceMsg(msg){
   if(!msg||!msg.id||msg.id===G.myId)return;
   if(Date.now()-msg.ts>45000)return; // 45秒超时
-  G.onlineUsers[msg.id]={name:msg.name,ts:msg.ts,room:msg.room,emoji:msg.emoji||'🐦',chips:msg.chips||0};
+  G.onlineUsers[msg.id]={name:msg.name,ts:msg.ts,room:msg.roomCode||msg.room||null,emoji:msg.emoji||'🐦',chips:msg.chips||0};
   renderOnlineList();
 }
 
@@ -391,6 +392,7 @@ function handleChatMsg(msg){
 }
 
 function showChatBubble(id,name,text,emoji){
+  if(!Lobby||!Lobby.others)return;
   const p=Lobby.others.get(id);
   if(!p)return;
   p.chatBubble={text,name,emoji,ts:Date.now()};
@@ -472,7 +474,7 @@ function selectChar(idx){
   selectedChar=idx;
   renderCharSelector();
   const c=CHARACTERS[idx];
-  Lobby.me.emoji=c.emoji;
+  if(Lobby.me)Lobby.me.emoji=c.emoji;
   if(G.mqttConnected)publishPresence();
 }
 const _authName=$('auth-name');if(_authName){
@@ -1064,6 +1066,7 @@ function cleanupAll(){
   cleanupRoom();
   stopPresence();
   if(G._roomCleanupTimer){clearInterval(G._roomCleanupTimer);G._roomCleanupTimer=null}
+  if(Lobby.animId){Lobby.stop();}
   if(G.mqtt){try{G.mqtt.end(true)}catch(e){}G.mqtt=null}
   G.mqttConnected=false;
 }
@@ -1231,6 +1234,7 @@ function renderBJ(){
 // ==================== 牌型 ====================
 const _zjhCache=new Map();
 function evalZJH(cards){
+  if(!cards||cards.length!==3)return{type:0,name:'无效',val:0};
   const key=cards.map(c=>c.s+c.r).sort().join('');
   if(_zjhCache.has(key))return _zjhCache.get(key);
   const sorted=[...cards].sort((a,b)=>b.v-a.v);
@@ -1367,7 +1371,7 @@ function doDiceAction(me,action){
 
 function checkDiceEnd(){
   if(G.gameOver)return;
-  const allChose=G.players.every(p=>p.folded);
+  const allChose=G.players.every(p=>p.choice!==null&&p.choice!==undefined);
   if(!allChose)return;
   const result=rollDice();
   Sound.dice();
@@ -1442,6 +1446,7 @@ function doZJHAction(me,action){
       me.chips-=G.currentBet;me.bet+=G.currentBet;G.pot+=G.currentBet;
       G.myTurn=false;
       log(`${me.name} 跟注 ${G.currentBet}单位`);Sound.chip();
+      checkHighRoller();
       advanceTurn();
       checkZJHEnd();
       return true;
@@ -1452,6 +1457,7 @@ function doZJHAction(me,action){
       me.chips-=amt;me.bet+=amt;G.pot+=amt;G.currentBet=amt;
       G.myTurn=false;
       log(`${me.name} 加注到 ${amt}单位`);Sound.chip();
+      checkHighRoller();
       advanceTurn();
       checkZJHEnd();
       return true;
@@ -1498,6 +1504,7 @@ function checkZJHEnd(){
 function doBJAction(me,action){
   switch(action){
     case 'hit':
+      if(!G.deck||!G.deck.length){log('牌堆已空','system');break;}
       me.cards.push(G.deck.pop());Sound.deal();
       log(`${me.name} 要牌，点数 ${bjValue(me.cards)}`);
       if(bjValue(me.cards)>21){
@@ -1612,18 +1619,26 @@ function leaveGame(){
 }
 
 // ==================== 初始化 ====================
-renderLobby();
-renderOnlineList();
-renderCharSelector();
-G._roomCleanupTimer=setInterval(()=>{
-  const now=Date.now();let changed=false;
-  for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}}
-  if(changed)renderLobby();
-},10000);
-
-// 音效初始化
-const st=document.getElementById('sound-toggle');
-if(st)st.onclick=toggleSound;
+function initApp(){
+  renderLobby();
+  renderOnlineList();
+  renderCharSelector();
+  if(!G._roomCleanupTimer){
+    G._roomCleanupTimer=setInterval(()=>{
+      const now=Date.now();let changed=false;
+      for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}}
+      if(changed)renderLobby();
+    },10000);
+  }
+  // 音效初始化
+  const st=document.getElementById('sound-toggle');
+  if(st)st.onclick=toggleSound;
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',initApp);
+}else{
+  initApp();
+}
 
 // ==================== 2D 大厅系统 ====================
 const Lobby={
@@ -1702,7 +1717,7 @@ const Lobby={
   },
   
   resize(){
-    if(!this.canvas)return;
+    if(!this.canvas||!this.canvas.parentElement)return;
     const rect=this.canvas.parentElement.getBoundingClientRect();
     const dpr=window.devicePixelRatio||1;
     this.canvas.width=rect.width*dpr;this.canvas.height=rect.height*dpr;
@@ -1723,17 +1738,19 @@ const Lobby={
     this._onResize=()=>this.resize();
     window.addEventListener('resize',this._onResize);
     // 键盘
-    window.addEventListener('keydown',e=>{
+    this._onKeyDown=e=>{
       this.keys[e.key.toLowerCase()]=true;
       if(e.key==='Enter'){const bar=$('chat-bar');if(bar&&bar.style.display!=='none'){sendChat();e.preventDefault();}else{toggleChat();e.preventDefault();}}
       if(e.key==='Escape'){const bar=$('chat-bar');if(bar)bar.style.display='none';closeEmoteWheel();}
       if(e.key.toLowerCase()==='q'){showEmoteWheel();}
-    });
-    window.addEventListener('keyup',e=>{this.keys[e.key.toLowerCase()]=false;});
+    };
+    this._onKeyUp=e=>{this.keys[e.key.toLowerCase()]=false;};
+    window.addEventListener('keydown',this._onKeyDown);
+    window.addEventListener('keyup',this._onKeyUp);
     // Shift冲刺提示
     this._sprintHintTimer=setTimeout(()=>{if(this.keys['shift']===undefined)toast('按住 Shift 冲刺移动')},15000);
     // 触摸摇杆（跟随触摸位置）
-    c.addEventListener('touchstart',e=>{
+    this._onTouchStart=e=>{
       e.preventDefault();
       if(this.joystick.active)return;
       this._ignoreNextClick=true;
@@ -1746,8 +1763,8 @@ const Lobby={
       this.joystick.dx=0;
       this.joystick.dy=0;
       this.joystick.opacity=1;
-    },{passive:false});
-    c.addEventListener('touchmove',e=>{
+    };
+    this._onTouchMove=e=>{
       e.preventDefault();
       for(const t of e.changedTouches){
         if(t.identifier===this.joystick.touchId){
@@ -1763,8 +1780,8 @@ const Lobby={
           this.joystick.opacity=1;
         }
       }
-    },{passive:false});
-    const endJoystick=e=>{
+    };
+    this._onTouchEnd=e=>{
       for(const t of e.changedTouches){
         if(t.identifier===this.joystick.touchId){
           this.joystick.active=false;
@@ -1775,8 +1792,10 @@ const Lobby={
         }
       }
     };
-    c.addEventListener('touchend',endJoystick);
-    c.addEventListener('touchcancel',endJoystick);
+    c.addEventListener('touchstart',this._onTouchStart,{passive:false});
+    c.addEventListener('touchmove',this._onTouchMove,{passive:false});
+    c.addEventListener('touchend',this._onTouchEnd);
+    c.addEventListener('touchcancel',this._onTouchEnd);
   },
   
   update(dt){
@@ -1936,17 +1955,21 @@ const Lobby={
   
   handlePos(msg,fromId){
     if(fromId===G.myId)return;
+    let mx=typeof msg.x==='number'&&!isNaN(msg.x)?msg.x:0;
+    let my=typeof msg.y==='number'&&!isNaN(msg.y)?msg.y:0;
+    mx=Math.max(0,Math.min(this.mapW,mx));
+    my=Math.max(0,Math.min(this.mapH,my));
     const existing=this.others.get(fromId);
     if(existing){
-      existing.tx=msg.x||0;existing.ty=msg.y||0;
+      existing.tx=mx;existing.ty=my;
       existing.emoji=msg.emoji||'🐦';existing.name=msg.name||'幸存者';
       existing.lastSeen=Date.now();
     }else{
-      this.others.set(fromId,{x:msg.x||0,y:msg.y||0,tx:msg.x||0,ty:msg.y||0,emoji:msg.emoji||'🐦',name:msg.name||'幸存者',lastSeen:Date.now(),fadeIn:0,scale:0,reaction:null,reactionTime:0,warpParticles:[]});
+      this.others.set(fromId,{x:mx,y:my,tx:mx,ty:my,emoji:msg.emoji||'🐦',name:msg.name||'幸存者',lastSeen:Date.now(),fadeIn:0,scale:0,reaction:null,reactionTime:0,warpParticles:[]});
       // 入场粒子爆发
       for(let i=0;i<12;i++){
         const p=this.others.get(fromId);
-        if(p)p.warpParticles.push({x:msg.x||0,y:msg.y||0,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:1});
+        if(p)p.warpParticles.push({x:mx,y:my,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:1});
       }
     }
   },
@@ -1954,21 +1977,23 @@ const Lobby={
   updateTablesFromState(){
     // 从 G.knownRooms 同步桌子状态（不依赖隐藏的DOM）
     this.tables.forEach(t=>{t.code='';t.players=0;t.host=''});
+    const usedIdx=new Set();
     for(const code in G.knownRooms){
       const r=G.knownRooms[code];
       if(Date.now()-r.ts>30000)continue;
-      const t=this.tables.find(x=>x.game===r.game&&x.code==='');
-      if(t){t.code=code;t.players=r.players||1;t.max=MAX_SEATS;t.host=r.name||''}
+      const idx=this.tables.findIndex((x,i)=>x.game===r.game&&x.code===''&&!usedIdx.has(i));
+      if(idx!==-1){usedIdx.add(idx);const t=this.tables[idx];t.code=code;t.players=r.players||1;t.max=MAX_SEATS;t.host=r.name||''}
     }
     // 自己的桌子
     if(G.isHost&&G.roomCode){
-      const t=this.tables.find(x=>x.game===G.gameType);
-      if(t){t.code=G.roomCode;t.players=G.roomPeers.length;t.max=MAX_SEATS;t.host=G.user}
+      const idx=this.tables.findIndex((x,i)=>x.game===G.gameType&&!usedIdx.has(i));
+      if(idx!==-1){usedIdx.add(idx);const t=this.tables[idx];t.code=G.roomCode;t.players=G.roomPeers.length;t.max=MAX_SEATS;t.host=G.user}
     }
   },
   
   draw(){
     const ctx=this.ctx;
+    if(!ctx)return;
     const isMobile=this.w<640;
     // 更新相机跟随玩家
     this.camera.x=this.me.x-this.w/2;
@@ -1989,15 +2014,13 @@ const Lobby={
     }else if(this.particles.length>maxParticles){
       this.particles.length=maxParticles;
     }
-    // 缓存地板（使用物理像素尺寸以支持高DPR屏幕）
-    const dpr=window.devicePixelRatio||1;
+    // 缓存地板（使用逻辑尺寸，主ctx的scale会处理DPR）
     if(!this.floorCache||this.floorCacheW!==this.w||this.floorCacheH!==this.h){
       this.floorCache=document.createElement('canvas');
-      this.floorCache.width=Math.round(this.w*dpr);
-      this.floorCache.height=Math.round(this.h*dpr);
+      this.floorCache.width=Math.round(this.w);
+      this.floorCache.height=Math.round(this.h);
       this.floorCacheW=this.w;this.floorCacheH=this.h;
       const fc=this.floorCache.getContext('2d');
-      fc.scale(dpr,dpr);
       const tileSize=40;
       for(let tx=0;tx<this.w;tx+=tileSize){
         for(let ty=0;ty<this.h;ty+=tileSize){
@@ -2166,10 +2189,9 @@ const Lobby={
     const vg=ctx.createRadialGradient(this.me.x,this.me.y,Math.min(this.w,this.h)*.35,this.me.x,this.me.y,Math.max(this.w,this.h)*.75);
     vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,.45)');
     ctx.fillStyle=vg;ctx.fillRect(this.camera.x,this.camera.y,this.w,this.h);
-    // 小地图
-    this.drawMinimap();
-
     ctx.restore();
+    // 小地图（在屏幕空间绘制）
+    this.drawMinimap();
     // 画摇杆
     this.drawJoystick();
   },
@@ -2441,6 +2463,9 @@ const Lobby={
   
   stop(){if(this.animId){cancelAnimationFrame(this.animId);this.animId=null}
     if(this._onResize){window.removeEventListener('resize',this._onResize);this._onResize=null}
+    if(this._onKeyDown){window.removeEventListener('keydown',this._onKeyDown);this._onKeyDown=null}
+    if(this._onKeyUp){window.removeEventListener('keyup',this._onKeyUp);this._onKeyUp=null}
+    if(this._onTouchStart&&this.canvas){this.canvas.removeEventListener('touchstart',this._onTouchStart);this.canvas.removeEventListener('touchmove',this._onTouchMove);this.canvas.removeEventListener('touchend',this._onTouchEnd);this.canvas.removeEventListener('touchcancel',this._onTouchEnd);this._onTouchStart=null;this._onTouchMove=null;this._onTouchEnd=null}
     if(this._sprintHintTimer){clearTimeout(this._sprintHintTimer);this._sprintHintTimer=null}
   },
 
@@ -2505,7 +2530,8 @@ function bindLobbyCanvasClick(){
     const hint=$('interact-hint');
     if(hint&&window.getComputedStyle(hint).display!=='none')return;
     const rect=c.getBoundingClientRect();
-    const cx=e.clientX-rect.left,cy=e.clientY-rect.top;
+    const cx=e.clientX-rect.left+Lobby.camera.x;
+    const cy=e.clientY-rect.top+Lobby.camera.y;
     for(const t of Lobby.tables){
       const dx=t.x-cx,dy=t.y-cy;
       if(Math.sqrt(dx*dx+dy*dy)<35){
