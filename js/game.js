@@ -997,7 +997,7 @@ const _origRenderLobby=renderLobby;
 renderLobby=function(){_origRenderLobby();Lobby.updateTablesFromState()};
 function subscribeLobbyPos(){if(!G.mqtt)return;G.mqtt.subscribe('wl_pos_v6/+',{qos:0},(err)=>{if(err)console.warn('[Lobby] pos sub failed',err)})}
 function bindLobbyCanvasClick(){
-  const c=$('lobby-canvas');if(!c)return;c.addEventListener('click',e=>{if(Lobby._ignoreNextClick){Lobby._ignoreNextClick=false;return}const hint=$('interact-hint');if(hint&&window.getComputedStyle(hint).display!=='none')return;const rect=c.getBoundingClientRect();const cx=e.clientX-rect.left+Lobby.camera.x;const cy=e.clientY-rect.top+Lobby.camera.y;for(const t of Lobby.tables){const dx=t.x-cx,dy=t.y-cy;if(Math.sqrt(dx*dx+dy*dy)<35){Lobby.joinTable(t);break}}});}
+  const c=$('lobby-canvas');if(!c)return;c.addEventListener('click',e=>{if(Lobby._ignoreNextClick){Lobby._ignoreNextClick=false;return}const hint=$('interact-hint');if(hint&&window.getComputedStyle(hint).display!=='none')return;const rect=c.getBoundingClientRect();const cx=e.clientX-rect.left+Lobby.camera.x;const cy=e.clientY-rect.top+Lobby.camera.y;let clickedTable=false;for(const t of Lobby.tables){const dx=t.x-cx,dy=t.y-cy;if(Math.sqrt(dx*dx+dy*dy)<35){Lobby.joinTable(t);clickedTable=true;break}}if(!clickedTable){Lobby.me.tx=cx;Lobby.me.ty=cy;Lobby.me.moving=true}});}
 
 // ==================== 辅助绘制函数 ====================
 function _drawDecorFunc(ctx,w,h){
