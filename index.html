@@ -190,6 +190,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   .tables-grid{grid-template-columns:1fr}
   .card,.card-back{width:52px;height:72px}.card-rank{font-size:18px}.card-suit{font-size:20px}
   .action-btn{padding:8px 16px;font-size:11px;min-width:70px}.pot-amount{font-size:24px}
+  .dice-die{width:40px;height:40px;font-size:18px}
 }
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -204,9 +205,20 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .sound-toggle:hover{border-color:var(--gold);color:var(--gold)}
 .sound-toggle.muted{opacity:.4}
 .fade-in{animation:fadeIn .5s ease-out}
+.loading-spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-press:active{transform:scale(.95)}
+.card-deal{animation:dealIn .4s ease-out}
+@keyframes dealIn{from{opacity:0;transform:translateY(-20px) rotate(-5deg)}to{opacity:1;transform:translateY(0) rotate(0)}}
+.shake{animation:shake .4s ease-in-out}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.glow-pulse{animation:glowPulse 2s ease-in-out infinite}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 5px var(--gold-glow)}50%{box-shadow:0 0 20px var(--gold-glow)}}
 </style>
 </head>
 <body>
+
+<div id="loading-overlay" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s"><div style="text-align:center"><div class="loading-spinner" style="width:40px;height:40px;margin:0 auto 16px"></div><div style="font-size:12px;color:var(--dim);letter-spacing:2px">信号同步中...</div></div></div>
 
 <div id="auth-screen">
   <div class="auth-box fade-in">
@@ -214,8 +226,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div class="logo-sub">废 土 交 易 所</div>
     <div class="logo-warn">咳嗽者禁止入内 | 入场需缴纳物资税</div>
     <input type="text" class="auth-input" id="auth-name" placeholder="输入代号（昵称）" maxlength="12">
-    <button class="auth-btn" id="auth-btn">通 过 消 杀</button>
+    <button class="auth-btn btn-press" id="auth-btn">通 过 消 杀</button>
     <div style="margin-top:12px;font-size:11px;color:var(--dim)"><span id="auth-hint">体温正常方可入场</span></div>
+    <div style="margin-top:8px;font-size:10px;color:var(--dim);opacity:.5">v7.1 废土协议</div>
   </div>
 </div>
 
@@ -227,7 +240,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <span id="conn-status" style="font-size:11px;color:var(--dim)">信号搜索中...</span>
       <div class="res-display"><span class="res-icon">💊</span><span id="user-chips">50</span><span style="font-size:10px;color:var(--dim)">单位</span></div>
       <span id="user-name" style="font-size:12px;color:var(--dim)">幸存者</span>
-      <button class="sm-btn" onclick="logout()">离开交易所</button>
+      <button class="sm-btn btn-press" onclick="logout()">离开交易所</button>
     </div>
   </div>
   <div class="lobby">
@@ -236,7 +249,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
         <div class="lobby-title">仓储区赌桌</div>
         <div class="lobby-subtitle">货架之间的折叠桌，应急灯照明，电压不稳</div>
       </div>
-      <button class="create-btn" onclick="showCreateModal()">+ 搭新桌</button>
+      <button class="create-btn btn-press" onclick="showCreateModal()">+ 搭新桌</button>
     </div>
     <div class="tables-grid" id="tables-grid"></div>
     <!-- 在线幸存者列表 -->
@@ -256,8 +269,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="wait-panel" id="wait-panel" style="display:none">
     <h3 id="wait-title">等待幸存者</h3>
     <div class="wait-players" id="wait-players"></div>
-    <button class="start-game-btn" id="start-btn" disabled onclick="hostStartGame()">等待幸存者... (至少2人)</button>
-    <div style="margin-top:10px"><button class="sm-btn" id="close-btn" onclick="closeRoom()">撤掉牌桌</button></div>
+    <button class="start-game-btn btn-press" id="start-btn" disabled onclick="hostStartGame()">等待幸存者... (至少2人)</button>
+    <div style="margin-top:10px"><button class="sm-btn btn-press" id="close-btn" onclick="closeRoom()">撤掉牌桌</button></div>
   </div>
 </div>
 
@@ -269,8 +282,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <div class="game-opt" onclick="selectGame('bj',this)"><div class="icon">⛽</div><div class="name">物资二十一点</div><div class="desc">中端局 · 汽油级</div></div>
       <div class="game-opt" onclick="selectGame('dice',this)"><div class="icon">🎲</div><div class="name">骰子猜大小</div><div class="desc">最低端局 · 火柴级</div></div>
     </div>
-    <button class="modal-btn" onclick="doCreateTable()">搭桌</button>
-    <div style="margin-top:10px"><button class="sm-btn" onclick="hideCreateModal()">算了</button></div>
+    <button class="modal-btn btn-press" onclick="doCreateTable()">搭桌</button>
+    <div style="margin-top:10px"><button class="sm-btn btn-press" onclick="hideCreateModal()">算了</button></div>
   </div>
 </div>
 
@@ -278,7 +291,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="modal">
     <div class="modal-title" id="modal-title">结算</div>
     <div class="modal-text" id="modal-text">...</div>
-    <button class="modal-btn" onclick="closeModal()">领物资 / 认栽</button>
+    <button class="modal-btn btn-press" onclick="closeModal()">领物资 / 认栽</button>
   </div>
 </div>
 
@@ -286,15 +299,15 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="modal" style="max-width:520px">
     <h3 id="rules-title">玩法说明</h3>
     <div class="rules-content" id="rules-content"></div>
-    <button class="modal-btn" onclick="closeRules()">知道了</button>
+    <button class="modal-btn btn-press" onclick="closeRules()">知道了</button>
   </div>
 </div>
 
 <div id="game-screen">
   <div class="game-header">
     <div style="display:flex;align-items:center;gap:8px">
-      <button class="sm-btn" onclick="leaveGame()">撤离牌桌</button>
-      <button class="sm-btn" onclick="showRules()">📖 规则</button>
+      <button class="sm-btn btn-press" onclick="leaveGame()">撤离牌桌</button>
+      <button class="sm-btn btn-press" onclick="showRules()">📖 规则</button>
     </div>
     <div class="game-title" id="game-title">物资炸金花</div>
     <div style="display:flex;align-items:center;gap:8px">
@@ -316,6 +329,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=42"></script>
+<script src="js/game.js?v=43"></script>
 </body>
 </html>
