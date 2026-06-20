@@ -925,9 +925,9 @@ const Lobby={
     // 桌子
     for(const t of this.tables){const dx=t.x-this.me.x,dy=t.y-this.me.y;const dist=Math.sqrt(dx*dx+dy*dy);const isHovered=dist<50;const isFull=t.code&&t.players>=t.max;_drawTable(ctx,t,isHovered,isFull,this.time)}
     // 其他玩家
-    for(const[id,p]of this.others){ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.emoji||'🐦',p.x,p.y);_drawNameTag(ctx,p.x,p.y-18,p.name||'幸存者',false)}
+    for(const[id,p]of this.others){ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.emoji||'🐦',p.x,p.y);_drawNameTag(ctx,p.x,p.y-28,p.name||'幸存者',false)}
     // 自己
-    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(this.me.emoji,this.me.x,this.me.y);_drawNameTag(ctx,this.me.x,this.me.y-20,this.me.name,true)
+    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(this.me.emoji,this.me.x,this.me.y);_drawNameTag(ctx,this.me.x,this.me.y-32,this.me.name,true)
     // 行走粒子
     _drawWalkParticles(ctx,this.walkParticles);
     // 环境粒子
