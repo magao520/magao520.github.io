@@ -1,6 +1,6 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v9.4
-// 修复：Canvas尺寸初始化、大厅延迟启动、画面提亮、暗角减弱
+// 废土交易所 - 生存物资赌场 v9.5
+// 修复：Lobby TDZ崩溃、Canvas尺寸、画面提亮、暗角减弱
 // ============================================================
 'use strict';
 
@@ -254,7 +254,7 @@ function showScreen(n){
   const active=n==='auth'?a:(n==='main'?m:g);
   if(active){active.style.opacity='0';active.style.transition='opacity .3s';requestAnimationFrame(()=>{active.style.opacity='1'})}
   // 启动/停止大厅
-  if(n==='main'){if(typeof Lobby!=='undefined')Lobby.show()}else{if(typeof Lobby!=='undefined')Lobby.hide()}
+  try{if(n==='main'){Lobby.show()}else{Lobby.hide()}}catch(e){}
 }
 function updateChips(){
   if(G.inGame){const me=G.players.find(p=>p.isMe);if(me&&me.chips!==undefined)G.chips=me.chips}
@@ -1643,12 +1643,12 @@ if(document.readyState==='loading'){
 }
 // 延迟启动大厅（如果已经在main-screen但Lobby还没初始化）
 setTimeout(()=>{
-  const m=$('main-screen');
-  console.log('[delayed Lobby] main display=', m?.style?.display, 'Lobby exists=', !!window.Lobby, 'animId=', Lobby?.animId);
-  if(m&&m.style.display!=='none'&&Lobby&&!Lobby.animId){
-    Lobby.show();
-    console.log('[delayed Lobby] show() called, canvas=', document.getElementById('lobby-canvas')?.width);
-  }
+  try{
+    const m=$('main-screen');
+    if(m&&m.style.display!=='none'&&Lobby&&!Lobby.animId){
+      Lobby.show();
+    }
+  }catch(e){}
 },100);
 
 // ==================== 2D 大厅系统 ====================
@@ -1690,11 +1690,9 @@ const Lobby={
   init(){
     if(this.animId)return true; // 已经初始化
     this.canvas=$('lobby-canvas');
-    console.log('[Lobby.init] canvas=', !!this.canvas, 'animId=', this.animId);
     if(!this.canvas)return false;
     this.ctx=this.canvas.getContext('2d');
     this.resize();
-    console.log('[Lobby.init] after resize canvas=', this.canvas.width, 'x', this.canvas.height, 'w=', this.w, 'h=', this.h);
     this.me.name=G.user||'幸存者';
     this.me.emoji=CHARACTERS[selectedChar]?.emoji||'🐦';
     if(_savedPos){this.me.x=_savedPos.x;this.me.y=_savedPos.y;_savedPos=null}
