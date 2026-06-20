@@ -1,6 +1,6 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v9.1
-// 20轮深度bug修复：相机坐标、DPR缓存、桌子分配、边界检查、内存泄漏、时区、成就触发
+// 废土交易所 - 生存物资赌场 v9.2
+// 修复：地板缓存地图尺寸、showScreen Lobby启动时机、DPR绘制
 // ============================================================
 'use strict';
 
@@ -253,6 +253,8 @@ function showScreen(n){
   // 屏幕转场淡入
   const active=n==='auth'?a:(n==='main'?m:g);
   if(active){active.style.opacity='0';active.style.transition='opacity .3s';requestAnimationFrame(()=>{active.style.opacity='1'})}
+  // 启动/停止大厅
+  if(n==='main'){if(typeof Lobby!=='undefined')Lobby.show()}else{if(typeof Lobby!=='undefined')Lobby.hide()}
 }
 function updateChips(){
   if(G.inGame){const me=G.players.find(p=>p.isMe);if(me&&me.chips!==undefined)G.chips=me.chips}
@@ -2014,16 +2016,16 @@ const Lobby={
     }else if(this.particles.length>maxParticles){
       this.particles.length=maxParticles;
     }
-    // 缓存地板（使用逻辑尺寸，主ctx的scale会处理DPR）
-    if(!this.floorCache||this.floorCacheW!==this.w||this.floorCacheH!==this.h){
+    // 缓存地板（使用地图尺寸，与地图坐标系一致）
+    if(!this.floorCache||this.floorCacheW!==this.mapW||this.floorCacheH!==this.mapH){
       this.floorCache=document.createElement('canvas');
-      this.floorCache.width=Math.round(this.w);
-      this.floorCache.height=Math.round(this.h);
-      this.floorCacheW=this.w;this.floorCacheH=this.h;
+      this.floorCache.width=Math.round(this.mapW);
+      this.floorCache.height=Math.round(this.mapH);
+      this.floorCacheW=this.mapW;this.floorCacheH=this.mapH;
       const fc=this.floorCache.getContext('2d');
       const tileSize=40;
-      for(let tx=0;tx<this.w;tx+=tileSize){
-        for(let ty=0;ty<this.h;ty+=tileSize){
+      for(let tx=0;tx<this.mapW;tx+=tileSize){
+        for(let ty=0;ty<this.mapH;ty+=tileSize){
           const dark=((tx/tileSize+ty/tileSize)%2===0);
           fc.fillStyle=dark?'#1e1a12':'#211d14';
           fc.fillRect(tx,ty,tileSize,tileSize);
@@ -2057,8 +2059,8 @@ const Lobby={
       this._drawDecorOn(fc,this.mapW,this.mapH);
       this.dirty=false;
     }
-    // 绘制缓存地板（按逻辑尺寸绘制，主ctx已scale(dpr)）
-    ctx.drawImage(this.floorCache,0,0,this.w,this.h);
+    // 绘制缓存地板（使用相机裁剪区域）
+    ctx.drawImage(this.floorCache,this.camera.x,this.camera.y,this.w,this.h,0,0,this.w,this.h);
     // 画桌子（动态，不缓存）
     for(const t of this.tables){
       this.drawTable(t);
@@ -2513,11 +2515,7 @@ function subscribeLobbyPos(){
 // 位置消息已在 MQTT on('message') 中直接处理
 
 // 在 showScreen main 时启动大厅
-const _origShowScreen=showScreen;
-showScreen=function(n){
-  _origShowScreen(n);
-  if(n==='main'){Lobby.show()}else{Lobby.hide()}
-};
+// showScreen 已内联处理 Lobby 启动/停止
 
 // 点击画布上的桌子触发加入 (在 Lobby.init 中绑定)
 function bindLobbyCanvasClick(){
