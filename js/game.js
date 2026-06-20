@@ -909,13 +909,42 @@ const Lobby={
     if(G.isHost&&G.roomCode){const idx=this.tables.findIndex((x,i)=>x.game===G.gameType&&!usedIdx.has(i));if(idx!==-1){usedIdx.add(idx);const t=this.tables[idx];t.code=G.roomCode;t.players=G.roomPeers.length;t.max=MAX_SEATS;t.host=G.user}}
   },
 
-  // ==================== 核心绘制 (重构后 <200 行) ====================
+  // ==================== 核心绘制 ====================
   draw(){
     const ctx=this.ctx;if(!ctx)return;if(this.canvas.width<100||this.canvas.height<100)this.resize();
     this._updateCamera();ctx.fillStyle='#1a1610';ctx.fillRect(0,0,this.w,this.h);
     ctx.save();ctx.translate(-this.camera.x,-this.camera.y);
-    this._drawFloor(ctx);this._drawWalls(ctx);this._drawDecor(ctx);this._drawTables(ctx);this._drawFountain(ctx);this._drawLootCrates(ctx);this._drawScraps(ctx);this._drawOthers(ctx);this._drawSelf(ctx);this._drawWalkParticles(ctx);this._drawAmbientParticles(ctx);this._drawDustParticles(ctx);ctx.restore();
-    this._drawMinimap(ctx);this._drawWelcome(ctx);this._drawVignette(ctx);this._drawJoystick(ctx);this._drawTransition(ctx);
+    // 地板
+    this._drawFloor(ctx);
+    // 墙壁
+    ctx.fillStyle='#7a6540';
+    ctx.fillRect(0,0,this.mapW,20);ctx.fillRect(0,this.mapH-20,this.mapW,20);
+    ctx.fillRect(0,0,20,this.mapH);ctx.fillRect(this.mapW-20,0,20,this.mapH);
+    // 装饰物
+    if(this._cachedDecor){ctx.drawImage(this._cachedDecor,0,0)}else{const dc=document.createElement('canvas');dc.width=this.mapW;dc.height=this.mapH;const dctx=dc.getContext('2d');_drawDecorFunc(dctx,this.mapW,this.mapH);this._cachedDecor=dc;ctx.drawImage(dc,0,0)}
+    // 桌子
+    for(const t of this.tables){const dx=t.x-this.me.x,dy=t.y-this.me.y;const dist=Math.sqrt(dx*dx+dy*dy);const isHovered=dist<50;const isFull=t.code&&t.players>=t.max;_drawTable(ctx,t,isHovered,isFull,this.time)}
+    // 其他玩家
+    for(const[id,p]of this.others){ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.emoji||'🐦',p.x,p.y);_drawNameTag(ctx,p.x,p.y-18,p.name||'幸存者',false)}
+    // 自己
+    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(this.me.emoji,this.me.x,this.me.y);_drawNameTag(ctx,this.me.x,this.me.y-20,this.me.name,true)
+    // 行走粒子
+    _drawWalkParticles(ctx,this.walkParticles);
+    // 环境粒子
+    _drawAmbientParticles(ctx,this.ambientParticles);
+    // 灰尘粒子
+    _drawDustParticles(ctx,this.dustParticles);
+    ctx.restore();
+    // 小地图
+    Lobby._drawMinimap(ctx);
+    // 欢迎消息
+    Lobby._drawWelcome(ctx);
+    // 暗角
+    this._drawVignette(ctx);
+    // 摇杆
+    this._drawJoystick(ctx);
+    // 转场
+    this._drawTransition(ctx);
   },
 
   _updateCamera(){
