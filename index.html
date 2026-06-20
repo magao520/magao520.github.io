@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>废土交易所 - 生存物资赌场</title>
 <script src="https://unpkg.com/mqtt@5.10.4/dist/mqtt.min.js"></script>
 <style>
@@ -10,8 +10,8 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#1a1610;--panel:#231f18;--accent:#c4463a;--glow:rgba(196,70,58,.3);--gold:#b8960f;--gold-glow:rgba(184,150,15,.3);--green:#5a8a3c;--text:#d4c8a8;--dim:#7a7060;--border:#3a352a;--red:#8b2020}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-serif;min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.08) 3px,rgba(0,0,0,.08) 6px);pointer-events:none;z-index:1000}
-body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(255,200,100,.04),transparent 60%);pointer-events:none;z-index:999}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.08) 3px,rgba(0,0,0,.08) 6px);pointer-events:none;z-index:2}
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(255,200,100,.04),transparent 60%);pointer-events:none;z-index:1}
 
 /* 登录 - 消杀缓冲区 */
 #auth-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#2a2418,#1a1610);z-index:100}
@@ -275,7 +275,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <!-- 边界警告 -->
       <div id="boundary-warning" style="position:absolute;top:60px;left:50%;transform:translateX(-50%);padding:6px 14px;background:rgba(196,70,58,.85);border:1px solid var(--accent);border-radius:4px;color:#fff;font-size:12px;display:none;pointer-events:none;z-index:20;font-weight:700;letter-spacing:1px">地图边界</div>
       <!-- 交互提示 -->
-      <div id="interact-hint" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(0,0,0,.7);border:1px solid var(--gold);border-radius:4px;color:var(--gold);font-size:13px;display:none;pointer-events:none;z-index:10"></div>
+      <div id="interact-hint" style="position:absolute;bottom:150px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(0,0,0,.7);border:1px solid var(--gold);border-radius:4px;color:var(--gold);font-size:13px;display:none;pointer-events:none;z-index:10"></div>
       <!-- 任务面板 -->
       <div id="quest-panel" style="position:absolute;top:12px;left:12px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:8px 12px;border-radius:4px;max-width:160px"></div>
       <!-- 等级面板 -->
@@ -289,7 +289,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       </div>
       <button id="chat-toggle" onclick="toggleChat()" style="position:absolute;bottom:12px;right:12px;z-index:20;background:rgba(0,0,0,.6);border:1px solid var(--border);color:var(--dim);padding:6px 10px;border-radius:4px;font-size:12px;cursor:pointer">💬</button>
       <!-- 操作说明 -->
-      <div style="position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--dim);z-index:10;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:4px">
+      <div style="position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--dim);z-index:10;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:4px;pointer-events:none">
         <div>WASD / 方向键 移动</div>
         <div>点击地面 移动</div>
         <div>走近桌子 加入</div>
@@ -408,6 +408,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=80"></script>
+<script src="js/game.js?v=90"></script>
 </body>
 </html>

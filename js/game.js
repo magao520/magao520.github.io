@@ -3,6 +3,7 @@
 // 全面升级：大幅增强所有升华效果可见性
 // ============================================================
 'use strict';
+if(!CanvasRenderingContext2D.prototype.roundRect){CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){if(typeof r==='number')r=[r,r,r,r];if(!Array.isArray(r))r=[0,0,0,0];const[tl,tr,br,bl]=r.map(v=>Math.min(v,Math.min(w,h)/2));this.moveTo(x+tl,y);this.lineTo(x+w-tr,y);this.quadraticCurveTo(x+w,y,x+w,y+tr);this.lineTo(x+w,y+h-br);this.quadraticCurveTo(x+w,y+h,x+w-br,y+h);this.lineTo(x+bl,y+h);this.quadraticCurveTo(x,y+h,x,y+h-bl);this.lineTo(x,y+tl);this.quadraticCurveTo(x,y,x+tl,y);this.closePath();return this}}
 
 const MQTT_BROKER='wss://broker.emqx.io:8084/mqtt';
 const TOPIC_LOBBY='wl_lobby_v6';
@@ -737,7 +738,7 @@ function hideLoading(){
   if(lo){lo.style.opacity='0';setTimeout(()=>{lo.style.display='none'},500)}
 }
 function showLoading(){
-  const l=$('loading');if(l){l.style.display='block';l.style.opacity='1'}
+  const l=$('loading-overlay');if(l){l.style.display='block';l.style.opacity='1'}
   const tips=['靠近桌子按E加入游戏','按住Shift可以冲刺移动','按Enter键打开聊天','按Q键打开表情轮盘','收集废金属可以获得额外奖励'];
   const tip=$('loading-tip');if(tip)tip.textContent='提示：'+tips[Math.floor(Math.random()*tips.length)];
 }
@@ -868,6 +869,8 @@ function toast(msg){
   const existing=document.querySelectorAll('.toast');
   if(existing.length>=3)existing[0].remove();
   const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  const count=document.querySelectorAll('.toast').length;
+  t.style.bottom=(30+count*45)+'px';
   document.body.appendChild(t);setTimeout(()=>{if(t.parentNode)t.remove()},3500);
 }
 function flashScreen(color='var(--gold)'){
@@ -1347,7 +1350,10 @@ function cleanupRoom(){
   G.roomPeers=[];G.roomCode=null;G.isHost=false;G.isSpectator=false;G.inGame=false;G.gameOver=false;G.myTurn=false;G.resultShown=false;stopCandle();publishPresence();
 }
 function cleanupAll(){
-  cleanupRoom();stopPresence();if(G._roomCleanupTimer){clearInterval(G._roomCleanupTimer);G._roomCleanupTimer=null}if(Lobby.animId){Lobby.stop()}if(G.mqtt){try{G.mqtt.end(true)}catch(e){}G.mqtt=null}G.mqttConnected=false;
+  cleanupRoom();stopPresence();
+  try{Sound.stopAmbient();Sound.stopBGM();Sound.stopRoomBGM()}catch(e){}
+  if(G._roomCleanupTimer){clearInterval(G._roomCleanupTimer);G._roomCleanupTimer=null}
+  if(Lobby.animId){Lobby.stop()}if(G.mqtt){try{G.mqtt.end(true)}catch(e){}G.mqtt=null}G.mqttConnected=false;
 }
 
 // ==================== 开始游戏 ====================
@@ -1397,12 +1403,13 @@ function shouldRender(){
 }
 function renderTable(){if(!G.players||!G.players.length||!shouldRender())return;if(G.gameType==='zjh')renderZJH();else if(G.gameType==='bj')renderBJ();else if(G.gameType==='dice')renderDice();updateChips()}
 function setActionBar(h){const ab=$('action-bar');if(ab)ab.innerHTML=h}
+function safeSet(id,prop,val){const el=$(id);if(el)el[prop]=val}
 function renderZJH(){
   const me=G.players.find(p=>p.isMe);if(!me)return;const others=G.players.filter(p=>!p.isMe);
   const isSpec=G.isSpectator;
-  $('p0-cards').innerHTML=me.seen||isSpec?me.cards.map((c,i)=>`<div class="card-deal" style="animation-delay:${i*0.1}s">${cardHTML(c)}</div>`).join(''):me.cards.map(()=>`<div class="card-flip">${cardHTML(null,true)}</div>`).join('');
-  $('p0-hand').textContent=me.seen||isSpec?evalZJH(me.cards).name:(isSpec?'观战模式':'未看牌');$('p0-name').innerHTML=`${escHTML(me.name)} <span style="color:var(--gold)">${me.chips}单位</span>`;$('p0-name').className='player-name'+(G.myTurn?' active':'');
-  for(let i=0;i<2;i++){const p=others[i];if(!p){$('p'+(i+1)+'-name').textContent='空位';$('p'+(i+1)+'-cards').innerHTML='';$('p'+(i+1)+'-hand').textContent='';continue}const show=p.folded||G.gameOver||isSpec;$('p'+(i+1)+'-cards').innerHTML=show?p.cards.map(c=>cardHTML(c)).join(''):p.cards.map(()=>cardHTML(null,true)).join('');$('p'+(i+1)+'-hand').textContent=show?evalZJH(p.cards).name:'';$('p'+(i+1)+'-name').textContent=`${escHTML(p.name)} ${p.folded?'(弃牌)':''}${p.bluffed?'[诈]':''}${p.darkBet?'[暗]':''}`;$('p'+(i+1)+'-name').className='player-name'+(G.myTurn&&p.id===currentPlayerId()?' active':'')}
+  safeSet('p0-cards','innerHTML',me.seen||isSpec?me.cards.map((c,i)=>`<div class="card-deal" style="animation-delay:${i*0.1}s">${cardHTML(c)}</div>`).join(''):me.cards.map(()=>`<div class="card-flip">${cardHTML(null,true)}</div>`).join(''));
+  safeSet('p0-hand','textContent',me.seen||isSpec?evalZJH(me.cards).name:(isSpec?'观战模式':'未看牌'));safeSet('p0-name','innerHTML',`${escHTML(me.name)} <span style="color:var(--gold)">${me.chips}单位</span>`);safeSet('p0-name','className','player-name'+(G.myTurn?' active':''));
+  for(let i=0;i<2;i++){const p=others[i];if(!p){safeSet('p'+(i+1)+'-name','textContent','空位');safeSet('p'+(i+1)+'-cards','innerHTML','');safeSet('p'+(i+1)+'-hand','textContent','');continue}const show=p.folded||G.gameOver||isSpec;safeSet('p'+(i+1)+'-cards','innerHTML',show?p.cards.map(c=>cardHTML(c)).join(''):p.cards.map(()=>cardHTML(null,true)).join(''));safeSet('p'+(i+1)+'-hand','textContent',show?evalZJH(p.cards).name:'');safeSet('p'+(i+1)+'-name','textContent',`${escHTML(p.name)} ${p.folded?'(弃牌)':''}${p.bluffed?'[诈]':''}${p.darkBet?'[暗]':''}`);safeSet('p'+(i+1)+'-name','className','player-name'+(G.myTurn&&p.id===currentPlayerId()?' active':''))}
   const pa=$('pot-amount');if(pa)pa.innerHTML=_renderPotChips(G.pot);
   if(isSpec){const specHint=document.getElementById('spec-hint');if(!specHint){const h=document.createElement('div');h.id='spec-hint';h.style.cssText='font-size:10px;color:var(--gold);text-align:center;margin-top:4px';h.textContent='[观战模式] 你可以看到所有牌面';const pa=document.querySelector('.pot-area');if(pa)pa.after(h)}}
   const hintEl=document.getElementById('rank-hint');if(!hintEl&&!G.gameOver){const h=document.createElement('div');h.id='rank-hint';h.style.cssText='font-size:9px;color:var(--dim);text-align:center;margin-top:4px;letter-spacing:1px';h.textContent='豹子 > 同花顺 > 同花 > 顺子 > 对子 > 散牌';const pa=document.querySelector('.pot-area');if(pa)pa.after(h)}
@@ -1420,12 +1427,12 @@ function renderBJ(){
   if(me.hands&&me.hands.length>0){
     let myHtml='';for(let hi=0;hi<me.hands.length;hi++){const hand=me.hands[hi];const isActive=hi===(me.currentHand||0);myHtml+=`<div style="display:inline-block;margin:0 8px;padding:4px;border:1px solid ${isActive?'var(--gold)':'transparent'};border-radius:4px"><div style="font-size:10px;color:var(--dim);margin-bottom:2px">手牌${hi+1}${isActive?' (当前)':''}</div>${hand.map((c,i)=>`<div class="card-deal" style="animation-delay:${i*0.08}s">${cardHTML(c)}</div>`).join('')}<div style="font-size:11px;margin-top:2px">点数:${bjValue(hand)}</div></div>`}
     $('p0-cards').innerHTML=myHtml;
-    const activeHand=me.hands[me.currentHand||0];$('p0-hand').textContent=`当前: ${bjValue(activeHand)} 点`;
+    safeSet('p0-hand','textContent',`当前: ${bjValue(activeHand)} 点`);
   }else{
-    $('p0-cards').innerHTML=me.cards.map((c,i)=>`<div class="card-deal" style="animation-delay:${i*0.08}s">${cardHTML(c)}</div>`).join('');$('p0-hand').textContent=`点数: ${bjValue(me.cards)}`;
+    safeSet('p0-cards','innerHTML',me.cards.map((c,i)=>`<div class="card-deal" style="animation-delay:${i*0.08}s">${cardHTML(c)}</div>`).join(''));safeSet('p0-hand','textContent',`点数: ${bjValue(me.cards)}`);
   }
-  $('p0-name').innerHTML=`${escHTML(me.name)} <span style="color:var(--gold)">${me.chips}单位</span>${me.doubled?' [双倍]':''}${me.insured?' [保险]':''}`;$('p0-name').className='player-name'+(G.myTurn?' active':'')+' glow-pulse';
-  for(let i=0;i<2;i++){const p=others[i];if(!p){$('p'+(i+1)+'-name').textContent='空位';$('p'+(i+1)+'-cards').innerHTML='';$('p'+(i+1)+'-hand').textContent='';continue}const show=G.gameOver||isSpec;if(p.hands&&p.hands.length>0){let pHtml='';for(let hi=0;hi<p.hands.length;hi++){const hand=p.hands[hi];pHtml+=`<div style="display:inline-block;margin:0 6px;padding:3px;border:1px solid var(--border);border-radius:4px"><div style="font-size:9px;color:var(--dim)">手牌${hi+1}</div>${show?hand.map(c=>cardHTML(c)).join(''):hand.map(()=>cardHTML(null,true)).join('')}<div style="font-size:10px;margin-top:2px">${show?bjValue(hand):'?'}</div></div>`}$('p'+(i+1)+'-cards').innerHTML=pHtml;$('p'+(i+1)+'-hand').textContent=show?`手牌1:${bjValue(p.hands[0])} 手牌2:${bjValue(p.hands[1])}`:'';}else{$('p'+(i+1)+'-cards').innerHTML=show?p.cards.map(c=>cardHTML(c)).join(''):p.cards.map(()=>cardHTML(null,true)).join('');$('p'+(i+1)+'-hand').textContent=show?`点数: ${bjValue(p.cards)}`:'';}$('p'+(i+1)+'-name').textContent=escHTML(p.name)+(p.busted?' (爆牌)':p.stood?' (停牌)':'');$('p'+(i+1)+'-name').className='player-name'+(G.myTurn&&p.id===currentPlayerId()?' active':'')}
+  safeSet('p0-name','innerHTML',`${escHTML(me.name)} <span style="color:var(--gold)">${me.chips}单位</span>${me.doubled?' [双倍]':''}${me.insured?' [保险]':''}`);safeSet('p0-name','className','player-name'+(G.myTurn?' active':'')+' glow-pulse');
+  for(let i=0;i<2;i++){const p=others[i];if(!p){safeSet('p'+(i+1)+'-name','textContent','空位');safeSet('p'+(i+1)+'-cards','innerHTML','');safeSet('p'+(i+1)+'-hand','textContent','');continue}const show=G.gameOver||isSpec;if(p.hands&&p.hands.length>0){let pHtml='';for(let hi=0;hi<p.hands.length;hi++){const hand=p.hands[hi];pHtml+=`<div style="display:inline-block;margin:0 6px;padding:3px;border:1px solid var(--border);border-radius:4px"><div style="font-size:9px;color:var(--dim)">手牌${hi+1}</div>${show?hand.map(c=>cardHTML(c)).join(''):hand.map(()=>cardHTML(null,true)).join('')}<div style="font-size:10px;margin-top:2px">${show?bjValue(hand):'?'}</div></div>`}safeSet('p'+(i+1)+'-cards','innerHTML',pHtml);safeSet('p'+(i+1)+'-hand','textContent',show?`手牌1:${bjValue(p.hands[0])} 手牌2:${bjValue(p.hands[1])}`:'');}else{safeSet('p'+(i+1)+'-cards','innerHTML',show?p.cards.map(c=>cardHTML(c)).join(''):p.cards.map(()=>cardHTML(null,true)).join(''));safeSet('p'+(i+1)+'-hand','textContent',show?`点数: ${bjValue(p.cards)}`:'');}safeSet('p'+(i+1)+'-name','textContent',escHTML(p.name)+(p.busted?' (爆牌)':p.stood?' (停牌)':''));safeSet('p'+(i+1)+'-name','className','player-name'+(G.myTurn&&p.id===currentPlayerId()?' active':''))}
   const pa=$('pot-amount');if(pa)pa.innerHTML=_renderPotChips(G.pot);
   if(isSpec){const specHint=document.getElementById('spec-hint');if(!specHint){const h=document.createElement('div');h.id='spec-hint';h.style.cssText='font-size:10px;color:var(--gold);text-align:center;margin-top:4px';h.textContent='[观战模式] 你可以看到所有牌面';const pa=document.querySelector('.pot-area');if(pa)pa.after(h)}}
   const bjHint=document.getElementById('bj-hint');if(!bjHint&&!G.gameOver){const h=document.createElement('div');h.id='bj-hint';h.style.cssText='font-size:9px;color:var(--dim);text-align:center;margin-top:4px;letter-spacing:1px';h.textContent='尽量接近21点，超过则爆牌';const pa=document.querySelector('.pot-area');if(pa)pa.after(h)}
@@ -1468,8 +1475,8 @@ function rollDice(){let d=[ran(1,6),ran(1,6),ran(1,6)];const isTrips=d[0]===d[1]
 function ran(a,b){return Math.floor(Math.random()*(b-a+1))+a}
 function renderDice(){
   const me=G.players.find(p=>p.isMe);if(!me)return;const others=G.players.filter(p=>!p.isMe);
-  $('p0-cards').innerHTML=me.choice?`<div style="font-size:36px;padding:10px">${me.choice==='big'?'🔴':'🔵'}</div>`:`<div style="font-size:36px;padding:10px;opacity:.3">❓</div>`;$('p0-hand').textContent=me.choice?(me.choice==='big'?'选大':'选小'):'未选择';$('p0-name').innerHTML=`${escHTML(me.name)} <span style="color:var(--gold)">${me.chips}单位</span>`;$('p0-name').className='player-name'+(G.myTurn?' active':'')+' glow-pulse';
-  for(let i=0;i<2;i++){const p=others[i];if(!p){$('p'+(i+1)+'-name').textContent='空位';$('p'+(i+1)+'-cards').innerHTML='';$('p'+(i+1)+'-hand').textContent='';continue}$('p'+(i+1)+'-cards').innerHTML=p.choice?`<div style="font-size:36px;padding:10px">${p.choice==='big'?'🔴':'🔵'}</div>`:`<div style="font-size:36px;padding:10px;opacity:.3">⏳</div>`;$('p'+(i+1)+'-hand').textContent=p.choice?`${p.choice==='big'?'选大':'选小'}`:'思考中';$('p'+(i+1)+'-name').textContent=escHTML(p.name)+(p.folded?' (已结算)':'');$('p'+(i+1)+'-name').className='player-name'+(G.myTurn&&p.id===currentPlayerId()?' active':'')}
+  safeSet('p0-cards','innerHTML',me.choice?`<div style="font-size:36px;padding:10px">${me.choice==='big'?'🔴':'🔵'}</div>`:`<div style="font-size:36px;padding:10px;opacity:.3">❓</div>`);safeSet('p0-hand','textContent',me.choice?(me.choice==='big'?'选大':'选小'):'未选择');safeSet('p0-name','innerHTML',`${escHTML(me.name)} <span style="color:var(--gold)">${me.chips}单位</span>`);safeSet('p0-name','className','player-name'+(G.myTurn?' active':'')+' glow-pulse');
+  for(let i=0;i<2;i++){const p=others[i];if(!p){safeSet('p'+(i+1)+'-name','textContent','空位');safeSet('p'+(i+1)+'-cards','innerHTML','');safeSet('p'+(i+1)+'-hand','textContent','');continue}safeSet('p'+(i+1)+'-cards','innerHTML',p.choice?`<div style="font-size:36px;padding:10px">${p.choice==='big'?'🔴':'🔵'}</div>`:`<div style="font-size:36px;padding:10px;opacity:.3">⏳</div>`);safeSet('p'+(i+1)+'-hand','textContent',p.choice?`${p.choice==='big'?'选大':'选小'}`:'思考中');safeSet('p'+(i+1)+'-name','textContent',escHTML(p.name)+(p.folded?' (已结算)':''));safeSet('p'+(i+1)+'-name','className','player-name'+(G.myTurn&&p.id===currentPlayerId()?' active':''))}
   const diceEl=$('pot-amount');if(G.diceState.phase==='reveal'||G.diceState.phase==='result'||G.gameOver){const isBig=G.diceState.sum>=11;const pl=document.querySelector('.pot-label');if(pl)pl.textContent='骰子结果';const dArea=document.querySelector('.pot-area');if(dArea){const dHTML=dArea.querySelector('.dice-area');if(dHTML)dHTML.innerHTML=G.diceState.dice.map((d,i)=>`<div class="dice-die dice-roll" style="animation-delay:${i*0.15}s">${d}</div>`).join('');else{const da=document.createElement('div');da.className='dice-area';da.innerHTML=G.diceState.dice.map((d,i)=>`<div class="dice-die dice-roll" style="animation-delay:${i*0.15}s">${d}</div>`).join('');dArea.insertBefore(da,diceEl)}}diceEl.innerHTML=`<span style="font-size:14px;color:${isBig?'var(--accent)':'var(--green)'}">总和 ${G.diceState.sum} — ${isBig?'大':'小'}</span> <span style="font-size:18px;color:var(--gold)">| 底池 ${_renderPotChips(G.pot)}</span>`}else{const pl=document.querySelector('.pot-label');if(pl)pl.textContent='等待下注...';const dArea=document.querySelector('.pot-area');if(dArea){const oldDa=dArea.querySelector('.dice-area');if(oldDa)oldDa.innerHTML='<span style="font-size:40px;opacity:.3">🎲 🎲 🎲</span>';else{const da=document.createElement('div');da.className='dice-area';da.innerHTML='<span style="font-size:40px;opacity:.3">🎲 🎲 🎲</span>';dArea.insertBefore(da,diceEl)}}diceEl.innerHTML=`<span style="font-size:20px;color:var(--gold)">底池 ${_renderPotChips(G.pot)}</span>`}
   const jpEl=document.getElementById('jackpot-hint');if(!jpEl){const h=document.createElement('div');h.id='jackpot-hint';h.style.cssText='font-size:10px;color:var(--gold);text-align:center;margin-top:4px';h.textContent=`围骰奖池: ${G.diceJackpot}单位 (连${G.diceJackpotStreak}局无围骰)`;const pa=document.querySelector('.pot-area');if(pa)pa.after(h)}else{jpEl.textContent=`围骰奖池: ${G.diceJackpot}单位 (连${G.diceJackpotStreak}局无围骰)`}
   if(G.isSpectator){setActionBar(`<button class="action-btn" onclick="leaveSpectate()">退出观战</button>`);return}
@@ -1898,18 +1905,18 @@ const Lobby={
 
   bindInput(){
     const c=this.canvas;this._onResize=()=>this.resize();window.addEventListener('resize',this._onResize);
-    this._onKeyDown=e=>{this.keys[e.key.toLowerCase()]=true;if(e.key==='Enter'){const bar=$('chat-bar');if(bar&&bar.style.display!=='none'){sendChat();e.preventDefault()}else{toggleChat();e.preventDefault()}}if(e.key==='Escape'){const bar=$('chat-bar');if(bar)bar.style.display='none';closeEmoteWheel()}if(e.key.toLowerCase()==='q'){showEmoteWheel()}if(e.key.toLowerCase()==='z'){this.me.sitting=!this.me.sitting;this.me.moving=false;if(this.me.sitting){this.me.emoji='🧘'}else{const ch=CHARACTERS[selectedChar];this.me.emoji=ch&&ch.skins?ch.skins[G.skinIndex||0]:ch?.emoji||'🐦'}this.broadcastPos()}};
+    this._onKeyDown=e=>{if(G.inGame&&G.gameType){return}this.keys[e.key.toLowerCase()]=true;if(e.key==='Enter'){const bar=$('chat-bar');if(bar&&bar.style.display!=='none'){sendChat();e.preventDefault()}else{toggleChat();e.preventDefault()}}if(e.key==='Escape'){const modals=document.querySelectorAll('.modal-overlay.open');if(modals.length>0){modals[modals.length-1].remove();return}const bar=$('chat-bar');if(bar)bar.style.display='none';closeEmoteWheel()}if(e.key.toLowerCase()==='q'){showEmoteWheel()}if(e.key.toLowerCase()==='z'){this.me.sitting=!this.me.sitting;this.me.moving=false;if(this.me.sitting){this.me.emoji='🧘'}else{const ch=CHARACTERS[selectedChar];this.me.emoji=ch&&ch.skins?ch.skins[G.skinIndex||0]:ch?.emoji||'🐦'}this.broadcastPos()}};
     this._onKeyUp=e=>{this.keys[e.key.toLowerCase()]=false};
     window.addEventListener('keydown',this._onKeyDown);window.addEventListener('keyup',this._onKeyUp);
     this._sprintHintTimer=setTimeout(()=>{if(this.keys['shift']===undefined)toast('按住 Shift 冲刺移动')},15000);
     this._onTouchStart=e=>{
-      e.preventDefault();
       const rect=c.getBoundingClientRect();
       const t=e.changedTouches[0];
       const tx=t.clientX-rect.left;
       const ty=t.clientY-rect.top;
-      // 只有左下1/4区域才激活摇杆
+      // 只在摇杆区域阻止默认行为
       if(tx<rect.width*0.35&&ty>rect.height*0.6){
+        e.preventDefault();
         if(this.joystick.active)return;
         this._ignoreNextClick=true;
         this.joystick.active=true;
@@ -1920,9 +1927,9 @@ const Lobby={
         this.joystick.dy=0;
         this.joystick.opacity=1;
       }
-      // 其他区域的触摸不激活摇杆
+      // 非摇杆区域不阻止默认行为，允许 click 事件正常触发
     };
-    this._onTouchMove=e=>{e.preventDefault();for(const t of e.changedTouches){if(t.identifier===this.joystick.touchId){const rect=c.getBoundingClientRect();const tx=t.clientX-rect.left;const ty=t.clientY-rect.top;let ddx=tx-this.joystick.cx;let ddy=ty-this.joystick.cy;const dist=Math.sqrt(ddx*ddx+ddy*ddy);if(dist>40){ddx=(ddx/dist)*40;ddy=(ddy/dist)*40}this.joystick.dx=ddx/40;this.joystick.dy=ddy/40;this.joystick.opacity=1}}};
+    this._onTouchMove=e=>{if(this.joystick.active){e.preventDefault();for(const t of e.changedTouches){if(t.identifier===this.joystick.touchId){const rect=c.getBoundingClientRect();const tx=t.clientX-rect.left;const ty=t.clientY-rect.top;let ddx=tx-this.joystick.cx;let ddy=ty-this.joystick.cy;const dist=Math.sqrt(ddx*ddx+ddy*ddy);if(dist>40){ddx=(ddx/dist)*40;ddy=(ddy/dist)*40}this.joystick.dx=ddx/40;this.joystick.dy=ddy/40;this.joystick.opacity=1}}}};
     this._onTouchEnd=e=>{for(const t of e.changedTouches){if(t.identifier===this.joystick.touchId){this.joystick.active=false;this.joystick.dx=0;this.joystick.dy=0;this.joystick.touchId=null;this.joystick.opacity=0.4}}};
     c.addEventListener('touchstart',this._onTouchStart,{passive:false});c.addEventListener('touchmove',this._onTouchMove,{passive:false});c.addEventListener('touchend',this._onTouchEnd);c.addEventListener('touchcancel',this._onTouchEnd);
   },
@@ -2002,6 +2009,7 @@ const Lobby={
   },
   kickBarrel(barrel){
     const dx=this.me.x-barrel.x,dy=this.me.y-barrel.y;const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<1)dist=1;
     barrel.vx=-(dx/dist)*(200+Math.random()*100);barrel.vy=-(dy/dist)*(200+Math.random()*100);
     barrel.state='rolling';Sound.click();
   },
@@ -2109,7 +2117,7 @@ const Lobby={
     // 区域切换闪烁
     if(this._regionFlash>0.01){ctx.fillStyle=this._regionFlashColor.replace(')',`,${this._regionFlash})`).replace('rgb','rgba');ctx.fillRect(0,0,this.w,this.h);this._regionFlash-=0.015;if(this._regionFlash<0)this._regionFlash=0}
     // 区域名称大字体toast
-    if(this._regionToastTime>0){this._regionToastTime-=dt||0.016;const ta=Math.min(1,this._regionToastTime/0.8);ctx.globalAlpha=ta;const toastText=this._regionToastName;ctx.font='bold 36px "Noto Sans SC",sans-serif';const tw=ctx.measureText(toastText).width;const tbx=this.w/2-tw/2-20,tby=this.h/2-110;ctx.fillStyle='rgba(0,0,0,.6)';ctx.beginPath();ctx.roundRect(tbx,tby,tw+40,50,8);ctx.fill();ctx.strokeStyle='rgba(184,150,15,.5)';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#b8960f';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(toastText,this.w/2,this.h/2-85);ctx.globalAlpha=1;if(this._regionToastTime<=0)this._regionToastName='';}
+    if(this._regionToastTime>0){this._regionToastTime-=0.016;const ta=Math.min(1,this._regionToastTime/0.8);ctx.globalAlpha=ta;const toastText=this._regionToastName;ctx.font='bold 36px "Noto Sans SC",sans-serif';const tw=ctx.measureText(toastText).width;const tbx=this.w/2-tw/2-20,tby=this.h/2-110;ctx.fillStyle='rgba(0,0,0,.6)';ctx.beginPath();ctx.roundRect(tbx,tby,tw+40,50,8);ctx.fill();ctx.strokeStyle='rgba(184,150,15,.5)';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#b8960f';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(toastText,this.w/2,this.h/2-85);ctx.globalAlpha=1;if(this._regionToastTime<=0)this._regionToastName='';}
     // 天气UI
     this._drawWeatherUI(ctx);
     // 时间钟表
@@ -2146,7 +2154,7 @@ const Lobby={
   getRegionName(r){return{slum:'贫民区',black:'黑市区',safe:'安全区'}[r]||''},
   _drawFloor(ctx){
     const tileSize=80;const startX=Math.floor(this.camera.x/tileSize)*tileSize;const startY=Math.floor(this.camera.y/tileSize)*tileSize;const endX=startX+this.w+tileSize;const endY=startY+this.h+tileSize;
-    for(let tx=startX;tx<endX;tx+=tileSize){for(let ty=startY;ty<endY;ty+=tileSize){if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);const baseColor=this.getRegionColor(region);const dark=((tx/tileSize+ty/tileSize)%2===0);ctx.fillStyle=dark?baseColor:adjustColor(baseColor,8);ctx.fillRect(tx,ty,tileSize,tileSize);ctx.fillStyle=dark?'rgba(0,0,0,.06)':'rgba(255,255,255,.03)';ctx.fillRect(tx+2,ty+2,tileSize-4,tileSize-4);if(Math.random()<0.02){ctx.fillStyle='rgba(60,50,30,.3)';ctx.fillRect(tx+Math.random()*tileSize,ty+Math.random()*tileSize,2+Math.random()*4,1)}if(Math.random()<0.01){ctx.fillStyle='rgba(80,60,40,.2)';const cx=tx+Math.random()*tileSize;const cy=ty+Math.random()*tileSize;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+3+Math.random()*5,cy+1);ctx.stroke()}}}
+    for(let tx=startX;tx<endX;tx+=tileSize){for(let ty=startY;ty<endY;ty+=tileSize){if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);const baseColor=this.getRegionColor(region);const dark=((tx/tileSize+ty/tileSize)%2===0);ctx.fillStyle=dark?baseColor:adjustColor(baseColor,8);ctx.fillRect(tx,ty,tileSize,tileSize);ctx.fillStyle=dark?'rgba(0,0,0,.06)':'rgba(255,255,255,.03)';ctx.fillRect(tx+2,ty+2,tileSize-4,tileSize-4)}}
     // 区域边界渐变过渡带（50px宽）
     this._drawRegionBorders(ctx);
   },
@@ -2287,7 +2295,7 @@ function bindLobbyCanvasClick(){
     let clickedTable=false;
     for(const t of Lobby.tables){
       const dx=t.x-cx,dy=t.y-cy;
-      if(Math.sqrt(dx*dx+dy*dy)<40){
+      if(Math.sqrt(dx*dx+dy*dy)<60){
         Lobby.joinTable(t);
         clickedTable=true;
         break;
