@@ -1,6 +1,6 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v9.3
-// 修复：画面提亮、暗角减弱、玩家光源、地板缓存尺寸
+// 废土交易所 - 生存物资赌场 v9.4
+// 修复：Canvas尺寸初始化、大厅延迟启动、画面提亮、暗角减弱
 // ============================================================
 'use strict';
 
@@ -1641,6 +1641,13 @@ if(document.readyState==='loading'){
 }else{
   initApp();
 }
+// 延迟启动大厅（如果已经在main-screen但Lobby还没初始化）
+setTimeout(()=>{
+  const m=$('main-screen');
+  if(m&&m.style.display!=='none'&&Lobby&&!Lobby.animId){
+    Lobby.show();
+  }
+},100);
 
 // ==================== 2D 大厅系统 ====================
 const Lobby={
@@ -1996,6 +2003,12 @@ const Lobby={
   draw(){
     const ctx=this.ctx;
     if(!ctx)return;
+    // 保护性检查：确保Canvas尺寸正确
+    const parentW=this.canvas.parentElement?.offsetWidth||800;
+    const parentH=this.canvas.parentElement?.offsetHeight||600;
+    if(this.canvas.width<100||this.canvas.height<100){
+      this.resize();
+    }
     const isMobile=this.w<640;
     // 更新相机跟随玩家
     this.camera.x=this.me.x-this.w/2;
