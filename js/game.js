@@ -1,6 +1,6 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v9.5
-// 修复：Lobby TDZ崩溃、Canvas尺寸、画面提亮、暗角减弱
+// 废土交易所 - 生存物资赌场 v9.6
+// 大幅简化Canvas渲染：去掉缓存/粒子/渐变/日夜循环/沙尘暴/暗角，只保留核心绘制
 // ============================================================
 'use strict';
 
@@ -2006,215 +2006,100 @@ const Lobby={
     const ctx=this.ctx;
     if(!ctx)return;
     // 保护性检查：确保Canvas尺寸正确
-    const parentW=this.canvas.parentElement?.offsetWidth||800;
-    const parentH=this.canvas.parentElement?.offsetHeight||600;
-    if(this.canvas.width<100||this.canvas.height<100){
-      this.resize();
-    }
-    const isMobile=this.w<640;
+    if(this.canvas.width<100||this.canvas.height<100)this.resize();
+
     // 更新相机跟随玩家
     this.camera.x=this.me.x-this.w/2;
     this.camera.y=this.me.y-this.h/2;
     this.camera.x=Math.max(0,Math.min(this.mapW-this.w,this.camera.x));
     this.camera.y=Math.max(0,Math.min(this.mapH-this.h,this.camera.y));
 
-    // 保存上下文并应用相机偏移
+    // === 1. 清空画布 ===
+    ctx.fillStyle='#1a1610';
+    ctx.fillRect(0,0,this.w,this.h);
+
+    // === 2. 相机变换 ===
     ctx.save();
     ctx.translate(-this.camera.x,-this.camera.y);
 
-    // 初始化粒子
-    const maxParticles=isMobile?10:20;
-    if(this.particles.length===0){
-      for(let i=0;i<maxParticles;i++){
-        this.particles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,r:Math.random()*2+.5,a:Math.random()*.3+.1});
-      }
-    }else if(this.particles.length>maxParticles){
-      this.particles.length=maxParticles;
-    }
-    // 缓存地板（使用地图尺寸，与地图坐标系一致）
-    if(!this.floorCache||this.floorCacheW!==this.mapW||this.floorCacheH!==this.mapH){
-      this.floorCache=document.createElement('canvas');
-      this.floorCache.width=Math.round(this.mapW);
-      this.floorCache.height=Math.round(this.mapH);
-      this.floorCacheW=this.mapW;this.floorCacheH=this.mapH;
-      const fc=this.floorCache.getContext('2d');
-      const tileSize=40;
-      for(let tx=0;tx<this.mapW;tx+=tileSize){
-        for(let ty=0;ty<this.mapH;ty+=tileSize){
-          const dark=((tx/tileSize+ty/tileSize)%2===0);
-          fc.fillStyle=dark?'#2a2418':'#302a1e';
-          fc.fillRect(tx,ty,tileSize,tileSize);
-          fc.strokeStyle='rgba(60,50,30,.2)';
-          fc.lineWidth=1;
-          fc.strokeRect(tx,ty,tileSize,tileSize);
-        }
-      }
-      // 墙壁砖块
-      const wallW=20;
-      fc.fillStyle='#3a3020';
-      fc.fillRect(0,0,this.mapW,wallW);fc.fillRect(0,this.mapH-wallW,this.mapW,wallW);
-      fc.fillRect(0,0,wallW,this.mapH);fc.fillRect(this.mapW-wallW,0,wallW,this.mapH);
-      fc.strokeStyle='rgba(80,70,50,.5)';fc.lineWidth=1;
-      for(let bx=0;bx<this.mapW;bx+=20){
-        const row=Math.floor(bx/20);
-        const off=(row%2)*10;
-        for(let by=0;by<wallW;by+=10){
-          fc.strokeRect(bx+off,by,20,10);
-          fc.strokeRect(bx+off,this.mapH-wallW+by,20,10);
-        }
-        for(let by=wallW;by<this.mapH-wallW;by+=20){
-          fc.strokeRect(0,by,wallW,10);
-          fc.strokeRect(this.mapW-wallW,by,wallW,10);
-        }
-      }
-      // 可见边界线
-      fc.strokeStyle='rgba(196,70,58,.6)';fc.lineWidth=2;
-      fc.strokeRect(0,0,this.mapW,this.mapH);
-      // 装饰也缓存
-      this._drawDecorOn(fc,this.mapW,this.mapH);
-      this.dirty=false;
-    }
-    // 绘制缓存地板（使用相机裁剪区域）
-    ctx.drawImage(this.floorCache,this.camera.x,this.camera.y,this.w,this.h,0,0,this.w,this.h);
-    // 画桌子（动态，不缓存）
-    for(const t of this.tables){
-      this.drawTable(t);
-    }
-    // JOIN 按钮覆盖层（靠近桌子时）- 修复：使用屏幕坐标而非世界坐标绘制UI元素
-    ctx.save();
-    ctx.setTransform(1,0,0,1,0,0); // 重置变换为屏幕坐标系
-    for(const t of this.tables){
-      const dx=t.x-this.me.x,dy=t.y-this.me.y;
-      if(Math.sqrt(dx*dx+dy*dy)<60){
-        // 将世界坐标转换为屏幕坐标
-        const screenX=t.x-this.camera.x;
-        const screenY=t.y-this.camera.y;
-        const bx=screenX-20,by=screenY+30;
-        ctx.fillStyle='rgba(184,150,15,.85)';
-        ctx.fillRect(bx,by,40,18);
-        ctx.strokeStyle='#b8960f';ctx.lineWidth=1;ctx.strokeRect(bx,by,40,18);
-        ctx.fillStyle='#1a1610';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
-        ctx.fillText('JOIN',screenX,by+13);
+    // === 3. 简单地板（交替色块，无缓存） ===
+    const tileSize=80;
+    const startX=Math.floor(this.camera.x/tileSize)*tileSize;
+    const startY=Math.floor(this.camera.y/tileSize)*tileSize;
+    const endX=startX+this.w+tileSize;
+    const endY=startY+this.h+tileSize;
+    for(let tx=startX;tx<endX;tx+=tileSize){
+      for(let ty=startY;ty<endY;ty+=tileSize){
+        if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
+        const dark=((tx/tileSize+ty/tileSize)%2===0);
+        ctx.fillStyle=dark?'#3a3220':'#423820';
+        ctx.fillRect(tx,ty,tileSize,tileSize);
       }
     }
-    ctx.restore();
-    // 画其他玩家
-    for(const[id,p]of this.others){
-      const alpha=p.fadeIn!==undefined?p.fadeIn:1;
-      const scale=p.scale!==undefined?p.scale:1;
-      ctx.globalAlpha=alpha;
-      // 入场粒子
-      if(p.warpParticles&&p.warpParticles.length>0){
-        for(const wp of p.warpParticles){
-          ctx.beginPath();ctx.arc(wp.x,wp.y,2*wp.life,0,Math.PI*2);
-          ctx.fillStyle=`rgba(184,150,15,${wp.life})`;ctx.fill();
-        }
-      }
-      // 其他玩家行走动画
-      const ox=p.tx!==undefined?p.x:0;
-      const oy=p.tx!==undefined?p.y:0;
-      const prevX=p._prevX||ox;
-      const prevY=p._prevY||oy;
-      const isMovingOther=Math.abs(ox-prevX)>0.5||Math.abs(oy-prevY)>0.5;
-      const bobOther=isMovingOther?Math.sin(this.time*10)*2:0;
-      ctx.save();
-      ctx.translate(p.x,p.y+bobOther);
-      ctx.scale(scale,scale);
-      ctx.translate(-p.x,-(p.y+bobOther));
-      this.drawPlayer(Math.round(p.x),Math.round(p.y+bobOther),p.emoji,p.name,false);
-      ctx.restore();
-      // 反应表情
-      if(p.reaction){
-        ctx.font='14px sans-serif';ctx.textAlign='center';
-        ctx.fillText(p.reaction,Math.round(p.x),Math.round(p.y)-30);
-      }
-      // 聊天气泡
-      if(p.chatBubble&&Date.now()-p.chatBubble.ts<3000){
-        const bx=p.x,by=p.y-40;
-        const btext=p.chatBubble.text;
-        ctx.font='11px sans-serif';const tw=ctx.measureText(btext).width;
-        ctx.fillStyle='rgba(0,0,0,.7)';ctx.fillRect(bx-tw/2-6,by-12,tw+12,20);
-        ctx.strokeStyle='rgba(184,150,15,.4)';ctx.lineWidth=1;ctx.strokeRect(bx-tw/2-6,by-12,tw+12,20);
-        ctx.fillStyle='#d4c8a8';ctx.textAlign='center';ctx.fillText(btext,bx,by+2);
-      }else if(p.chatBubble&&Date.now()-p.chatBubble.ts>=3000){
-        p.chatBubble=null;
-      }
-      p._prevX=ox;p._prevY=oy;
-      ctx.globalAlpha=1;
-    }
-    // 画自己
-    this.drawPlayer(Math.round(this.me.x),Math.round(this.me.y),this.me.emoji,this.me.name,true);
-    // 行走粒子（灰尘）
-    for(const wp of this.walkParticles){
-      ctx.beginPath();ctx.arc(Math.round(wp.x),Math.round(wp.y),2*wp.life,0,Math.PI*2);
-      ctx.fillStyle=`rgba(180,160,120,${wp.life*0.4})`;ctx.fill();
-    }
-    // 欢迎消息
-    if(this.time<this.welcomeTime){
-      const alpha=Math.min(1,(this.welcomeTime-this.time)/1);
-      ctx.globalAlpha=alpha;
-      ctx.fillStyle='#b8960f';ctx.font='bold 22px "Noto Sans SC",sans-serif';
-      ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('欢迎来到废土交易所',this.w/2,this.h/2-20);
-      ctx.font='13px "Noto Sans SC",sans-serif';ctx.fillStyle='#7a7060';
-      ctx.fillText('WASD移动 | 走近桌子加入',this.w/2,this.h/2+10);
-      ctx.globalAlpha=1;
-    }
-    // 粒子（灰尘）
-    for(const p of this.particles){
-      p.x+=p.vx;p.y+=p.vy;
-      if(p.x<0)p.x=this.mapW;if(p.x>this.mapW)p.x=0;
-      if(p.y<0)p.y=this.mapH;if(p.y>this.mapH)p.y=0;
-      ctx.beginPath();ctx.arc(Math.round(p.x),Math.round(p.y),p.r,0,Math.PI*2);
-      ctx.fillStyle=`rgba(200,180,140,${p.a})`;ctx.fill();
-    }
-    // 画喷泉/篝火
-    this.drawFountain();
-    // 画宝箱
-    this.drawLootCrates();
-    // 画废金属
-    this.drawScraps();
-    // 画桌子标签（在所有元素之上，带阴影）
+
+    // === 4. 墙壁 ===
+    ctx.fillStyle='#5a4a30';
+    ctx.fillRect(0,0,this.mapW,20);
+    ctx.fillRect(0,this.mapH-20,this.mapW,20);
+    ctx.fillRect(0,0,20,this.mapH);
+    ctx.fillRect(this.mapW-20,0,20,this.mapH);
+
+    // === 5. 桌子 ===
     for(const t of this.tables){
       const isFull=t.code&&t.players>=t.max;
-      const tx=t.x,ty=t.y+36/2+28;
-      ctx.save();
-      ctx.shadowColor='rgba(0,0,0,.8)';ctx.shadowBlur=4;ctx.shadowOffsetX=0;ctx.shadowOffsetY=1;
-      ctx.fillStyle=isFull?'#c4463a':'#b8960f';ctx.font='11px "Noto Sans SC",sans-serif';
-      ctx.textAlign='center';ctx.fillText(t.label,tx,ty);
-      ctx.shadowBlur=0;
+      // 桌子矩形
+      ctx.fillStyle=isFull?'#c4463a':(t.code?'#5a8a3c':'#6a5a40');
+      ctx.fillRect(t.x-30,t.y-20,60,40);
+      ctx.strokeStyle='#b8960f';ctx.lineWidth=2;
+      ctx.strokeRect(t.x-30,t.y-20,60,40);
+      // 标签
+      ctx.fillStyle='#d4c8a8';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+      ctx.fillText(t.label,t.x,t.y+35);
       ctx.fillStyle='#7a7060';ctx.font='10px sans-serif';
-      ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',tx,ty+12);
-      ctx.restore();
+      ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',t.x,t.y+48);
     }
-    // 玩家周围光源（手电筒/火把效果）
-    const pl=ctx.createRadialGradient(this.me.x,this.me.y,10,this.me.x,this.me.y,120);
-    pl.addColorStop(0,'rgba(255,200,100,.08)');pl.addColorStop(1,'transparent');
-    ctx.fillStyle=pl;ctx.fillRect(this.me.x-120,this.me.y-120,240,240);
-    // 日夜循环（基于真实时间）
-    const hour=new Date().getHours();
-    const isNight=hour<6||hour>20;
-    this.dayNightAlpha+=(isNight?0.35:0-this.dayNightAlpha)*0.01;
-    if(this.dayNightAlpha>0.01){
-      ctx.fillStyle=`rgba(10,10,30,${this.dayNightAlpha})`;
-      ctx.fillRect(this.camera.x,this.camera.y,this.w,this.h);
+
+    // === 6. 其他玩家 ===
+    for(const[id,p]of this.others){
+      ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(p.emoji||'🐦',p.x,p.y);
+      ctx.fillStyle='#7a7060';ctx.font='10px sans-serif';
+      ctx.fillText(p.name||'幸存者',p.x,p.y-20);
     }
-    // 沙尘暴效果
-    this.dustStorm+=0.002;
-    const dustIntensity=Math.max(0,Math.sin(this.dustStorm)*0.15);
-    if(dustIntensity>0.01){
-      ctx.fillStyle=`rgba(180,160,100,${dustIntensity})`;
-      ctx.fillRect(this.camera.x,this.camera.y,this.w,this.h);
-    }
-    // 暗角效果（减弱）
-    const vg=ctx.createRadialGradient(this.me.x,this.me.y,Math.min(this.w,this.h)*.3,this.me.x,this.me.y,Math.max(this.w,this.h)*.8);
-    vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,.2)');
-    ctx.fillStyle=vg;ctx.fillRect(this.camera.x,this.camera.y,this.w,this.h);
+
+    // === 7. 自己 ===
+    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(this.me.emoji,this.me.x,this.me.y);
+    ctx.fillStyle='#c4463a';ctx.font='bold 10px sans-serif';
+    ctx.fillText(this.me.name,this.me.x,this.me.y-22);
+
     ctx.restore();
-    // 小地图（在屏幕空间绘制）
-    this.drawMinimap();
-    // 画摇杆
-    this.drawJoystick();
+
+    // === 8. 小地图（屏幕空间） ===
+    const mw=120,mh=80;
+    const mx=this.w-mw-10,my=10;
+    ctx.fillStyle='rgba(0,0,0,.7)';
+    ctx.fillRect(mx,my,mw,mh);
+    ctx.strokeStyle='#b8960f';ctx.lineWidth=1;
+    ctx.strokeRect(mx,my,mw,mh);
+    const sx=mw/this.mapW,sy=mh/this.mapH;
+    for(const t of this.tables){
+      ctx.fillStyle=t.code?'#5a8a3c':'#7a7060';
+      ctx.fillRect(mx+t.x*sx-2,my+t.y*sy-2,4,4);
+    }
+    ctx.fillStyle='#c4463a';
+    ctx.fillRect(mx+this.me.x*sx-2,my+this.me.y*sy-2,4,4);
+
+    // === 9. 欢迎消息 ===
+    if(this.time<this.welcomeTime){
+      ctx.globalAlpha=Math.min(1,(this.welcomeTime-this.time)/1);
+      ctx.fillStyle='#b8960f';ctx.font='bold 20px sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('欢迎来到废土交易所',this.w/2,this.h/2-15);
+      ctx.font='12px sans-serif';ctx.fillStyle='#7a7060';
+      ctx.fillText('WASD移动 | 走近桌子加入',this.w/2,this.h/2+15);
+      ctx.globalAlpha=1;
+    }
   },
   
   drawMinimap(){
