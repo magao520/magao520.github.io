@@ -1,7 +1,7 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v7.1
-// 新增：音效系统、玩法说明、骰子猜大小、牌型提示
-// 20轮审查修复 + 深度优化：BJ顺序轮次、渲染缓存、消息序列号、视觉反馈、输入防抖
+// 废土交易所 - 生存物资赌场 v7.2
+// 修复：加载遮罩层、BJ顺序轮次、渲染缓存、消息序列号
+// 10轮审查修复：空安全、状态同步、对象污染、DOM保护
 // ============================================================
 'use strict';
 
@@ -74,6 +74,8 @@ function resetGameState(){
   G.myTurn=false;G.gameOver=false;G.logs=[];
   G.turnIndex=0;G.playerOrder=[];G.roundCount=0;G.resultShown=false;
   G.diceState={dice:[null,null,null],sum:0,phase:'bet'};
+  _lastRenderHash='';
+  _zjhCache.clear();
   clearLog();
 }
 
@@ -89,7 +91,12 @@ function cloneCard(c){return{s:c.s,r:c.r,v:c.v,red:c.red}}
 function cloneCards(a){return a.map(cloneCard)}
 
 // ==================== UI ====================
+function hideLoading(){
+  const lo=$('loading-overlay');
+  if(lo){lo.style.opacity='0';setTimeout(()=>{lo.style.display='none'},500)}
+}
 function showScreen(n){
+  hideLoading();
   const a=$('auth-screen'),m=$('main-screen'),g=$('game-screen');
   if(a)a.style.display=n==='auth'?'flex':'none';
   if(m)m.style.display=n==='main'?'block':'none';
@@ -191,32 +198,36 @@ function renderOnlineList(){
 // ==================== 登录 ====================
 let _nameDebounceTimer=null;
 function validateNameInput(){
-  const n=$('auth-name').value.trim();
+  const an=$('auth-name');if(!an)return false;
+  const n=an.value.trim();
   const hint=$('auth-hint');
   if(!n){if(hint){hint.textContent='代号不能为空';hint.style.color='var(--accent)'}return false}
   if(n.length>12){if(hint){hint.textContent='代号最多12个字符';hint.style.color='var(--accent)'}return false}
   if(hint){hint.textContent='';}
   return true;
 }
-$('auth-name').oninput=()=>{
-  if(_nameDebounceTimer)clearTimeout(_nameDebounceTimer);
-  _nameDebounceTimer=setTimeout(validateNameInput,150);
-};
-$('auth-btn').onclick=()=>{
-  if(!validateNameInput())return;
-  const n=$('auth-name').value.trim();
-  G.user=n;
-  if(!load())G.chips=50;
-  G.myId=genId();
-  save();
-  const un=$('user-name');
-  if(un)un.textContent=n;
-  updateChips();
-  showScreen('main');
-  initMQTT();
-};
-
-$('auth-name').onkeydown=(e)=>{if(e.key==='Enter')$('auth-btn').click()};
+const _authName=$('auth-name');if(_authName){
+  _authName.oninput=()=>{
+    if(_nameDebounceTimer)clearTimeout(_nameDebounceTimer);
+    _nameDebounceTimer=setTimeout(validateNameInput,150);
+  };
+  _authName.onkeydown=(e)=>{if(e.key==='Enter'){const ab=$('auth-btn');if(ab)ab.click()}};
+}
+const _authBtn=$('auth-btn');if(_authBtn){
+  _authBtn.onclick=()=>{
+    if(!validateNameInput())return;
+    const n=$('auth-name').value.trim();
+    G.user=n;
+    if(!load())G.chips=50;
+    G.myId=genId();
+    save();
+    const un=$('user-name');
+    if(un)un.textContent=n;
+    updateChips();
+    showScreen('main');
+    initMQTT();
+  };
+}
 
 function logout(){
   cleanupAll();
@@ -234,6 +245,8 @@ if(load()){
   updateChips();
   showScreen('main');
   initMQTT();
+}else{
+  hideLoading();
 }
 
 // ==================== MQTT ====================
@@ -316,10 +329,8 @@ function publishLobby(action){
 
 function publishRoom(msg){
   if(!G.mqtt||!G.mqttConnected||!G.roomCode)return;
-  msg._from=G.myId;
-  msg._fromName=G.user;
-  msg._seq=++G.msgSeq;
-  G.mqtt.publish(roomTopic(G.roomCode),JSON.stringify(msg),{qos:0});
+  const out={...msg,_from:G.myId,_fromName:G.user,_seq:++G.msgSeq};
+  G.mqtt.publish(roomTopic(G.roomCode),JSON.stringify(out),{qos:0});
 }
 
 // ==================== 在线心跳 ====================
@@ -431,6 +442,7 @@ function handleRoomMsg(msg){
       break;
 
     case 'start-game':
+      resetGameState();
       G.gameType=msg.game;G.inGame=true;G.gameOver=false;G.myTurn=false;G.resultShown=false;
       G.deck=msg.deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
       G.players=msg.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:p.id===G.myId}));
@@ -510,7 +522,8 @@ function deserializeGameState(state){
   G.players=state.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:p.id===G.myId}));
   G.playerOrder=state.playerOrder;G.turnIndex=state.turnIndex;G.gameOver=state.gameOver;
   G.roundCount=state.roundCount||0;
-  G.diceState=state.diceState||{dice:[null,null,null],sum:0,phase:'bet'};
+  G.diceState=state.diceState?{dice:[...state.diceState.dice],sum:state.diceState.sum,phase:state.diceState.phase}:{dice:[null,null,null],sum:0,phase:'bet'};
+  _lastRenderHash='';
   G.inGame=true;
   checkMyTurn();
 }
@@ -722,7 +735,7 @@ function leaveRoom(){
   G.roomPeers=[];G.roomCode=null;G.isHost=false;
   G.inGame=false;G.gameOver=false;G.myTurn=false;G.resultShown=false;
   stopCandle();stopHeartbeat();
-  $('wait-panel').style.display='none';
+  const wp=$('wait-panel');if(wp)wp.style.display='none';
   showScreen('main');
   publishPresence();
   renderLobby();
@@ -730,7 +743,7 @@ function leaveRoom(){
 }
 
 function closeRoom(){
-  $('wait-panel').style.display='none';
+  const wp=$('wait-panel');if(wp)wp.style.display='none';
   cleanupRoom();
   showScreen('main');
   renderLobby();
@@ -763,6 +776,7 @@ function cleanupAll(){
 
 // ==================== 开始游戏 ====================
 function hostStartGame(){
+  resetGameState();
   if(!G.isHost||G.roomPeers.length<2)return;
   if(!G.mqttConnected){toast('信号断开，无法开局');return}
   const deck=makeDeck();const players=[];
@@ -798,9 +812,9 @@ function hostStartGame(){
 
   G.players.forEach(pl=>{pl.isMe=pl.id===G.myId});
   checkMyTurn();
-  $('wait-panel').style.display='none';
+  const wp=$('wait-panel');if(wp)wp.style.display='none';
   showScreen('game');
-  $('game-title').textContent=G.gameType==='zjh'?'物资炸金花':(G.gameType==='bj'?'物资二十一点':'骰子猜大小');
+  const gt=$('game-title');if(gt)gt.textContent=G.gameType==='zjh'?'物资炸金花':(G.gameType==='bj'?'物资二十一点':'骰子猜大小');
   clearLog();log('=== 牌局开始，物资已入底池 ===','system');Sound.deal();
   startCandle();renderTable();
   publishPresence();
@@ -1091,8 +1105,9 @@ function checkDiceEnd(){
   }
   G.pot=0;G.gameOver=true;
   log(resultText,'system');
+  const winnerId=winners.length>0?winners[0].id:null;
+  publishRoom({type:'result',text:resultText,winnerId:winnerId,players:G.players.map(p=>({id:p.id,chips:p.chips})),diceResult:{dice:result.dice,sum:result.sum,isBig,isTrips}});
   const myWin=winners.some(p=>p.isMe);
-  publishRoom({type:'result',text:resultText,winnerId:myWin?G.myId:null,players:G.players.map(p=>({id:p.id,chips:p.chips})),diceResult:{dice:result.dice,sum:result.sum,isBig,isTrips}});
   if(myWin)Sound.win();else Sound.lose();
   renderTable();
 }
@@ -1207,6 +1222,20 @@ function doBJAction(me,action){
 
 function checkBJEnd(){
   if(G.gameOver)return;
+  if(G.isHost){
+    let safety=0;
+    while(safety < G.players.length * 2){
+      const currentId=G.playerOrder[G.turnIndex%G.playerOrder.length];
+      const p=G.players.find(pl=>pl.id===currentId);
+      if(p&&(p.busted||p.stood)){
+        G.turnIndex++;
+        safety++;
+      }else break;
+    }
+    if(safety>0){
+      publishRoom({type:'turn',turnIndex:G.turnIndex,playerOrder:G.playerOrder});
+    }
+  }
   const allActed=G.players.every(p=>p.busted||p.stood);
   if(!allActed)return;
   const active=G.players.filter(p=>!p.busted);
@@ -1230,7 +1259,7 @@ function checkBJEnd(){
 }
 
 function handleRemoteAction(d){
-  if(d._seq&&d._seq<G.msgSeq){console.warn('[Stale] ignoring old msg',d._seq);return}
+  if(d._from===G.myId&&d._seq&&d._seq<G.msgSeq){console.warn('[Stale] ignoring old msg',d._seq);return}
   if(d._seq)G.msgSeq=Math.max(G.msgSeq,d._seq);
   const{playerId,action,data}=d;
   if(data){
@@ -1279,7 +1308,7 @@ function leaveGame(){
   G.inGame=false;G.resultShown=false;
   G.roomPeers=[];G.roomCode=null;G.isHost=false;
   stopCandle();stopHeartbeat();
-  $('wait-panel').style.display='none';
+  const wp=$('wait-panel');if(wp)wp.style.display='none';
   showScreen('main');
   publishPresence();
   renderLobby();
