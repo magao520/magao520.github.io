@@ -1,6 +1,6 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v9.6
-// 大幅简化Canvas渲染：去掉缓存/粒子/渐变/日夜循环/沙尘暴/暗角，只保留核心绘制
+// 废土交易所 - 生存物资赌场 v9.7
+// 安全轻量渲染效果：玩家阴影、桌子发光、行走灰尘、环境粒子、屏幕暗角
 // ============================================================
 'use strict';
 
@@ -1686,7 +1686,10 @@ const Lobby={
   mapW:2000,mapH:1500,
   dayNightAlpha:0,
   dustStorm:0,
-  
+  ambientParticles:[],
+  _tableGlowGrad:null,
+  _vignetteGrad:null,
+
   init(){
     if(this.animId)return true; // 已经初始化
     this.canvas=$('lobby-canvas');
@@ -1721,6 +1724,11 @@ const Lobby={
       this.scraps.push({x:50+Math.random()*(this.mapW-100),y:50+Math.random()*(this.mapH-100),collected:false,rot:Math.random()*Math.PI*2});
     }
     this.scrapCount=0;
+    // 初始化环境漂浮粒子
+    this.ambientParticles=[];
+    for(let i=0;i<15;i++){
+      this.ambientParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*4,size:1+Math.random()*1.5});
+    }
     this.bindInput();
     bindLobbyCanvasClick();
     this.startLoop();
@@ -1904,6 +1912,12 @@ const Lobby={
       if(wp.life<=0)this.walkParticles.splice(i,1);
     }
     if(this.walkParticles.length>50)this.walkParticles.length=50;
+    // 环境漂浮粒子更新
+    for(const ap of this.ambientParticles){
+      ap.x+=ap.vx*dt;ap.y+=ap.vy*dt;
+      if(ap.x<0)ap.x+=this.mapW;if(ap.x>this.mapW)ap.x-=this.mapW;
+      if(ap.y<0)ap.y+=this.mapH;if(ap.y>this.mapH)ap.y-=this.mapH;
+    }
     // 喷泉粒子更新
     this.fountainTime+=dt;
     for(const fp of this.fountainParticles){
@@ -2045,8 +2059,18 @@ const Lobby={
     ctx.fillRect(this.mapW-20,0,20,this.mapH);
 
     // === 5. 桌子 ===
+    if(!this._tableGlowGrad){
+      this._tableGlowGrad=ctx.createRadialGradient(0,0,10,0,0,60);
+      this._tableGlowGrad.addColorStop(0,'rgba(90,138,60,0.35)');
+      this._tableGlowGrad.addColorStop(1,'rgba(90,138,60,0)');
+    }
     for(const t of this.tables){
       const isFull=t.code&&t.players>=t.max;
+      // 占用桌子发光
+      if(t.code&&!isFull){
+        ctx.fillStyle=this._tableGlowGrad;
+        ctx.fillRect(t.x-60,t.y-60,120,120);
+      }
       // 桌子矩形
       ctx.fillStyle=isFull?'#c4463a':(t.code?'#5a8a3c':'#6a5a40');
       ctx.fillRect(t.x-30,t.y-20,60,40);
@@ -2068,10 +2092,31 @@ const Lobby={
     }
 
     // === 7. 自己 ===
+    // 玩家阴影
+    ctx.fillStyle='rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(this.me.x,this.me.y+14,10,4,0,0,Math.PI*2);
+    ctx.fill();
     ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(this.me.emoji,this.me.x,this.me.y);
     ctx.fillStyle='#c4463a';ctx.font='bold 10px sans-serif';
     ctx.fillText(this.me.name,this.me.x,this.me.y-22);
+
+    // === 7.5 行走灰尘粒子 ===
+    for(const wp of this.walkParticles){
+      ctx.fillStyle=`rgba(180,160,120,${wp.life})`;
+      ctx.beginPath();
+      ctx.arc(wp.x,wp.y,2,0,Math.PI*2);
+      ctx.fill();
+    }
+
+    // === 7.6 环境漂浮粒子 ===
+    ctx.fillStyle='rgba(200,180,140,0.35)';
+    for(const ap of this.ambientParticles){
+      ctx.beginPath();
+      ctx.arc(ap.x,ap.y,ap.size,0,Math.PI*2);
+      ctx.fill();
+    }
 
     ctx.restore();
 
@@ -2100,6 +2145,16 @@ const Lobby={
       ctx.fillText('WASD移动 | 走近桌子加入',this.w/2,this.h/2+15);
       ctx.globalAlpha=1;
     }
+
+    // === 10. 屏幕边缘暗角 ===
+    if(!this._vignetteGrad){
+      const cx=this.w/2,cy=this.h/2,r=Math.max(this.w,this.h)*0.7;
+      this._vignetteGrad=ctx.createRadialGradient(cx,cy,r*0.4,cx,cy,r);
+      this._vignetteGrad.addColorStop(0,'rgba(0,0,0,0)');
+      this._vignetteGrad.addColorStop(1,'rgba(0,0,0,0.15)');
+    }
+    ctx.fillStyle=this._vignetteGrad;
+    ctx.fillRect(0,0,this.w,this.h);
   },
   
   drawMinimap(){
