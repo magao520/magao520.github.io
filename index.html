@@ -26,6 +26,13 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .auth-input::placeholder{color:var(--dim)}
 .auth-btn{width:100%;padding:14px;background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border:1px solid var(--gold);border-radius:2px;color:var(--gold);font-size:14px;font-weight:700;cursor:pointer;transition:.3s;letter-spacing:4px;font-family:inherit}
 .auth-btn:hover{background:linear-gradient(135deg,#4a3a2a,#3a2a1a);box-shadow:0 0 20px var(--gold-glow)}
+.char-selector{display:flex;gap:8px;justify-content:center;margin:12px 0;flex-wrap:wrap}
+.char-opt{padding:8px 10px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:4px;cursor:pointer;transition:.3s;text-align:center;min-width:60px}
+.char-opt:hover{border-color:var(--gold);background:rgba(184,150,15,.05)}
+.char-opt.selected{border-color:var(--gold);background:rgba(184,150,15,.1);box-shadow:0 0 10px var(--gold-glow)}
+.char-emoji{font-size:24px;margin-bottom:2px}
+.char-name{font-size:10px;color:var(--text);font-weight:700}
+.char-desc{font-size:9px;color:var(--dim)}
 
 /* 顶栏 */
 #main-screen{display:none;min-height:100vh}
@@ -189,8 +196,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   .auth-box{width:90%;padding:24px 16px}.logo{font-size:22px}
   .tables-grid{grid-template-columns:1fr}
   .card,.card-back{width:52px;height:72px}.card-rank{font-size:18px}.card-suit{font-size:20px}
-  .action-btn{padding:8px 16px;font-size:11px;min-width:70px}.pot-amount{font-size:24px}
+  .action-btn{padding:14px 24px;font-size:14px;min-width:100px;min-height:44px}.pot-amount{font-size:24px}
   .dice-die{width:40px;height:40px;font-size:18px}
+  .modal-btn{padding:14px 32px;font-size:14px}
+  .game-opt{padding:18px 10px}
 }
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -218,7 +227,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 </head>
 <body>
 
-<div id="loading-overlay" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s"><div style="text-align:center"><div class="loading-spinner" style="width:40px;height:40px;margin:0 auto 16px"></div><div style="font-size:12px;color:var(--dim);letter-spacing:2px">信号同步中...</div></div></div>
+<div id="loading-overlay" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s"><div style="text-align:center"><div class="loading-spinner" style="width:40px;height:40px;margin:0 auto 16px"></div><div style="font-size:12px;color:var(--dim);letter-spacing:2px">信号同步中...</div><div id="loading-tip" style="margin-top:6px;font-size:11px;color:var(--dim);font-style:italic"></div></div></div>
 
 <div id="auth-screen">
   <div class="auth-box fade-in">
@@ -226,9 +235,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div class="logo-sub">废 土 交 易 所</div>
     <div class="logo-warn">咳嗽者禁止入内 | 入场需缴纳物资税</div>
     <input type="text" class="auth-input" id="auth-name" placeholder="输入代号（昵称）" maxlength="12">
+    <div class="char-selector" id="char-selector"></div>
     <button class="auth-btn btn-press" id="auth-btn">通 过 消 杀</button>
     <div style="margin-top:12px;font-size:11px;color:var(--dim)"><span id="auth-hint">体温正常方可入场</span></div>
-    <div style="margin-top:8px;font-size:10px;color:var(--dim);opacity:.5">v7.1 废土协议</div>
+    <div style="margin-top:8px;font-size:10px;color:var(--dim);opacity:.5">v9.0 废土协议</div>
   </div>
 </div>
 
@@ -241,6 +251,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <div class="res-display"><span class="res-icon">💊</span><span id="user-chips">50</span><span style="font-size:10px;color:var(--dim)">单位</span></div>
       <span id="user-name" style="font-size:12px;color:var(--dim)">幸存者</span>
       <button class="sm-btn btn-press" onclick="logout()">离开交易所</button>
+      <button class="sm-btn btn-press" onclick="showSettings()">设置</button>
+      <button class="sm-btn btn-press" onclick="showStatsPanel()">数据</button>
     </div>
   </div>
   <div class="lobby" style="position:relative;padding:0">
@@ -249,15 +261,26 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <canvas id="lobby-canvas" style="display:block;width:100%;height:100%"></canvas>
       <!-- 玩家名字标签（跟随canvas渲染） -->
       <div id="player-labels" style="position:absolute;top:0;left:0;pointer-events:none;width:100%;height:100%"></div>
+      <!-- 边界警告 -->
+      <div id="boundary-warning" style="position:absolute;top:60px;left:50%;transform:translateX(-50%);padding:6px 14px;background:rgba(196,70,58,.85);border:1px solid var(--accent);border-radius:4px;color:#fff;font-size:12px;display:none;pointer-events:none;z-index:20;font-weight:700;letter-spacing:1px">地图边界</div>
       <!-- 交互提示 -->
       <div id="interact-hint" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(0,0,0,.7);border:1px solid var(--gold);border-radius:4px;color:var(--gold);font-size:13px;display:none;pointer-events:none;z-index:10"></div>
+      <!-- 任务面板 -->
+      <div id="quest-panel" style="position:absolute;top:12px;left:12px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:8px 12px;border-radius:4px;max-width:160px"></div>
       <!-- 创建桌子按钮 -->
       <button class="create-btn btn-press" onclick="showCreateModal()" style="position:absolute;top:12px;right:12px;z-index:10">+ 搭新桌</button>
+      <!-- 聊天输入 -->
+      <div id="chat-bar" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:20;display:none;align-items:center;gap:6px;background:rgba(0,0,0,.7);padding:6px 10px;border-radius:4px;border:1px solid var(--border)">
+        <input id="chat-input" type="text" maxlength="30" placeholder="输入消息..." style="background:transparent;border:none;color:var(--text);font-size:12px;outline:none;width:160px;font-family:inherit">
+        <button onclick="sendChat()" style="background:var(--gold);border:none;color:#1a1610;font-size:11px;padding:3px 10px;border-radius:2px;cursor:pointer;font-weight:700">发送</button>
+      </div>
+      <button id="chat-toggle" onclick="toggleChat()" style="position:absolute;bottom:12px;right:12px;z-index:20;background:rgba(0,0,0,.6);border:1px solid var(--border);color:var(--dim);padding:6px 10px;border-radius:4px;font-size:12px;cursor:pointer">💬</button>
       <!-- 操作说明 -->
       <div style="position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--dim);z-index:10;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:4px">
         <div>WASD / 方向键 移动</div>
         <div>点击地面 移动</div>
         <div>走近桌子 加入</div>
+        <div>Enter 聊天</div>
       </div>
     </div>
     <!-- 保留旧面板但默认隐藏，可后续切换显示 -->
@@ -265,6 +288,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div class="online-panel" id="online-panel" style="display:none">
       <div class="online-title">📡 信号扫描 - 在线幸存者</div>
       <div class="online-list" id="online-list"><div class="online-empty">扫描中...</div></div>
+      <div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px"><div style="font-size:10px;color:var(--dim);margin-bottom:4px">收藏</div><div id="fav-list"><div style="font-size:11px;color:var(--dim)">暂无收藏</div></div></div>
     </div>
     <div class="exchange-rate" id="exchange-rate" style="display:none">
       <div class="title">今日汇率（物资估价师鉴定）</div>
@@ -297,9 +321,11 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 </div>
 
 <div class="modal-overlay" id="result-modal">
-  <div class="modal">
+  <div class="modal" style="max-width:320px;text-align:center">
+    <div id="modal-avatar" style="font-size:48px;margin-bottom:8px">🎲</div>
     <div class="modal-title" id="modal-title">结算</div>
     <div class="modal-text" id="modal-text">...</div>
+    <div id="modal-chips" style="font-size:18px;font-weight:700;margin:8px 0;display:none"></div>
     <button class="modal-btn btn-press" onclick="closeModal()">领物资 / 认栽</button>
   </div>
 </div>
@@ -309,6 +335,28 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <h3 id="rules-title">玩法说明</h3>
     <div class="rules-content" id="rules-content"></div>
     <button class="modal-btn btn-press" onclick="closeRules()">知道了</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal" style="max-width:360px;text-align:left">
+    <h3 style="text-align:center">设置</h3>
+    <div style="margin:12px 0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">音效</span><button class="sm-btn btn-press" id="settings-sound" onclick="toggleSound()">开启</button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">背景音乐</span><button class="sm-btn btn-press" id="settings-bgm" onclick="toggleBGM()">开启</button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">更换角色</span><button class="sm-btn btn-press" onclick="showCharSelect()">选择</button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">版本</span><span style="font-size:12px;color:var(--dim)">v9.0 废土协议</span></div>
+    </div>
+    <div style="text-align:center"><button class="modal-btn btn-press" onclick="closeSettings()">关闭</button></div>
+    <div style="text-align:center;margin-top:8px"><button class="sm-btn btn-press" onclick="logout()" style="color:var(--accent);border-color:var(--accent)">退出登录</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="char-modal">
+  <div class="modal" style="max-width:400px">
+    <h3>选择角色</h3>
+    <div id="char-selector-modal" style="display:flex;gap:8px;justify-content:center;margin:16px 0;flex-wrap:wrap"></div>
+    <div style="text-align:center"><button class="modal-btn btn-press" onclick="closeCharSelect()">确定</button></div>
   </div>
 </div>
 
@@ -338,6 +386,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=56"></script>
+<script src="js/game.js?v=57"></script>
 </body>
 </html>
