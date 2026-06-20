@@ -1644,8 +1644,10 @@ if(document.readyState==='loading'){
 // 延迟启动大厅（如果已经在main-screen但Lobby还没初始化）
 setTimeout(()=>{
   const m=$('main-screen');
+  console.log('[delayed Lobby] main display=', m?.style?.display, 'Lobby exists=', !!window.Lobby, 'animId=', Lobby?.animId);
   if(m&&m.style.display!=='none'&&Lobby&&!Lobby.animId){
     Lobby.show();
+    console.log('[delayed Lobby] show() called, canvas=', document.getElementById('lobby-canvas')?.width);
   }
 },100);
 
@@ -1688,9 +1690,11 @@ const Lobby={
   init(){
     if(this.animId)return true; // 已经初始化
     this.canvas=$('lobby-canvas');
+    console.log('[Lobby.init] canvas=', !!this.canvas, 'animId=', this.animId);
     if(!this.canvas)return false;
     this.ctx=this.canvas.getContext('2d');
     this.resize();
+    console.log('[Lobby.init] after resize canvas=', this.canvas.width, 'x', this.canvas.height, 'w=', this.w, 'h=', this.h);
     this.me.name=G.user||'幸存者';
     this.me.emoji=CHARACTERS[selectedChar]?.emoji||'🐦';
     if(_savedPos){this.me.x=_savedPos.x;this.me.y=_savedPos.y;_savedPos=null}
