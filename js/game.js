@@ -823,7 +823,7 @@ const Lobby={
     if(this.animId)return true;
     this.canvas=$('lobby-canvas');if(!this.canvas)return false;
     this.ctx=this.canvas.getContext('2d');this.resize();
-    this.me.name=G.user||'幸存者';this.me.emoji=CHARACTERS[selectedChar]?.emoji||'🐦';
+    this.me.name=G.user||'幸存者';this.me.emoji=CHARACTERS[selectedChar]?.emoji||'🐦';this.keys={};
     if(_savedPos){this.me.x=_savedPos.x;this.me.y=_savedPos.y;_savedPos=null}
     this.time=0;this.welcomeTime=3;this.fountainTime=0;updateQuestPanel();
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
