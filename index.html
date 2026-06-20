@@ -193,6 +193,16 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 }
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.rules-content{font-size:13px;line-height:1.8;max-height:400px;overflow-y:auto;text-align:left}
+.rules-content .rank-row{display:flex;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.02)}
+.rules-content .rank-name{color:var(--gold);font-weight:700;min-width:60px;font-size:12px}
+.rules-content .rank-desc{font-size:11px;color:var(--dim)}
+.rules-tip{padding:8px;background:rgba(184,150,15,.08);border:1px solid rgba(184,150,15,.2);border-radius:4px;text-align:center;color:var(--gold);font-size:14px;margin-bottom:12px}
+.dice-area{display:flex;gap:12px;justify-content:center;margin:8px 0}
+.dice-die{width:50px;height:50px;background:#f0e8d0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#2a2a2a;font-family:'Special Elite',cursive;border:2px solid var(--gold);box-shadow:0 0 10px var(--gold-glow)}
+.sound-toggle{background:transparent;border:1px solid var(--border);color:var(--dim);padding:5px 10px;border-radius:2px;cursor:pointer;font-size:11px;transition:.3s;font-family:inherit;cursor:pointer}
+.sound-toggle:hover{border-color:var(--gold);color:var(--gold)}
+.sound-toggle.muted{opacity:.4}
 .fade-in{animation:fadeIn .5s ease-out}
 </style>
 </head>
@@ -257,6 +267,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div class="game-option">
       <div class="game-opt selected" onclick="selectGame('zjh',this)"><div class="icon">🥫</div><div class="name">物资炸金花</div><div class="desc">低端局 · 罐头级</div></div>
       <div class="game-opt" onclick="selectGame('bj',this)"><div class="icon">⛽</div><div class="name">物资二十一点</div><div class="desc">中端局 · 汽油级</div></div>
+      <div class="game-opt" onclick="selectGame('dice',this)"><div class="icon">🎲</div><div class="name">骰子猜大小</div><div class="desc">最低端局 · 火柴级</div></div>
     </div>
     <button class="modal-btn" onclick="doCreateTable()">搭桌</button>
     <div style="margin-top:10px"><button class="sm-btn" onclick="hideCreateModal()">算了</button></div>
@@ -271,11 +282,25 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   </div>
 </div>
 
+<div class="modal-overlay" id="rules-modal">
+  <div class="modal" style="max-width:520px">
+    <h3 id="rules-title">玩法说明</h3>
+    <div class="rules-content" id="rules-content"></div>
+    <button class="modal-btn" onclick="closeRules()">知道了</button>
+  </div>
+</div>
+
 <div id="game-screen">
   <div class="game-header">
-    <button class="sm-btn" onclick="leaveGame()">撤离牌桌</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="sm-btn" onclick="leaveGame()">撤离牌桌</button>
+      <button class="sm-btn" onclick="showRules()">📖 规则</button>
+    </div>
     <div class="game-title" id="game-title">物资炸金花</div>
-    <div class="res-display"><span class="res-icon">💊</span><span id="game-chips">50</span></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="sound-toggle" id="sound-toggle">🔊</button>
+      <div class="res-display"><span class="res-icon">💊</span><span id="game-chips">50</span></div>
+    </div>
   </div>
   <div class="candle-bar"><div class="candle-fill" id="candle-fill" style="width:100%"></div></div>
   <div class="candle-label" id="candle-label">蜡烛剩余时间 --:--</div>
@@ -291,6 +316,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=40"></script>
+<script src="js/game.js?v=42"></script>
 </body>
 </html>

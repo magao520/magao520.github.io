@@ -1,6 +1,7 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v6
-// 新增：在线幸存者列表、修复加入牌桌、全面优化
+// 废土交易所 - 生存物资赌场 v7
+// 新增：音效系统、玩法说明、骰子猜大小、牌型提示
+// 20轮审查修复：内存泄漏、XSS、状态同步、空安全等
 // ============================================================
 'use strict';
 
@@ -27,12 +28,39 @@ const G = {
   resultShown:false,
   // 在线幸存者
   onlineUsers:{}, // {id: {name, ts, roomCode}}
-  presenceTimer:null
+  presenceTimer:null,
+  diceState:{dice:[null,null,null],sum:0,phase:'bet'}
 };
 
 const SUITS=['♠','♥','♣','♦'];
 const RANKS=['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 const RV={'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13,'A':14};
+const Sound={
+  _ctx:null,_enabled:true,
+  _init(){if(this._ctx)return;try{this._ctx=new(window.AudioContext||window.webkitAudioContext)();if(this._ctx.state==='suspended')this._ctx.resume()}catch(e){this._enabled=false}},
+  _p(f,d,t='square',g=0.08,delay=0){
+    if(!this._enabled)return;this._init();
+    const now=this._ctx.currentTime+delay;
+    const o=this._ctx.createOscillator(),v=this._ctx.createGain();
+    o.type=t;o.frequency.value=f;v.gain.value=g;
+    o.connect(v);v.connect(this._ctx.destination);
+    v.gain.exponentialRampToValueAtTime(0.001,now+0.15);
+    o.start(now);o.stop(now+0.15);
+  },
+  deal(){this._p(800,0.06,'square',0.05);setTimeout(()=>this._p(1000,0.06,'square',0.05),60)},
+  chip(){this._p(600,0.05,'sine',0.08);setTimeout(()=>this._p(900,0.05,'sine',0.08),50)},
+  win(){this._p(523,.12,'sine',0.08);setTimeout(()=>this._p(659,.12,'sine',0.08),120);setTimeout(()=>this._p(784,.2,'sine',0.08),240)},
+  lose(){this._p(400,.15,'sine',0.06);setTimeout(()=>this._p(300,.25,'sine',0.06),150)},
+  click(){this._p(1200,0.03,'square',0.03)},
+  dice(){for(let i=0;i<5;i++)setTimeout(()=>this._p(200+Math.random()*200,0.04,'triangle',0.04),i*40)},
+  fold(){this._p(200,.15,'sawtooth',0.04)},
+  toggle(){this._enabled=!this._enabled;if(this._enabled)this.chip();else this.fold();return this._enabled}
+};
+function toggleSound(){
+  const on=Sound.toggle();
+  const el=document.getElementById('sound-toggle');
+  if(el){el.textContent=on?'🔊':'🔇';el.classList.toggle('muted',!on)}
+}
 const MAX_ROUNDS=20;
 const MAX_SEATS=3;
 
@@ -53,14 +81,16 @@ function cloneCards(a){return a.map(cloneCard)}
 
 // ==================== UI ====================
 function showScreen(n){
-  $('auth-screen').style.display=n==='auth'?'flex':'none';
-  $('main-screen').style.display=n==='main'?'block':'none';
-  $('game-screen').style.display=n==='game'?'block':'none';
+  const a=$('auth-screen'),m=$('main-screen'),g=$('game-screen');
+  if(a)a.style.display=n==='auth'?'flex':'none';
+  if(m)m.style.display=n==='main'?'block':'none';
+  if(g)g.style.display=n==='game'?'block':'none';
 }
 function updateChips(){
   if(G.inGame){const me=G.players.find(p=>p.isMe);if(me&&me.chips!==undefined)G.chips=me.chips}
-  $('user-chips').textContent=G.chips;
-  $('game-chips').textContent=G.chips;
+  const uc=$('user-chips'),gc=$('game-chips');
+  if(uc)uc.textContent=G.chips;
+  if(gc)gc.textContent=G.chips;
   save();
 }
 function log(m,t=''){
@@ -76,13 +106,14 @@ function log(m,t=''){
 }
 function clearLog(){G.logs=[];const p=$('game-log');if(p)p.innerHTML=''}
 function showModal(t,m,w){
-  $('modal-title').textContent=t;
-  $('modal-title').className='modal-title '+(w?'win':'lose');
-  $('modal-text').textContent=m;
-  $('result-modal').classList.add('open');
+  const mt=$('modal-title'),txt=$('modal-text'),rm=$('result-modal');
+  if(mt){mt.textContent=t;mt.className='modal-title '+(w?'win':'lose')}
+  if(txt)txt.textContent=m;
+  if(rm)rm.classList.add('open');
 }
 function closeModal(){
-  $('result-modal').classList.remove('open');
+  const rm=$('result-modal');
+  if(rm)rm.classList.remove('open');
   if(G.gameOver){
     G.inGame=false;G.gameOver=false;G.resultShown=false;
     G.myTurn=false;
@@ -137,7 +168,7 @@ function renderOnlineList(){
     else if(ago<60)timeStr=`${ago}秒前`;
     else if(ago<3600)timeStr=`${Math.floor(ago/60)}分钟前`;
     else timeStr=`${Math.floor(ago/3600)}小时前`;
-    const roomStr=u.room?`<span class="online-room">在${u.room}号桌</span>`:'<span class="online-room idle">在大厅闲逛</span>';
+    const roomStr=u.room?`<span class="online-room">在${escHTML(u.room)}号桌</span>`:'<span class="online-room idle">在大厅闲逛</span>';
     return`<div class="online-item"><div class="online-avatar">${escHTML(u.name.charAt(0))}</div><div class="online-info"><div class="online-name">${escHTML(u.name)}</div><div class="online-detail">${roomStr} · ${timeStr}</div></div></div>`;
   }).join('');
 }
@@ -145,13 +176,15 @@ function renderOnlineList(){
 // ==================== 登录 ====================
 $('auth-btn').onclick=()=>{
   const n=$('auth-name').value.trim();
-  if(!n){$('auth-hint').textContent='代号不能为空';$('auth-hint').style.color='var(--accent)';return}
-  if(n.length>12){$('auth-hint').textContent='代号最多12个字符';$('auth-hint').style.color='var(--accent)';return}
+  const hint=$('auth-hint');
+  if(!n){if(hint){hint.textContent='代号不能为空';hint.style.color='var(--accent)'}return}
+  if(n.length>12){if(hint){hint.textContent='代号最多12个字符';hint.style.color='var(--accent)'}return}
   G.user=n;
   if(!load())G.chips=50;
   G.myId=genId();
   save();
-  $('user-name').textContent=n;
+  const un=$('user-name');
+  if(un)un.textContent=n;
   updateChips();
   showScreen('main');
   initMQTT();
@@ -162,6 +195,7 @@ $('auth-name').onkeydown=(e)=>{if(e.key==='Enter')$('auth-btn').click()};
 function logout(){
   cleanupAll();
   G.user=null;
+  G.onlineUsers={};
   try{localStorage.removeItem('wl_user')}catch(e){}
   showScreen('auth');
 }
@@ -169,7 +203,8 @@ function logout(){
 // 自动登录
 if(load()){
   G.myId=genId();
-  $('user-name').textContent=G.user;
+  const un=$('user-name');
+  if(un)un.textContent=G.user;
   updateChips();
   showScreen('main');
   initMQTT();
@@ -187,9 +222,9 @@ function initMQTT(){
     G.mqtt.on('connect',()=>{
       G.mqttConnected=true;
       console.log('[MQTT] connected');
-      $('online-dot').classList.remove('off');
-      $('conn-status').textContent='信号正常';
-      $('conn-status').style.color='var(--green)';
+      const od=$('online-dot'),cs=$('conn-status');
+      if(od)od.classList.remove('off');
+      if(cs){cs.textContent='信号正常';cs.style.color='var(--green)'}
       G.mqtt.subscribe(TOPIC_LOBBY,{qos:0});
       G.mqtt.subscribe(TOPIC_ROOMS,{qos:0});
       G.mqtt.subscribe(TOPIC_PRESENCE,{qos:0});
@@ -219,13 +254,17 @@ function initMQTT(){
         }
       }catch(e){console.warn('[MQTT] msg error:',e)}
     });
-    G.mqtt.on('error',(err)=>{console.warn('[MQTT] error:',err.message);G.mqttConnected=false});
+    G.mqtt.on('error',(err)=>{console.warn('[MQTT] error:',err.message);G.mqttConnected=false;
+      const od=$('online-dot'),cs=$('conn-status');
+      if(od)od.classList.add('off');
+      if(cs){cs.textContent='信号异常';cs.style.color='var(--accent)'}
+    });
     G.mqtt.on('reconnect',()=>{console.log('[MQTT] reconnecting...')});
     G.mqtt.on('close',()=>{
       G.mqttConnected=false;
-      $('online-dot').classList.add('off');
-      $('conn-status').textContent='信号断开';
-      $('conn-status').style.color='var(--accent)';
+      const od=$('online-dot'),cs=$('conn-status');
+      if(od)od.classList.add('off');
+      if(cs){cs.textContent='信号断开';cs.style.color='var(--accent)'}
     });
   }catch(e){console.warn('MQTT init failed:',e)}
 }
@@ -345,7 +384,7 @@ function handleRoomMsg(msg){
       if(msg.inGame&&msg.gameState){
         deserializeGameState(msg.gameState);
         showScreen('game');
-        $('game-title').textContent=G.gameType==='zjh'?'物资炸金花':'物资二十一点';
+        $('game-title').textContent=G.gameType==='zjh'?'物资炸金花':(G.gameType==='bj'?'物资二十一点':'骰子猜大小');
         renderTable();
       }else{
         showScreen('main');
@@ -372,10 +411,11 @@ function handleRoomMsg(msg){
       G.playerOrder=msg.playerOrder||G.players.map(p=>p.id);
       G.turnIndex=msg.turnIndex||0;
       G.roundCount=0;
+      G.diceState=msg.diceState||{dice:[null,null,null],sum:0,phase:'bet'};
       checkMyTurn();
       showScreen('game');
-      $('game-title').textContent=msg.game==='zjh'?'物资炸金花':'物资二十一点';
-      clearLog();log('=== 牌局开始，物资已入底池 ===','system');
+      $('game-title').textContent=msg.game==='zjh'?'物资炸金花':(msg.game==='bj'?'物资二十一点':'骰子猜大小');
+      clearLog();log('=== 牌局开始，物资已入底池 ===','system');Sound.deal();
       startCandle();renderTable();
       break;
 
@@ -405,6 +445,9 @@ function handleRoomMsg(msg){
           if(lp)lp.chips=rp.chips;
         }
       }
+      if(msg.diceResult){
+        G.diceState={dice:msg.diceResult.dice,sum:msg.diceResult.sum,phase:'result'};
+      }
       G.inGame=true;
       renderTable();
       break;
@@ -417,7 +460,8 @@ function handleRoomMsg(msg){
         leaving.folded=true;
         log(leaving.name+' 撤离了牌桌','system');
         if(G.gameType==='zjh')checkZJHEnd();
-        else checkBJEnd();
+        else if(G.gameType==='bj')checkBJEnd();
+        else if(G.gameType==='dice')checkDiceEnd();
       }
       break;
     }
@@ -427,8 +471,8 @@ function handleRoomMsg(msg){
 function serializeGameState(){
   return{
     gameType:G.gameType,deck:G.deck,pot:G.pot,currentBet:G.currentBet,
-    players:G.players.map(p=>({id:p.id,name:p.name,cards:p.cards,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood})),
-    playerOrder:G.playerOrder,turnIndex:G.turnIndex,gameOver:G.gameOver,roundCount:G.roundCount
+    players:G.players.map(p=>({id:p.id,name:p.name,cards:p.cards,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood,choice:p.choice})),
+    playerOrder:G.playerOrder,turnIndex:G.turnIndex,gameOver:G.gameOver,roundCount:G.roundCount,diceState:G.diceState
   };
 }
 
@@ -439,6 +483,7 @@ function deserializeGameState(state){
   G.players=state.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:p.id===G.myId}));
   G.playerOrder=state.playerOrder;G.turnIndex=state.turnIndex;G.gameOver=state.gameOver;
   G.roundCount=state.roundCount||0;
+  G.diceState=state.diceState||{dice:[null,null,null],sum:0,phase:'bet'};
   G.inGame=true;
   checkMyTurn();
 }
@@ -478,6 +523,7 @@ function updateCandleUI(){
 }
 
 function hostForceSettle(){
+  if(G.gameType==='dice'){forceSettleDice();return}
   const active=G.players.filter(p=>!p.folded&&!p.busted);
   if(active.length===0){
     const share=Math.floor(G.pot/G.players.length);
@@ -495,6 +541,28 @@ function hostForceSettle(){
   const isMe=best.isMe;
   publishRoom({type:'result',text:`蜡烛烧尽！${best.name} 获得底池 ${G.pot} 单位`,winnerId:best.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
   showModal('蜡烛烧尽',isMe?`你获得底池 ${G.pot} 单位`:`${best.name} 获得底池 ${G.pot} 单位`,isMe);
+  renderTable();
+}
+
+function forceSettleDice(){
+  const unchosen=G.players.filter(p=>!p.choice);
+  if(unchosen.length>0){
+    // 未选择的玩家输掉注金，底池分给已选择玩家
+    const choosers=G.players.filter(p=>p.choice);
+    if(choosers.length>0){
+      const sharePayout=Math.floor(G.pot/choosers.length);
+      for(const p of choosers)p.chips+=sharePayout;
+    }
+    G.pot=0;
+  }else{
+    // 所有人都选了，正常结算
+    checkDiceEnd();
+    return;
+  }
+  G.gameOver=true;stopCandle();Sound.lose();
+  publishRoom({type:'result',text:'蜡烛烧尽！未选择大小的人输掉注金',winnerId:null,
+    players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+  showModal('蜡烛烧尽','未选择大小的幸存者输掉注金',false);
   renderTable();
 }
 
@@ -524,9 +592,11 @@ function _renderLobby(){
 }
 
 function renderTableCard(code,gameType,hostName,playerCount,maxSeats,isMyTable){
-  const label=gameType==='zjh'?'物资炸金花':'物资二十一点';
-  const icon=gameType==='zjh'?'🥫':'⛽';
-  const tier=gameType==='zjh'?'低端局 · 罐头级':'中端局 · 汽油级';
+  const safeCode=code.replace(/[^A-Z0-9]/g,'');
+  const displayCode=escHTML(safeCode);
+  const label=gameType==='zjh'?'物资炸金花':(gameType==='bj'?'物资二十一点':'骰子猜大小');
+  const icon=gameType==='zjh'?'🥫':(gameType==='bj'?'⛽':'🎲');
+  const tier=gameType==='zjh'?'低端局 · 罐头级':(gameType==='bj'?'中端局 · 汽油级':'最低端局 · 火柴级');
   let seats='';const count=Math.min(playerCount,maxSeats);
   for(let i=0;i<maxSeats;i++){
     if(i===0)seats+=`<div class="seat occupied"><div class="seat-dot"></div>${escHTML(hostName)}(搭桌人)</div>`;
@@ -535,15 +605,14 @@ function renderTableCard(code,gameType,hostName,playerCount,maxSeats,isMyTable){
   }
   const statusClass=count>=2?'playing':'waiting';
   const statusText=count>=maxSeats?'已满':count>=2?'可开局':'等待中';
-  const safeCode=code.replace(/[^A-Z0-9]/g,'');
   const clickHandler=isMyTable?'showWaitPanel(true)':`joinTableByCode('${safeCode}')`;
-  return `<div class="table-card ${count>=maxSeats?'full':''}" onclick="${clickHandler}"><div class="table-visual"><div class="candle-glow"></div><div class="seats">${seats}</div></div><div class="table-info"><div class="table-name"><span>${icon} ${code}号桌</span><span class="table-status ${statusClass}">${statusText}</span></div><div class="table-game">${label} · ${tier}</div><div class="table-meta"><div class="table-players">${count}/${maxSeats} 人</div></div></div></div>`;
+  return `<div class="table-card ${count>=maxSeats?'full':''}" onclick="${clickHandler}"><div class="table-visual"><div class="candle-glow"></div><div class="seats">${seats}</div></div><div class="table-info"><div class="table-name"><span>${icon} ${displayCode}号桌</span><span class="table-status ${statusClass}">${statusText}</span></div><div class="table-game">${label} · ${tier}</div><div class="table-meta"><div class="table-players">${count}/${maxSeats} 人</div></div></div></div>`;
 }
 
 // ==================== 创建牌桌 ====================
-function showCreateModal(){$('create-modal').classList.add('open')}
-function hideCreateModal(){$('create-modal').classList.remove('open')}
-function selectGame(type,el){G.createGameType=type;document.querySelectorAll('.game-opt').forEach(e=>e.classList.remove('selected'));el.classList.add('selected')}
+function showCreateModal(){const m=$('create-modal');if(m)m.classList.add('open')}
+function hideCreateModal(){const m=$('create-modal');if(m)m.classList.remove('open')}
+function selectGame(type,el){G.createGameType=type;document.querySelectorAll('.game-opt').forEach(e=>e.classList.remove('selected'));if(el)el.classList.add('selected')}
 function doCreateTable(){hideCreateModal();createRoom(G.createGameType)}
 
 function createRoom(gameType){
@@ -562,19 +631,17 @@ function createRoom(gameType){
 
 // ==================== 等待面板 ====================
 function showWaitPanel(isHost){
-  $('wait-panel').style.display='block';
-  $('wait-title').textContent=isHost?'你的牌桌':'已到达牌桌';
+  const wp=$('wait-panel'),wt=$('wait-title');
+  if(wp)wp.style.display='block';
+  if(wt)wt.textContent=isHost?'你的牌桌':'已到达牌桌';
   updateWaitPlayers();
+  const sb=$('start-btn'),cb=$('close-btn');
   if(isHost){
-    $('start-btn').style.display='inline-block';
-    $('start-btn').disabled=G.roomPeers.length<2;
-    $('start-btn').textContent=G.roomPeers.length>=2?`开局 (${G.roomPeers.length}人)`:'等待幸存者... (至少2人)';
-    $('close-btn').textContent='撤掉牌桌';
-    $('close-btn').onclick=()=>closeRoom();
+    if(sb){sb.style.display='inline-block';sb.disabled=G.roomPeers.length<2;sb.textContent=G.roomPeers.length>=2?`开局 (${G.roomPeers.length}人)`:'等待幸存者... (至少2人)';}
+    if(cb){cb.textContent='撤掉牌桌';cb.onclick=()=>closeRoom();}
   }else{
-    $('start-btn').style.display='none';
-    $('close-btn').textContent='离开牌桌';
-    $('close-btn').onclick=()=>leaveRoom();
+    if(sb)sb.style.display='none';
+    if(cb){cb.textContent='离开牌桌';cb.onclick=()=>leaveRoom();}
   }
 }
 
@@ -587,8 +654,8 @@ function updateWaitPlayers(){
   }).join('');
   if(G.isHost){
     const c=G.roomPeers.length;
-    $('start-btn').disabled=c<2;
-    $('start-btn').textContent=c>=2?`开局 (${c}人)`:'等待幸存者... (至少2人)';
+    const sb=$('start-btn');
+    if(sb){sb.disabled=c<2;sb.textContent=c>=2?`开局 (${c}人)`:'等待幸存者... (至少2人)';}
   }
   renderLobby();
 }
@@ -662,6 +729,7 @@ function cleanupRoom(){
 function cleanupAll(){
   cleanupRoom();
   stopPresence();
+  if(G._roomCleanupTimer){clearInterval(G._roomCleanupTimer);G._roomCleanupTimer=null}
   if(G.mqtt){try{G.mqtt.end(true)}catch(e){}G.mqtt=null}
   G.mqttConnected=false;
 }
@@ -676,7 +744,7 @@ function hostStartGame(){
   if(G.gameType==='zjh'){
     for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,cards:[deck.pop(),deck.pop(),deck.pop()],chips:50,bet:5,folded:false,seen:false,isMe:false});
     G.pot=players.length*5;G.currentBet=5;
-  }else{
+  }else if(G.gameType==='bj'){
     for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,cards:[deck.pop(),deck.pop()],chips:50,bet:10,busted:false,stood:false,isMe:false});
     G.pot=players.length*10;G.currentBet=10;
     for(const p of players){
@@ -685,15 +753,19 @@ function hostStartGame(){
         log(p.name+' 天然21点！','system');
       }
     }
+  }else if(G.gameType==='dice'){
+    for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,chips:50,bet:5,folded:false,choice:null,isMe:false});
+    G.pot=players.length*5;G.currentBet=5;
+    G.diceState={dice:[null,null,null],sum:0,phase:'bet'};
   }
   G.players=players;G.gameOver=false;G.inGame=true;G.turnIndex=0;G.roundCount=0;G.resultShown=false;
 
   const gameMsg={
     type:'start-game',game:G.gameType,
     deck:deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),
-    players:players.map(pl=>({id:pl.id,name:pl.name,cards:pl.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),chips:pl.chips,bet:pl.bet,folded:pl.folded,seen:pl.seen,busted:pl.busted,stood:pl.stood})),
+    players:players.map(pl=>({id:pl.id,name:pl.name,cards:pl.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),chips:pl.chips,bet:pl.bet,folded:pl.folded,seen:pl.seen,busted:pl.busted,stood:pl.stood,choice:pl.choice})),
     pot:G.pot,currentBet:G.currentBet,
-    playerOrder:G.playerOrder,turnIndex:0
+    playerOrder:G.playerOrder,turnIndex:0,diceState:G.diceState
   };
   publishRoom(gameMsg);
 
@@ -701,8 +773,8 @@ function hostStartGame(){
   checkMyTurn();
   $('wait-panel').style.display='none';
   showScreen('game');
-  $('game-title').textContent=G.gameType==='zjh'?'物资炸金花':'物资二十一点';
-  clearLog();log('=== 牌局开始，物资已入底池 ===','system');
+  $('game-title').textContent=G.gameType==='zjh'?'物资炸金花':(G.gameType==='bj'?'物资二十一点':'骰子猜大小');
+  clearLog();log('=== 牌局开始，物资已入底池 ===','system');Sound.deal();
   startCandle();renderTable();
   publishPresence();
 
@@ -718,15 +790,22 @@ function checkMyTurn(){
       const currentId=G.playerOrder[G.turnIndex%G.playerOrder.length];
       G.myTurn=(me.id===currentId);
     }else G.myTurn=false;
-  }else{
+  }else if(G.gameType==='bj'){
     const me=G.players.find(p=>p.isMe);
     if(me&&!me.busted&&!me.stood)G.myTurn=true;else G.myTurn=false;
+  }else if(G.gameType==='dice'){
+    const me=G.players.find(p=>p.isMe);
+    if(me&&!me.folded)G.myTurn=true;else G.myTurn=false;
   }
 }
 
 // ==================== 渲染 ====================
-function renderTable(){if(!G.players||!G.players.length)return;if(G.gameType==='zjh')renderZJH();else renderBJ();updateChips()}
+function renderTable(){if(!G.players||!G.players.length)return;if(G.gameType==='zjh')renderZJH();else if(G.gameType==='bj')renderBJ();else if(G.gameType==='dice')renderDice();updateChips()}
 
+function setActionBar(h){
+  const ab=$('action-bar');
+  if(ab)ab.innerHTML=h;
+}
 function renderZJH(){
   const me=G.players.find(p=>p.isMe);if(!me)return;
   const others=G.players.filter(p=>!p.isMe);
@@ -742,17 +821,27 @@ function renderZJH(){
     $('p'+(i+1)+'-hand').textContent=show?evalZJH(p.cards).name:'';
     $('p'+(i+1)+'-name').textContent=`${escHTML(p.name)} ${p.folded?'(弃牌)':''}`;
   }
-  $('pot-amount').textContent=G.pot+'单位';
+  const pa=$('pot-amount');
+  if(pa)pa.textContent=G.pot+'单位';
+  const hintEl=document.getElementById('rank-hint');
+  if(!hintEl&&!G.gameOver){
+    const h=document.createElement('div');
+    h.id='rank-hint';
+    h.style.cssText='font-size:9px;color:var(--dim);text-align:center;margin-top:4px;letter-spacing:1px';
+    h.textContent='豹子 > 同花顺 > 同花 > 顺子 > 对子 > 散牌';
+    const pa=document.querySelector('.pot-area');
+    if(pa)pa.after(h);
+  }
   if(G.myTurn&&!G.gameOver){
-    $('action-bar').innerHTML=`
+    setActionBar(`
       <button class="action-btn danger" onclick="doAction('fold')">弃牌</button>
       ${me.seen?'':`<button class="action-btn" onclick="doAction('look')">看牌</button>`}
       <button class="action-btn warning" onclick="doAction('call')">跟注 ${G.currentBet}</button>
-      <button class="action-btn primary" onclick="doAction('raise')">加注</button>`;
+      <button class="action-btn primary" onclick="doAction('raise')">加注</button>`);
   }else if(G.gameOver){
-    $('action-bar').innerHTML=`<button class="action-btn primary" onclick="closeModal()">返回等待面板</button>`;
+    setActionBar(`<button class="action-btn primary" onclick="closeModal()">返回等待面板</button>`);
   }else{
-    $('action-bar').innerHTML=`<div style="color:var(--dim);font-size:12px">等待其他幸存者...</div>`;
+    setActionBar(`<div style="color:var(--dim);font-size:12px">等待其他幸存者...</div>`);
   }
 }
 
@@ -771,16 +860,26 @@ function renderBJ(){
     $('p'+(i+1)+'-hand').textContent=show?`点数: ${bjValue(p.cards)}`:'';
     $('p'+(i+1)+'-name').textContent=escHTML(p.name)+(p.busted?' (爆牌)':p.stood?' (停牌)':'');
   }
-  $('pot-amount').textContent=G.pot+'单位';
+  const pa=$('pot-amount');
+  if(pa)pa.textContent=G.pot+'单位';
+  const bjHint=document.getElementById('bj-hint');
+  if(!bjHint&&!G.gameOver){
+    const h=document.createElement('div');
+    h.id='bj-hint';
+    h.style.cssText='font-size:9px;color:var(--dim);text-align:center;margin-top:4px;letter-spacing:1px';
+    h.textContent='尽量接近21点，超过则爆牌';
+    const pa=document.querySelector('.pot-area');
+    if(pa)pa.after(h);
+  }
   if(G.myTurn&&!G.gameOver&&!me.busted){
-    $('action-bar').innerHTML=`
+    setActionBar(`
       <button class="action-btn success" onclick="doAction('hit')">要牌</button>
-      <button class="action-btn" onclick="doAction('stand')">停牌</button>`;
+      <button class="action-btn" onclick="doAction('stand')">停牌</button>`);
   }else if(G.gameOver){
-    $('action-bar').innerHTML=`<button class="action-btn primary" onclick="closeModal()">返回等待面板</button>`;
+    setActionBar(`<button class="action-btn primary" onclick="closeModal()">返回等待面板</button>`);
   }else{
     const statusText=me&&me.busted?'爆牌了':me&&me.stood?'已停牌':'等待其他幸存者...';
-    $('action-bar').innerHTML=`<div style="color:var(--dim);font-size:12px">${statusText}</div>`;
+    setActionBar(`<div style="color:var(--dim);font-size:12px">${statusText}</div>`);
   }
 }
 
@@ -807,14 +906,165 @@ function bjValue(cards){
   while(t>21&&a>0){t-=10;a--}return t;
 }
 
+const GAME_RULES={
+  zjh:{
+    name:'物资炸金花',
+    desc:'每人发3张牌，通过比牌型大小决定胜负。每局开始每人自动下注5单位。',
+    tip:'豹子 > 同花顺 > 同花 > 顺子 > 对子 > 散牌',
+    ranks:[
+      {name:'豹子',desc:'三张相同点数，AAA最大',eg:'♥A ♠A ♦A'},
+      {name:'同花顺',desc:'同花色连续点数，AKQ最大，A23最小',eg:'♥A ♥K ♥Q'},
+      {name:'同花',desc:'同花色但点数不连续',eg:'♠A ♠J ♠5'},
+      {name:'顺子',desc:'不同花色连续点数，A23为最小',eg:'♠A ♥2 ♦3'},
+      {name:'对子',desc:'两张相同点数',eg:'♣K ♥K ♠7'},
+      {name:'散牌',desc:'无组合，按最大单张比',eg:'♥A ♠Q ♦9'}
+    ]
+  },
+  bj:{
+    name:'物资二十一点',
+    desc:'争取手牌点数尽量接近21点但不超过。J/Q/K算10点，A可算1或11点。每局开始每人自动下注10单位。',
+    tip:'尽量接近21点，超过则爆牌出局！'
+  },
+  dice:{
+    name:'骰子猜大小',
+    desc:'每人每局自动下注5单位。三颗骰子点数之和：4-10为"小"，11-17为"大"。猜对赢2倍注金，猜错输掉。围骰（三个相同）庄家通吃。',
+    tip:'4-10为小 ✦ 11-17为大 ✦ 围骰庄家通吃'
+  }
+};
+function showRules(t){
+  const type=t||G.gameType;const r=GAME_RULES[type];
+  if(!r)return;
+  let html='<div class="rules-tip">'+r.tip+'</div>';
+  html+='<p style="margin-bottom:12px;color:var(--dim);font-size:12px">'+r.desc+'</p>';
+  if(r.ranks){
+    html+='<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px"><div style="font-size:11px;color:var(--dim);margin-bottom:8px;letter-spacing:1px">— 牌型从大到小 —</div>';
+    for(const rank of r.ranks){
+      html+='<div class="rank-row"><span class="rank-name">'+rank.name+'</span><span class="rank-desc">'+rank.desc+'</span></div>';
+    }
+    html+='</div>';
+  }
+  const rc=document.getElementById('rules-content');
+  if(rc)rc.innerHTML=html;
+  const rm=document.getElementById('rules-modal');
+  if(rm)rm.classList.add('open');
+}
+function closeRules(){const rm=document.getElementById('rules-modal');if(rm)rm.classList.remove('open')}
+
+function rollDice(){const d=[ran(1,6),ran(1,6),ran(1,6)];return{dice:d,sum:d[0]+d[1]+d[2]}}
+function ran(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+
+function renderDice(){
+  const me=G.players.find(p=>p.isMe);if(!me)return;
+  const others=G.players.filter(p=>!p.isMe);
+  $('p0-cards').innerHTML=me.choice?`<div style="font-size:36px;padding:10px">${me.choice==='big'?'🔴':'🔵'}</div>`:`<div style="font-size:36px;padding:10px;opacity:.3">❓</div>`;
+  $('p0-hand').textContent=me.choice?(me.choice==='big'?'选大':'选小'):'未选择';
+  $('p0-name').innerHTML=`${escHTML(me.name)} <span style="color:var(--gold)">${me.chips}单位</span>`;
+  $('p0-name').className='player-name'+(G.myTurn?' active':'');
+  for(let i=0;i<2;i++){
+    const p=others[i];
+    if(!p){$('p'+(i+1)+'-name').textContent='空位';$('p'+(i+1)+'-cards').innerHTML='';$('p'+(i+1)+'-hand').textContent='';continue}
+    $('p'+(i+1)+'-cards').innerHTML=p.choice?`<div style="font-size:36px;padding:10px">${p.choice==='big'?'🔴':'🔵'}</div>`:`<div style="font-size:36px;padding:10px;opacity:.3">⏳</div>`;
+    $('p'+(i+1)+'-hand').textContent=p.choice?`${p.choice==='big'?'选大':'选小'}`:'思考中';
+    $('p'+(i+1)+'-name').textContent=escHTML(p.name)+(p.folded?' (已结算)':'');
+    $('p'+(i+1)+'-name').className='player-name';
+  }
+  const diceEl=$('pot-amount');
+  if(G.diceState.phase==='reveal'||G.diceState.phase==='result'||G.gameOver){
+    const isBig=G.diceState.sum>=11;
+    const pl=document.querySelector('.pot-label');
+    if(pl)pl.textContent='骰子结果';
+    const dArea=document.querySelector('.pot-area');
+    if(dArea){
+      const dHTML=dArea.querySelector('.dice-area');
+      if(dHTML)dHTML.innerHTML=G.diceState.dice.map(d=>`<div class="dice-die">${d}</div>`).join('');
+      else{
+        const da=document.createElement('div');da.className='dice-area';
+        da.innerHTML=G.diceState.dice.map(d=>`<div class="dice-die">${d}</div>`).join('');
+        dArea.insertBefore(da,diceEl);
+      }
+    }
+    diceEl.innerHTML=`<span style="font-size:14px;color:${isBig?'var(--accent)':'var(--green)'}">总和 ${G.diceState.sum} — ${isBig?'大':'小'}</span> <span style="font-size:18px;color:var(--gold)">| 底池 ${G.pot}单位</span>`;
+  }else{
+    const pl=document.querySelector('.pot-label');
+    if(pl)pl.textContent='等待下注...';
+    const dArea=document.querySelector('.pot-area');
+    if(dArea){
+      const oldDa=dArea.querySelector('.dice-area');
+      if(oldDa)oldDa.innerHTML='<span style="font-size:40px;opacity:.3">🎲 🎲 🎲</span>';
+      else{const da=document.createElement('div');da.className='dice-area';da.innerHTML='<span style="font-size:40px;opacity:.3">🎲 🎲 🎲</span>';dArea.insertBefore(da,diceEl)}
+    }
+    diceEl.innerHTML=`<span style="font-size:20px;color:var(--gold)">底池 ${G.pot} 单位</span>`;
+  }
+  if(!G.gameOver&&G.diceState.phase==='bet'&&!me.choice&&!me.folded){
+    setActionBar(`<button class="action-btn success" onclick="doAction('big')">🔴 大 (11-17)</button><button class="action-btn primary" onclick="doAction('small')">🔵 小 (4-10)</button>`);
+  }else if(G.gameOver){
+    setActionBar(`<button class="action-btn primary" onclick="closeModal()">继续</button>`);
+  }else{
+    setActionBar(`<div style="color:var(--dim);font-size:12px">${me.folded?'已选择':'等待其他幸存者...'}</div>`);
+  }
+}
+
+function doDiceAction(me,action){
+  me.choice=action;me.folded=true;
+  Sound.click();
+  log(`${me.name} ${action==='big'?'选大':'选小'}`);
+  G.myTurn=false;
+  if(G.isHost)checkDiceEnd();
+  return true;
+}
+
+function checkDiceEnd(){
+  if(G.gameOver)return;
+  const allChose=G.players.every(p=>p.folded);
+  if(!allChose)return;
+  const result=rollDice();
+  Sound.dice();
+  G.diceState={dice:result.dice,sum:result.sum,phase:'reveal'};
+  const isBig=result.sum>=11;
+  const isTrips=result.dice[0]===result.dice[1]&&result.dice[1]===result.dice[2];
+  let resultText=`骰子 ${result.dice.join('-')} 总和${result.sum} ${isBig?'大':'小'}`;
+  let winners=[];
+  if(isTrips){
+    const share=Math.floor(G.pot/G.players.length);
+    for(const p of G.players)p.chips+=share;
+    G.pot=0;G.gameOver=true;
+    resultText+=' 围骰！底池退还！';
+    log(resultText,'system');
+    publishRoom({type:'result',text:resultText,winnerId:null,players:G.players.map(p=>({id:p.id,chips:p.chips})),diceResult:{dice:result.dice,sum:result.sum,isBig,isTrips}});
+    for(const p of G.players)Sound.lose();
+    renderTable();
+    return;
+  }
+  winners=G.players.filter(p=>(p.choice==='big'&&isBig)||(p.choice==='small'&&!isBig));
+  const wCount=winners.length;
+  if(wCount>0){
+    const sharePayout=Math.min(G.currentBet*2,G.pot/wCount);
+    for(const w of winners)w.chips+=sharePayout;
+    resultText+=` ${wCount}人猜对，各得${sharePayout}单位`;
+  }else{
+    // 无人猜对，退还底池
+    const share=Math.floor(G.pot/G.players.length);
+    for(const p of G.players)p.chips+=share;
+    resultText+=' 无人猜对，底池退还';
+  }
+  G.pot=0;G.gameOver=true;
+  log(resultText,'system');
+  const myWin=winners.some(p=>p.isMe);
+  publishRoom({type:'result',text:resultText,winnerId:myWin?G.myId:null,players:G.players.map(p=>({id:p.id,chips:p.chips})),diceResult:{dice:result.dice,sum:result.sum,isBig,isTrips}});
+  if(myWin)Sound.win();else Sound.lose();
+  renderTable();
+}
+
 // ==================== 操作 ====================
 function doAction(action){
   const me=G.players.find(p=>p.isMe);if(!me||!G.myTurn||G.gameOver)return;
   let shouldBroadcast=true;
-  if(G.gameType==='zjh')shouldBroadcast=doZJHAction(me,action);else doBJAction(me,action);
+  if(G.gameType==='zjh')shouldBroadcast=doZJHAction(me,action);
+  else if(G.gameType==='bj')doBJAction(me,action);
+  else if(G.gameType==='dice')shouldBroadcast=doDiceAction(me,action);
   if(shouldBroadcast){
     publishRoom({type:'action',playerId:me.id,action,
-      data:{cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood,
+      data:{cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood,choice:p.choice,
         myCards:p.id===me.id?p.cards:null})),pot:G.pot,currentBet:G.currentBet,gameOver:G.gameOver,
         deck:G.gameType==='bj'?G.deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})):undefined}
     });
@@ -827,7 +1077,7 @@ function doZJHAction(me,action){
   switch(action){
     case 'fold':
       me.folded=true;G.myTurn=false;
-      log(`${me.name} 弃牌`);
+      log(`${me.name} 弃牌`);Sound.fold();
       checkZJHEnd();
       return true;
     case 'look':
@@ -838,16 +1088,17 @@ function doZJHAction(me,action){
       if(!me.seen)me.seen=true;
       me.chips-=G.currentBet;me.bet+=G.currentBet;G.pot+=G.currentBet;
       G.myTurn=false;
-      log(`${me.name} 跟注 ${G.currentBet}单位`);
+      log(`${me.name} 跟注 ${G.currentBet}单位`);Sound.chip();
       advanceTurn();
       checkZJHEnd();
       return true;
     case 'raise':
+      if(me.chips<=0){log('没有物资可以加注','system');return false}
       const amt=Math.min(me.chips,G.currentBet*2);
       if(!me.seen)me.seen=true;
       me.chips-=amt;me.bet+=amt;G.pot+=amt;G.currentBet=amt;
       G.myTurn=false;
-      log(`${me.name} 加注到 ${amt}单位`);
+      log(`${me.name} 加注到 ${amt}单位`);Sound.chip();
       advanceTurn();
       checkZJHEnd();
       return true;
@@ -874,14 +1125,14 @@ function checkZJHEnd(){
   }
   if(active.length===1){
     const winner=active[0];
-    winner.chips+=G.pot;G.gameOver=true;stopCandle();
+    winner.chips+=G.pot;G.gameOver=true;stopCandle();Sound.win();
     const isMe=winner.isMe;
     publishRoom({type:'result',text:`${winner.name} 赢得了 ${G.pot} 单位物资`,winnerId:winner.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
     showModal(isMe?'物资归你':'物资被收走',isMe?`你赢得了底池 ${G.pot} 单位物资`:`${winner.name} 赢得了 ${G.pot} 单位物资`,isMe);
     return;
   }
   if(G.roundCount>=MAX_ROUNDS){
-    G.gameOver=true;stopCandle();
+    G.gameOver=true;stopCandle();Sound.win();
     let best=active[0];
     for(let i=1;i<active.length;i++){if(evalZJH(active[i].cards).val>evalZJH(best.cards).val)best=active[i]}
     best.chips+=G.pot;
@@ -894,7 +1145,7 @@ function checkZJHEnd(){
 function doBJAction(me,action){
   switch(action){
     case 'hit':
-      me.cards.push(G.deck.pop());
+      me.cards.push(G.deck.pop());Sound.deal();
       log(`${me.name} 要牌，点数 ${bjValue(me.cards)}`);
       if(bjValue(me.cards)>21){
         me.busted=true;me.stood=true;G.myTurn=false;
@@ -926,7 +1177,7 @@ function checkBJEnd(){
   for(let i=1;i<active.length;i++){
     if(bjValue(active[i].cards)<=21&&bjValue(active[i].cards)>bjValue(best.cards))best=active[i];
   }
-  best.chips+=G.pot;G.gameOver=true;stopCandle();
+  best.chips+=G.pot;G.gameOver=true;stopCandle();Sound.win();
   const isMe=best.isMe;
   publishRoom({type:'result',text:`${best.name} 以 ${bjValue(best.cards)} 点获胜`,winnerId:best.id,players:G.players.map(p=>({id:p.id,chips:p.chips}))});
   showModal(isMe?'物资归你':'物资被收走',isMe?`你以 ${bjValue(best.cards)} 点获胜，获得 ${G.pot} 单位`:`${best.name} 以 ${bjValue(best.cards)} 点获胜`,isMe);
@@ -940,7 +1191,7 @@ function handleRemoteAction(d){
     for(const rp of data.cards){
       const lp=G.players.find(p=>p.id===rp.id);
       if(lp){
-        lp.chips=rp.chips;lp.bet=rp.bet;lp.folded=rp.folded;lp.seen=rp.seen;lp.busted=rp.busted;lp.stood=rp.stood||false;
+        lp.chips=rp.chips;lp.bet=rp.bet;lp.folded=rp.folded;lp.seen=rp.seen;lp.busted=rp.busted;lp.stood=rp.stood||false;lp.choice=rp.choice;
         if(rp.myCards){
           lp.cards=rp.myCards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
         }
@@ -952,7 +1203,7 @@ function handleRemoteAction(d){
   }
   const rp=G.players.find(p=>p.id===playerId);
   if(rp){
-    const n={fold:'弃牌',look:'看牌',call:'跟注',raise:'加注',hit:'要牌',stand:'停牌'};
+    const n={fold:'弃牌',look:'看牌',call:'跟注',raise:'加注',hit:'要牌',stand:'停牌',big:'选大',small:'选小'};
     log(`${rp.name} ${n[action]||action}`);
   }
   checkMyTurn();
@@ -990,8 +1241,12 @@ function leaveGame(){
 // ==================== 初始化 ====================
 renderLobby();
 renderOnlineList();
-setInterval(()=>{
+G._roomCleanupTimer=setInterval(()=>{
   const now=Date.now();let changed=false;
   for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}}
   if(changed)renderLobby();
 },10000);
+
+// 音效初始化
+const st=document.getElementById('sound-toggle');
+if(st)st.onclick=toggleSound;
