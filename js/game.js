@@ -78,12 +78,17 @@ function showModal(t,m,w){
 }
 function closeModal(){
   $('result-modal').classList.remove('open');
-  // 游戏结束后回到等待面板
-  if(G.roomCode&&G.gameOver){
+  // FIX BUG#3: 无论是否在房间中，都清理游戏状态
+  if(G.gameOver){
     G.inGame=false;G.gameOver=false;G.resultShown=false;
     G.myTurn=false;
+  }
+  if(G.roomCode){
     showScreen('main');
     showWaitPanel(G.isHost);
+  }else{
+    showScreen('main');
+    renderLobby();
   }
 }
 function toast(msg){
@@ -327,10 +332,15 @@ function handleRoomMsg(msg){
     case 'result':{
       // FIX BUG#13: 防止重复弹窗
       if(G.resultShown)return;
+      // FIX BUG#3: 已离开房间则忽略
+      if(!G.roomCode)return;
       G.resultShown=true;
       G.gameOver=true;stopCandle();
       const isMe=msg.winnerId===G.myId;
-      showModal(isMe?'物资归你':'物资被收走',msg.text,isMe);
+      // FIX BUG#6: 区分退还和输掉
+      const isRefund=msg.winnerId===null;
+      const title=isRefund?'底池退还':(isMe?'物资归你':'物资被收走');
+      showModal(title,msg.text,isMe||isRefund);
       if(msg.players){
         for(const rp of msg.players){
           const lp=G.players.find(p=>p.id===rp.id);
@@ -647,7 +657,7 @@ function checkMyTurn(){
 }
 
 // ==================== 渲染 ====================
-function renderTable(){if(G.gameType==='zjh')renderZJH();else renderBJ();updateChips()}
+function renderTable(){if(!G.players||!G.players.length)return;if(G.gameType==='zjh')renderZJH();else renderBJ();updateChips()}
 
 function renderZJH(){
   const me=G.players.find(p=>p.isMe);if(!me)return;
@@ -741,10 +751,14 @@ function doAction(action){
   if(shouldBroadcast){
     publishRoom({type:'action',playerId:me.id,action,
       data:{cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood,
-        myCards:p.id===me.id?p.cards:null})),pot:G.pot,currentBet:G.currentBet,gameOver:G.gameOver}
+        myCards:p.id===me.id?p.cards:null})),pot:G.pot,currentBet:G.currentBet,gameOver:G.gameOver,
+        // FIX BUG#5: 同步deck
+        deck:G.gameType==='bj'?G.deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})):undefined}
     });
   }
   renderTable();
+  // FIX BUG#2/#7: 房主自己操作后也要检查二十一点结束
+  if(G.isHost&&G.gameType==='bj'&&!G.gameOver)checkBJEnd();
 }
 
 function doZJHAction(me,action){
@@ -878,6 +892,10 @@ function handleRemoteAction(d){
           lp.cards=rp.myCards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
         }
       }
+    }
+    // FIX BUG#5: 同步deck
+    if(data.deck){
+      G.deck=data.deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
     }
   }
   const rp=G.players.find(p=>p.id===playerId);
