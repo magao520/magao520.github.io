@@ -115,6 +115,21 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .start-game-btn:disabled{opacity:.4;cursor:not-allowed;animation:pulse 2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.7}}
 
+/* 在线幸存者列表 */
+.online-panel{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;padding:12px 14px;margin:16px auto;max-width:500px}
+.online-title{font-family:'Special Elite',cursive;font-size:12px;color:var(--accent);margin-bottom:8px;letter-spacing:1px}
+.online-list{max-height:200px;overflow-y:auto}
+.online-empty{font-size:12px;color:var(--dim);text-align:center;padding:12px}
+.online-item{display:flex;align-items:center;gap:10px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.03)}
+.online-item:last-child{border-bottom:none}
+.online-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--gold));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--bg);flex-shrink:0}
+.online-info{flex:1;min-width:0}
+.online-name{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.online-detail{font-size:10px;color:var(--dim);margin-top:1px}
+.online-now{color:var(--green);font-weight:700}
+.online-room{color:var(--gold)}
+.online-room.idle{color:var(--dim)}
+
 /* 汇率板 */
 .exchange-rate{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;padding:10px 14px;margin:16px auto;max-width:500px;font-size:11px;color:var(--dim)}
 .exchange-rate .title{font-family:'Special Elite',cursive;color:var(--accent);font-size:12px;margin-bottom:6px;letter-spacing:1px}
@@ -214,6 +229,11 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <button class="create-btn" onclick="showCreateModal()">+ 搭新桌</button>
     </div>
     <div class="tables-grid" id="tables-grid"></div>
+    <!-- 在线幸存者列表 -->
+    <div class="online-panel" id="online-panel">
+      <div class="online-title">📡 信号扫描 - 在线幸存者</div>
+      <div class="online-list" id="online-list"><div class="online-empty">扫描中...</div></div>
+    </div>
     <div class="exchange-rate" id="exchange-rate">
       <div class="title">今日汇率（物资估价师鉴定）</div>
       <div class="rate-row"><span>阿莫西林 x1</span><span>= 5 单位</span></div>
@@ -271,6 +291,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=38"></script>
+<script src="js/game.js?v=40"></script>
 </body>
 </html>
