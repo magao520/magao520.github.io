@@ -1,7 +1,6 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v8.1
-// 新增：虚拟摇杆、场景渲染、玩家动画、小地图、响应式桌子
-// 10轮优化：Canvas性能、CSS变量修复、devicePixelRatio、平滑插值
+// 废土交易所 - 生存物资赌场 v8.2
+// 20轮深度自检修复：摇杆冲突、DPR缓存、BJ逻辑、骰子结算、消息序列、性能优化
 // ============================================================
 'use strict';
 
@@ -173,7 +172,12 @@ function handlePresenceMsg(msg){
   renderOnlineList();
 }
 
+let _onlineListTimer=null;
 function renderOnlineList(){
+  if(_onlineListTimer)return;
+  _onlineListTimer=setTimeout(()=>{_onlineListTimer=null;_renderOnlineList()},200);
+}
+function _renderOnlineList(){
   const el=$('online-list');if(!el)return;
   const now=Date.now();
   // 清理过期
@@ -330,14 +334,17 @@ function publishLobby(action){
 
 function publishRoom(msg){
   if(!G.mqtt||!G.mqttConnected||!G.roomCode)return;
-  const out={...msg,_from:G.myId,_fromName:G.user,_seq:++G.msgSeq};
-  G.mqtt.publish(roomTopic(G.roomCode),JSON.stringify(out),{qos:0});
+  let out;
+  try{out=JSON.parse(JSON.stringify(msg))}catch(e){out={...msg}}
+  out._from=G.myId;out._fromName=G.user;out._seq=++G.msgSeq;
+  try{G.mqtt.publish(roomTopic(G.roomCode),JSON.stringify(out),{qos:0})}catch(e){console.warn('[publishRoom] failed',e)}
 }
 
 // ==================== 在线心跳 ====================
 function startPresence(){
   stopPresence();
   G.presenceTimer=setInterval(()=>{
+    if(document.hidden)return;
     publishPresence();
     // 清理过期在线用户
     const now=Date.now();let changed=false;
@@ -512,20 +519,22 @@ function serializeGameState(){
   return{
     gameType:G.gameType,deck:G.deck,pot:G.pot,currentBet:G.currentBet,
     players:G.players.map(p=>({id:p.id,name:p.name,cards:p.cards,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood,choice:p.choice})),
-    playerOrder:G.playerOrder,turnIndex:G.turnIndex,gameOver:G.gameOver,roundCount:G.roundCount,diceState:G.diceState
+    playerOrder:G.playerOrder,turnIndex:G.turnIndex,gameOver:G.gameOver,roundCount:G.roundCount,
+    diceState:{dice:[...G.diceState.dice],sum:G.diceState.sum,phase:G.diceState.phase}
   };
 }
 
 function deserializeGameState(state){
+  if(!state||!state.players||!state.players.length){G.inGame=false;return}
   G.gameType=state.gameType;
-  G.deck=state.deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
-  G.pot=state.pot;G.currentBet=state.currentBet;
-  G.players=state.players.map(p=>({...p,cards:p.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:p.id===G.myId}));
-  G.playerOrder=state.playerOrder;G.turnIndex=state.turnIndex;G.gameOver=state.gameOver;
+  G.deck=(state.deck||[]).map(c=>({s:c.s,r:c.r,v:c.v,red:c.red}));
+  G.pot=state.pot||0;G.currentBet=state.currentBet||0;
+  G.players=state.players.map(p=>({...p,cards:(p.cards||[]).map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),isMe:p.id===G.myId}));
+  G.playerOrder=state.playerOrder||[];G.turnIndex=state.turnIndex||0;G.gameOver=!!state.gameOver;
   G.roundCount=state.roundCount||0;
   G.diceState=state.diceState?{dice:[...state.diceState.dice],sum:state.diceState.sum,phase:state.diceState.phase}:{dice:[null,null,null],sum:0,phase:'bet'};
   _lastRenderHash='';
-  G.inGame=true;
+  G.inGame=!G.gameOver;
   checkMyTurn();
 }
 
@@ -586,6 +595,14 @@ function hostForceSettle(){
 }
 
 function forceSettleDice(){
+  if(G.pot<=0){
+    G.gameOver=true;stopCandle();
+    publishRoom({type:'result',text:'蜡烛烧尽！底池为空，无人获胜',winnerId:null,
+      players:G.players.map(p=>({id:p.id,chips:p.chips}))});
+    showModal('蜡烛烧尽','底池为空，无人获胜',false);
+    renderTable();
+    return;
+  }
   const unchosen=G.players.filter(p=>!p.choice);
   if(unchosen.length>0){
     // 未选择的玩家输掉注金，底池分给已选择玩家
@@ -828,6 +845,7 @@ function checkMyTurn(){
   if(G.gameOver||!G.players||!G.players.length){G.myTurn=false;return}
   const me=G.players.find(p=>p.isMe);
   if(!me){G.myTurn=false;return}
+  if(!G.playerOrder||!G.playerOrder.length){G.myTurn=false;return}
   if(G.gameType==='zjh'){
     if(me.folded){G.myTurn=false;return}
     const currentId=G.playerOrder[G.turnIndex%G.playerOrder.length];
@@ -1209,14 +1227,12 @@ function doBJAction(me,action){
         me.busted=true;me.stood=true;G.myTurn=false;
         log(`${me.name} 爆牌！`);
         advanceTurn();
-        if(G.isHost)checkBJEnd();
       }
       break;
     case 'stand':
       me.stood=true;G.myTurn=false;
       log(`${me.name} 停牌，点数 ${bjValue(me.cards)}`);
       advanceTurn();
-      if(G.isHost)checkBJEnd();
       break;
   }
 }
@@ -1225,15 +1241,17 @@ function checkBJEnd(){
   if(G.gameOver)return;
   if(G.isHost){
     let safety=0;
-    while(safety < G.players.length * 2){
-      const currentId=G.playerOrder[G.turnIndex%G.playerOrder.length];
+    const orderLen=G.playerOrder.length;
+    while(safety < orderLen){
+      const currentId=G.playerOrder[G.turnIndex%orderLen];
       const p=G.players.find(pl=>pl.id===currentId);
-      if(p&&(p.busted||p.stood)){
+      if(!p){G.turnIndex++;safety++;continue}
+      if(p.busted||p.stood){
         G.turnIndex++;
         safety++;
       }else break;
     }
-    if(safety>0){
+    if(safety>0&&safety<orderLen){
       publishRoom({type:'turn',turnIndex:G.turnIndex,playerOrder:G.playerOrder});
     }
   }
@@ -1260,8 +1278,8 @@ function checkBJEnd(){
 }
 
 function handleRemoteAction(d){
-  if(d._from===G.myId&&d._seq&&d._seq<G.msgSeq){console.warn('[Stale] ignoring old msg',d._seq);return}
-  if(d._seq)G.msgSeq=Math.max(G.msgSeq,d._seq);
+  if(d._from&&d._from===G.myId&&d._seq&&d._seq<G.msgSeq){console.warn('[Stale] ignoring old msg',d._seq);return}
+  if(d._seq&&d._from===G.myId)G.msgSeq=Math.max(G.msgSeq,d._seq);
   const{playerId,action,data}=d;
   if(data){
     G.pot=data.pot;G.currentBet=data.currentBet;
@@ -1360,7 +1378,8 @@ const Lobby={
     this.ctx=this.canvas.getContext('2d');
     this.resize();
     this.me.name=G.user||'幸存者';
-    this.welcomeTime=this.time+3;
+    this.time=0;
+    this.welcomeTime=3;
     this.bindInput();
     bindLobbyCanvasClick();
     this.startLoop();
@@ -1377,6 +1396,7 @@ const Lobby={
     this.ctx.scale(dpr,dpr);
     this.w=rect.width;this.h=rect.height;
     this.floorCache=null;this.dirty=true;
+    this.particles=[];
     // 根据画布尺寸重新定位桌子
     const minSpacing=80;
     const t0x=this.w*0.25,t0y=this.h*0.3;
@@ -1397,12 +1417,17 @@ const Lobby={
   
   bindInput(){
     const c=this.canvas;
+    // 窗口大小变化
+    this._onResize=()=>this.resize();
+    window.addEventListener('resize',this._onResize);
     // 键盘
     window.addEventListener('keydown',e=>{this.keys[e.key.toLowerCase()]=true;});
     window.addEventListener('keyup',e=>{this.keys[e.key.toLowerCase()]=false;});
     // 触摸摇杆
     c.addEventListener('touchstart',e=>{
       e.preventDefault();
+      if(this.joystick.active)return;
+      this._ignoreNextClick=true;
       const rect=c.getBoundingClientRect();
       const t=e.changedTouches[0];
       this.joystick.active=true;
@@ -1504,9 +1529,10 @@ const Lobby={
     }
     for(let i=this.walkParticles.length-1;i>=0;i--){
       const wp=this.walkParticles[i];
-      wp.y+=wp.vy;wp.life-=0.03;
+      wp.y+=wp.vy*dt*60;wp.life-=dt*1.8;
       if(wp.life<=0)this.walkParticles.splice(i,1);
     }
+    if(this.walkParticles.length>50)this.walkParticles.length=50;
   },
   
   checkTableInteraction(){
@@ -1585,12 +1611,15 @@ const Lobby={
     }else if(this.particles.length>maxParticles){
       this.particles.length=maxParticles;
     }
-    // 缓存地板
+    // 缓存地板（使用物理像素尺寸以支持高DPR屏幕）
+    const dpr=window.devicePixelRatio||1;
     if(!this.floorCache||this.floorCacheW!==this.w||this.floorCacheH!==this.h){
       this.floorCache=document.createElement('canvas');
-      this.floorCache.width=this.w;this.floorCache.height=this.h;
+      this.floorCache.width=Math.round(this.w*dpr);
+      this.floorCache.height=Math.round(this.h*dpr);
       this.floorCacheW=this.w;this.floorCacheH=this.h;
       const fc=this.floorCache.getContext('2d');
+      fc.scale(dpr,dpr);
       const tileSize=40;
       for(let tx=0;tx<this.w;tx+=tileSize){
         for(let ty=0;ty<this.h;ty+=tileSize){
@@ -1621,11 +1650,11 @@ const Lobby={
         }
       }
       // 装饰也缓存
-      this._drawDecorOn(fc);
+      this._drawDecorOn(fc,this.w,this.h);
       this.dirty=false;
     }
-    // 绘制缓存地板
-    ctx.drawImage(this.floorCache,0|0,0|0);
+    // 绘制缓存地板（按逻辑尺寸绘制，主ctx已scale(dpr)）
+    ctx.drawImage(this.floorCache,0,0,this.w,this.h);
     // 画桌子（动态，不缓存）
     for(const t of this.tables){
       this.drawTable(t);
@@ -1781,7 +1810,7 @@ const Lobby={
     ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',x,y+th/2+28);
   },
 
-  _drawDecorOn(ctx){
+  _drawDecorOn(ctx,w,h){
     // 左上角桶
     ctx.fillStyle='#4a3a20';
     ctx.fillRect(35,35,18,24);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,35,18,24);
@@ -1789,19 +1818,19 @@ const Lobby={
     ctx.beginPath();ctx.moveTo(35,50);ctx.lineTo(53,50);ctx.stroke();
     // 右上角箱子
     ctx.fillStyle='#5a4a30';
-    ctx.fillRect(this.w-55,35,22,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=1;ctx.strokeRect(this.w-55,35,22,18);
-    ctx.beginPath();ctx.moveTo(this.w-55,44);ctx.lineTo(this.w-33,44);ctx.stroke();
+    ctx.fillRect(w-55,35,22,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=1;ctx.strokeRect(w-55,35,22,18);
+    ctx.beginPath();ctx.moveTo(w-55,44);ctx.lineTo(w-33,44);ctx.stroke();
     // 左下角箱子
     ctx.fillStyle='#4a3a25';
-    ctx.fillRect(35,this.h-55,20,20);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,this.h-55,20,20);
+    ctx.fillRect(35,h-55,20,20);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,h-55,20,20);
     // 右下角桶
     ctx.fillStyle='#3a2a18';
-    ctx.fillRect(this.w-50,this.h-58,16,26);ctx.strokeStyle='#5a4a3a';ctx.lineWidth=1;ctx.strokeRect(this.w-50,this.h-58,16,26);
+    ctx.fillRect(w-50,h-58,16,26);ctx.strokeStyle='#5a4a3a';ctx.lineWidth=1;ctx.strokeRect(w-50,h-58,16,26);
   },
   
   drawPlayer(x,y,emoji,name,isMe){
     const ctx=this.ctx;
-    const moving=isMe&&(this.keys['w']||this.keys['s']||this.keys['a']||this.keys['d']||this.keys['arrowup']||this.keys['arrowdown']||this.keys['arrowleft']||this.keys['arrowright']||this.joystick.active);
+    const moving=isMe&&(this.keys['w']||this.keys['s']||this.keys['a']||this.keys['d']||this.keys['arrowup']||this.keys['arrowdown']||this.keys['arrowleft']||this.keys['arrowright']||this.joystick.active||this.me.moving);
     // 行走弹跳
     const bob=moving?Math.sin(this.time*10)*3:0;
     const py=y+bob;
@@ -1851,6 +1880,7 @@ const Lobby={
   startLoop(){
     let last=performance.now();
     const loop=(now)=>{
+      if(document.hidden){this.animId=requestAnimationFrame(loop);return}
       const dt=Math.min((now-last)/1000,0.05);last=now;
       this.time+=dt;
       this.update(dt);this.draw();
@@ -1859,7 +1889,9 @@ const Lobby={
     this.animId=requestAnimationFrame(loop);
   },
   
-  stop(){if(this.animId){cancelAnimationFrame(this.animId);this.animId=null}},
+  stop(){if(this.animId){cancelAnimationFrame(this.animId);this.animId=null}
+    if(this._onResize){window.removeEventListener('resize',this._onResize);this._onResize=null}
+  },
   
   show(){this.init();if(!this.animId)this.startLoop();},
   hide(){this.stop()}
@@ -1886,6 +1918,7 @@ const _origHandleRoomMsg=handleRoomMsg;
 handleRoomMsg=function(topic,raw){
   if(topic.startsWith('wl_pos_v6/')){
     const fromId=topic.split('/')[1];
+    if(fromId===G.myId)return;
     try{const msg=JSON.parse(raw);Lobby.handlePos(msg,fromId)}catch(e){}
     return;
   }
@@ -1904,9 +1937,11 @@ function bindLobbyCanvasClick(){
   const c=$('lobby-canvas');
   if(!c)return;
   c.addEventListener('click',e=>{
+    // 忽略由触摸摇杆触发的合成点击事件
+    if(Lobby._ignoreNextClick){Lobby._ignoreNextClick=false;return;}
     // 如果正在显示交互提示，说明已经走近桌子，不重复处理
     const hint=$('interact-hint');
-    if(hint&&hint.style.display==='block')return;
+    if(hint&&window.getComputedStyle(hint).display!=='none')return;
     const rect=c.getBoundingClientRect();
     const cx=e.clientX-rect.left,cy=e.clientY-rect.top;
     for(const t of Lobby.tables){
