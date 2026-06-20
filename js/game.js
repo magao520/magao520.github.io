@@ -735,12 +735,15 @@ function bjValue(cards){
 // ==================== 操作 ====================
 function doAction(action){
   const me=G.players.find(p=>p.isMe);if(!me||!G.myTurn||G.gameOver)return;
-  if(G.gameType==='zjh')doZJHAction(me,action);else doBJAction(me,action);
-  // FIX BUG#8: 同步牌数据
-  publishRoom({type:'action',playerId:me.id,action,
-    data:{cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood,
-      myCards:p.id===me.id?p.cards:null})),pot:G.pot,currentBet:G.currentBet,gameOver:G.gameOver}
-  });
+  let shouldBroadcast=true;
+  if(G.gameType==='zjh')shouldBroadcast=doZJHAction(me,action);else doBJAction(me,action);
+  // FIX BUG#23: 看牌不广播
+  if(shouldBroadcast){
+    publishRoom({type:'action',playerId:me.id,action,
+      data:{cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood,
+        myCards:p.id===me.id?p.cards:null})),pot:G.pot,currentBet:G.currentBet,gameOver:G.gameOver}
+    });
+  }
   renderTable();
 }
 
@@ -750,13 +753,12 @@ function doZJHAction(me,action){
       me.folded=true;G.myTurn=false;
       log(`${me.name} 弃牌`);
       checkZJHEnd();
-      break;
+      return true;
     case 'look':
       me.seen=true;
       log(`${me.name} 看了牌`);
-      // 看牌不结束回合，不广播完整action（但外层已广播）
-      // FIX: 看牌后不清除myTurn，让玩家继续操作
-      return; // 不调用advanceTurn
+      // FIX BUG#23: 看牌不广播，不结束回合
+      return false;
     case 'call':
       if(!me.seen)me.seen=true;
       me.chips-=G.currentBet;me.bet+=G.currentBet;G.pot+=G.currentBet;
@@ -764,7 +766,7 @@ function doZJHAction(me,action){
       log(`${me.name} 跟注 ${G.currentBet}单位`);
       advanceTurn();
       checkZJHEnd();
-      break;
+      return true;
     case 'raise':
       const amt=Math.min(me.chips,G.currentBet*2);
       if(!me.seen)me.seen=true;
@@ -773,8 +775,9 @@ function doZJHAction(me,action){
       log(`${me.name} 加注到 ${amt}单位`);
       advanceTurn();
       checkZJHEnd();
-      break;
+      return true;
   }
+  return true;
 }
 
 function advanceTurn(){
