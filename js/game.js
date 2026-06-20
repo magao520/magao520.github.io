@@ -45,6 +45,8 @@ function save(){if(G.user)try{localStorage.setItem('wl_user',JSON.stringify({n:G
 function makeDeck(){const d=[];for(const s of SUITS)for(const r of RANKS)d.push({s,r,v:RV[r],red:s==='♥'||s==='♦'});return shuffle(d)}
 function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 function cardHTML(c,hidden){if(hidden)return'<div class="card-back"></div>';return`<div class="card ${c.red?'red':'black'}"><div class="card-rank">${c.r}</div><div class="card-suit">${c.s}</div></div>`}
+function cloneCard(c){return{s:c.s,r:c.r,v:c.v,red:c.red}}
+function cloneCards(a){return a.map(cloneCard)}
 
 // ==================== UI ====================
 function showScreen(n){
@@ -60,7 +62,7 @@ function updateChips(){
 }
 function log(m,t=''){
   G.logs.push({m,t});
-  if(G.logs.length>50)G.logs.shift();
+  if(G.logs.length>50){G.logs.shift();const p=$('game-log');if(p){const f=p.querySelector('.log-entry');if(f)f.remove()}}
   const p=$('game-log');
   if(!p)return;
   const e=document.createElement('div');
@@ -395,11 +397,12 @@ function startHeartbeat(){
     if(G.roomCode&&G.isHost&&G.mqttConnected){
       publishRoomInfo();
       publishLobby('update');
-      const now=Date.now();
-      for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>60000)delete G.knownRooms[code]}
-      renderLobby();
     }
-  },8000);
+    // 合并底部清理定时器：清理过期房间
+    const now=Date.now();let changed=false;
+    for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}}
+    if(changed)renderLobby();
+  },5000);
 }
 function stopHeartbeat(){if(G.heartbeatTimer){clearInterval(G.heartbeatTimer);G.heartbeatTimer=null}}
 
@@ -446,7 +449,12 @@ function hostForceSettle(){
 }
 
 // ==================== 大厅渲染 ====================
+let _lobbyTimer=null;
 function renderLobby(){
+  if(_lobbyTimer)return;
+  _lobbyTimer=setTimeout(()=>{_lobbyTimer=null;_renderLobby()},100);
+}
+function _renderLobby(){
   const grid=$('tables-grid');if(!grid)return;
   const rooms={};
   for(const code in G.knownRooms){
@@ -477,7 +485,9 @@ function renderTableCard(code,gameType,hostName,playerCount,maxSeats,isMyTable){
   }
   const statusClass=count>=2?'playing':'waiting';
   const statusText=count>=maxSeats?'已满':count>=2?'可开局':'等待中';
-  const clickHandler=isMyTable?'showWaitPanel(true)':`joinTableByCode('${code}')`;
+  // FIX XSS: code只含字母数字（genCode生成），但加防御
+  const safeCode=code.replace(/[^A-Z0-9]/g,'');
+  const clickHandler=isMyTable?'showWaitPanel(true)':`joinTableByCode('${safeCode}')`;
   return `<div class="table-card ${count>=maxSeats?'full':''}" onclick="${clickHandler}"><div class="table-visual"><div class="candle-glow"></div><div class="seats">${seats}</div></div><div class="table-info"><div class="table-name"><span>${icon} ${code}号桌</span><span class="table-status ${statusClass}">${statusText}</span></div><div class="table-game">${label} · ${tier}</div><div class="table-meta"><div class="table-players">${count}/${maxSeats} 人</div></div></div></div>`;
 }
 
@@ -941,8 +951,9 @@ function leaveGame(){
 
 // ==================== 初始化 ====================
 renderLobby();
+// 全局房间清理（非房主也需要）
 setInterval(()=>{
   const now=Date.now();let changed=false;
   for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}}
   if(changed)renderLobby();
-},5000);
+},10000);

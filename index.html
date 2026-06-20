@@ -112,7 +112,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .wait-player .name{flex:1;text-align:left;font-size:13px}
 .wait-player .tag{font-size:10px;color:var(--dim)}
 .start-game-btn{margin-top:12px;padding:12px 36px;background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border:1px solid var(--gold);border-radius:2px;color:var(--gold);font-size:14px;font-weight:700;cursor:pointer;letter-spacing:3px;font-family:inherit}
-.start-game-btn:disabled{opacity:.4;cursor:not-allowed}
+.start-game-btn:disabled{opacity:.4;cursor:not-allowed;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:.7}}
 
 /* 汇率板 */
 .exchange-rate{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;padding:10px 14px;margin:16px auto;max-width:500px;font-size:11px;color:var(--dim)}
@@ -270,6 +271,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=37"></script>
+<script src="js/game.js?v=38"></script>
 </body>
 </html>
