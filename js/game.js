@@ -1,7 +1,7 @@
 // ============================================================
-// 废土交易所 - 生存物资赌场 v7.2
-// 修复：加载遮罩层、BJ顺序轮次、渲染缓存、消息序列号
-// 10轮审查修复：空安全、状态同步、对象污染、DOM保护
+// 废土交易所 - 生存物资赌场 v8
+// 新增：2D大厅、鸽子小人、Canvas渲染、WASD移动、桌子交互
+// 修复：加载遮罩层、BJ顺序轮次、渲染缓存、消息序列号、空安全
 // ============================================================
 'use strict';
 
@@ -267,6 +267,7 @@ function initMQTT(){
       G.mqtt.subscribe(TOPIC_LOBBY,{qos:0});
       G.mqtt.subscribe(TOPIC_ROOMS,{qos:0});
       G.mqtt.subscribe(TOPIC_PRESENCE,{qos:0});
+      subscribeLobbyPos();
       // 重连后重新订阅房间
       if(G.roomCode){
         G.mqtt.subscribe(roomTopic(G.roomCode),{qos:0});
@@ -1327,3 +1328,302 @@ G._roomCleanupTimer=setInterval(()=>{
 // 音效初始化
 const st=document.getElementById('sound-toggle');
 if(st)st.onclick=toggleSound;
+
+// ==================== 2D 大厅系统 ====================
+const Lobby={
+  canvas:null,ctx:null,w:0,h:0,
+  me:{x:400,y:300,tx:400,ty:300,moving:false,emoji:'🐦',name:''},
+  others:new Map(), // id -> {x,y,emoji,name,lastSeen}
+  tables:[
+    {x:200,y:200,code:'',game:'zjh',label:'🥫 炸金花',players:0,max:3,host:''},
+    {x:600,y:200,code:'',game:'bj',label:'⛽ 二十一点',players:0,max:3,host:''},
+    {x:400,y:450,code:'',game:'dice',label:'🎲 骰子',players:0,max:3,host:''}
+  ],
+  keys:{},
+  animId:null,
+  lastBroadcast:0,
+  
+  init(){
+    if(this.animId)return true; // 已经初始化
+    this.canvas=$('lobby-canvas');
+    if(!this.canvas)return false;
+    this.ctx=this.canvas.getContext('2d');
+    this.resize();
+    this.me.name=G.user||'幸存者';
+    this.bindInput();
+    bindLobbyCanvasClick();
+    this.startLoop();
+    return true;
+  },
+  
+  resize(){
+    if(!this.canvas)return;
+    const rect=this.canvas.parentElement.getBoundingClientRect();
+    this.canvas.width=rect.width;this.canvas.height=rect.height;
+    this.w=rect.width;this.h=rect.height;
+    // 确保玩家在边界内
+    this.me.x=Math.min(this.me.x,this.w-20);this.me.y=Math.min(this.me.y,this.h-20);
+  },
+  
+  bindInput(){
+    const c=this.canvas;
+    // 键盘
+    window.addEventListener('keydown',e=>{this.keys[e.key.toLowerCase()]=true;});
+    window.addEventListener('keyup',e=>{this.keys[e.key.toLowerCase()]=false;});
+    // 点击移动
+    c.addEventListener('click',e=>{
+      const rect=c.getBoundingClientRect();
+      this.me.tx=e.clientX-rect.left;this.me.ty=e.clientY-rect.top;
+      this.me.moving=true;
+    });
+    // 触摸移动
+    c.addEventListener('touchstart',e=>{
+      e.preventDefault();
+      const rect=c.getBoundingClientRect();
+      const t=e.touches[0];
+      this.me.tx=t.clientX-rect.left;this.me.ty=t.clientY-rect.top;
+      this.me.moving=true;
+    },{passive:false});
+  },
+  
+  update(dt){
+    const speed=180; // px per second
+    let dx=0,dy=0;
+    if(this.keys['w']||this.keys['arrowup'])dy=-1;
+    if(this.keys['s']||this.keys['arrowdown'])dy=1;
+    if(this.keys['a']||this.keys['arrowleft'])dx=-1;
+    if(this.keys['d']||this.keys['arrowright'])dx=1;
+    
+    if(dx!==0||dy!==0){
+      const len=Math.sqrt(dx*dx+dy*dy);
+      dx/=len;dy/=len;
+      this.me.x+=dx*speed*dt;this.me.y+=dy*speed*dt;
+      this.me.moving=false; // 键盘优先，取消点击目标
+    }else if(this.me.moving){
+      const tx=this.me.tx,ty=this.me.ty;
+      const ddx=tx-this.me.x,ddy=ty-this.me.y;
+      const dist=Math.sqrt(ddx*ddx+ddy*ddy);
+      if(dist<5){this.me.moving=false}
+      else{const mx=(ddx/dist)*speed*dt,my=(ddy/dist)*speed*dt;this.me.x+=mx;this.me.y+=my}
+    }
+    
+    // 边界限制
+    this.me.x=Math.max(16,Math.min(this.w-16,this.me.x));
+    this.me.y=Math.max(16,Math.min(this.h-16,this.me.y));
+    
+    // 检查桌子交互
+    this.checkTableInteraction();
+    
+    // 广播位置 (每 100ms)
+    const now=Date.now();
+    if(now-this.lastBroadcast>100){
+      this.lastBroadcast=now;
+      this.broadcastPos();
+    }
+    
+    // 清理过期其他玩家
+    for(const[id,p]of this.others){
+      if(now-p.lastSeen>10000)this.others.delete(id);
+    }
+  },
+  
+  checkTableInteraction(){
+    const hint=$('interact-hint');
+    let nearTable=null;
+    for(const t of this.tables){
+      const dx=t.x-this.me.x,dy=t.y-this.me.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<60){nearTable=t;break}
+    }
+    if(nearTable){
+      const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';
+      hint.textContent=`${nearTable.label}${status} — 按 E 或点击加入`;
+      hint.style.display='block';
+      if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}
+    }else{
+      hint.style.display='none';
+    }
+  },
+  
+  joinTable(table){
+    if(table.players>=table.max){toast('这桌满了');return}
+    if(table.code){doJoinTable(table.code)}
+    else{toast('空桌子，先搭一个吧');showCreateModal()}
+  },
+  
+  broadcastPos(){
+    if(!G.mqtt||!G.mqttConnected)return;
+    const msg={type:'pos',x:Math.round(this.me.x),y:Math.round(this.me.y),name:G.user,emoji:this.me.emoji};
+    G.mqtt.publish(`wl_pos_v6/${G.myId}`,JSON.stringify(msg),{qos:0});
+  },
+  
+  handlePos(msg,fromId){
+    if(fromId===G.myId)return;
+    this.others.set(fromId,{x:msg.x||0,y:msg.y||0,emoji:msg.emoji||'🐦',name:msg.name||'幸存者',lastSeen:Date.now()});
+  },
+  
+  updateTablesFromState(){
+    // 从 G.roomList 同步桌子状态
+    const grid=$('tables-grid');
+    if(!grid)return;
+    const cards=grid.querySelectorAll('.table-card');
+    // 清空现有桌子数据
+    this.tables.forEach(t=>{t.code='';t.players=0;t.host=''});
+    cards.forEach(card=>{
+      const code=card.dataset.code;if(!code)return;
+      const game=card.dataset.game||'zjh';
+      const players=parseInt(card.dataset.players||'0');
+      const max=parseInt(card.dataset.max||'3');
+      const host=card.dataset.host||'';
+      // 找到对应类型的桌子更新
+      const t=this.tables.find(x=>x.game===game&&x.code==='');
+      if(t){t.code=code;t.players=players;t.max=max;t.host=host}
+    });
+  },
+  
+  draw(){
+    const ctx=this.ctx;
+    ctx.fillStyle='#1a1610';ctx.fillRect(0,0,this.w,this.h);
+    
+    // 地板纹理
+    ctx.strokeStyle='rgba(60,50,30,.3)';
+    ctx.lineWidth=1;
+    for(let x=0;x<this.w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,this.h);ctx.stroke()}
+    for(let y=0;y<this.h;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(this.w,y);ctx.stroke()}
+    
+    // 墙壁/货架
+    ctx.fillStyle='rgba(40,35,25,.6)';
+    ctx.fillRect(0,0,this.w,20);ctx.fillRect(0,this.h-20,this.w,20);
+    ctx.fillRect(0,0,20,this.h);ctx.fillRect(this.w-20,0,20,this.h);
+    
+    // 画桌子
+    for(const t of this.tables){
+      this.drawTable(t);
+    }
+    
+    // 画其他玩家
+    for(const[id,p]of this.others){
+      this.drawPlayer(p.x,p.y,p.emoji,p.name,false);
+    }
+    
+    // 画自己
+    this.drawPlayer(this.me.x,this.me.y,this.me.emoji,this.me.name,true);
+  },
+  
+  drawTable(t){
+    const ctx=this.ctx;
+    const x=t.x,y=t.y;
+    // 桌子光晕
+    const glow=ctx.createRadialGradient(x,y,10,x,y,50);
+    glow.addColorStop(0,'rgba(184,150,15,.15)');glow.addColorStop(1,'transparent');
+    ctx.fillStyle=glow;ctx.fillRect(x-50,y-50,100,100);
+    
+    // 桌子
+    ctx.fillStyle=t.code?'rgba(90,138,60,.3)':'rgba(60,50,40,.5)';
+    ctx.beginPath();ctx.arc(x,y,28,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=t.code?'var(--green)':'var(--dim)';
+    ctx.lineWidth=2;ctx.stroke();
+    
+    // 蜡烛
+    ctx.fillStyle='#ffcc44';
+    ctx.beginPath();ctx.arc(x+20,y-20,4,0,Math.PI*2);ctx.fill();
+    ctx.shadowColor='rgba(255,180,60,.5)';ctx.shadowBlur=15;
+    ctx.fill();ctx.shadowBlur=0;
+    
+    // 标签
+    ctx.fillStyle='var(--gold)';ctx.font='11px "Noto Sans SC",sans-serif';
+    ctx.textAlign='center';ctx.fillText(t.label,x,y+45);
+    ctx.fillStyle='var(--dim)';ctx.font='10px sans-serif';
+    ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',x,y+58);
+  },
+  
+  drawPlayer(x,y,emoji,name,isMe){
+    const ctx=this.ctx;
+    // 阴影
+    ctx.fillStyle='rgba(0,0,0,.3)';
+    ctx.beginPath();ctx.ellipse(x,y+12,10,4,0,0,Math.PI*2);ctx.fill();
+    
+    // 玩家
+    ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(emoji,x,y);
+    
+    // 名字
+    ctx.font=isMe?'bold 10px sans-serif':'10px sans-serif';
+    ctx.fillStyle=isMe?'var(--accent)':'var(--dim)';
+    ctx.fillText(name,x,y-18);
+    
+    // 自己标识
+    if(isMe){
+      ctx.strokeStyle='var(--accent)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(x,y,14,0,Math.PI*2);ctx.stroke();
+    }
+  },
+  
+  startLoop(){
+    let last=performance.now();
+    const loop=(now)=>{
+      const dt=Math.min((now-last)/1000,0.05);last=now;
+      this.update(dt);this.draw();
+      this.animId=requestAnimationFrame(loop);
+    };
+    this.animId=requestAnimationFrame(loop);
+  },
+  
+  stop(){if(this.animId){cancelAnimationFrame(this.animId);this.animId=null}},
+  
+  show(){this.init();},
+  hide(){this.stop()}
+};
+
+// 重写 renderLobby 以支持2D大厅
+const _origRenderLobby=renderLobby;
+renderLobby=function(){
+  _origRenderLobby();
+  Lobby.updateTablesFromState();
+};
+
+// 位置消息订阅
+function subscribeLobbyPos(){
+  if(!G.mqtt)return;
+  G.mqtt.subscribe('wl_pos_v6/+',{qos:0},(err)=>{
+    if(err)console.warn('[Lobby] pos sub failed',err);
+  });
+}
+
+// 在 MQTT connect 回调中订阅位置 (直接修改现有的 connect 回调)
+// 在 handleRoomMsg 中处理位置消息
+const _origHandleRoomMsg=handleRoomMsg;
+handleRoomMsg=function(topic,raw){
+  if(topic.startsWith('wl_pos_v6/')){
+    const fromId=topic.split('/')[1];
+    try{const msg=JSON.parse(raw);Lobby.handlePos(msg,fromId)}catch(e){}
+    return;
+  }
+  _origHandleRoomMsg(topic,raw);
+};
+
+// 在 showScreen main 时启动大厅
+const _origShowScreen=showScreen;
+showScreen=function(n){
+  _origShowScreen(n);
+  if(n==='main'){Lobby.show()}else{Lobby.hide()}
+};
+
+// 点击画布上的桌子触发加入 (在 Lobby.init 中绑定)
+function bindLobbyCanvasClick(){
+  const c=$('lobby-canvas');
+  if(!c)return;
+  c.addEventListener('click',e=>{
+    // 如果正在显示交互提示，说明已经走近桌子，不重复处理
+    const hint=$('interact-hint');
+    if(hint&&hint.style.display==='block')return;
+    const rect=c.getBoundingClientRect();
+    const cx=e.clientX-rect.left,cy=e.clientY-rect.top;
+    for(const t of Lobby.tables){
+      const dx=t.x-cx,dy=t.y-cy;
+      if(Math.sqrt(dx*dx+dy*dy)<35){
+        Lobby.joinTable(t);break;
+      }
+    }
+  });
+}

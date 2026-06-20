@@ -243,21 +243,30 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <button class="sm-btn btn-press" onclick="logout()">离开交易所</button>
     </div>
   </div>
-  <div class="lobby">
-    <div class="lobby-header">
-      <div>
-        <div class="lobby-title">仓储区赌桌</div>
-        <div class="lobby-subtitle">货架之间的折叠桌，应急灯照明，电压不稳</div>
+  <div class="lobby" style="position:relative;padding:0">
+    <!-- 2D Canvas 大厅 -->
+    <div style="position:relative;width:100%;height:calc(100vh - 50px);overflow:hidden;background:#1a1610">
+      <canvas id="lobby-canvas" style="display:block;width:100%;height:100%"></canvas>
+      <!-- 玩家名字标签（跟随canvas渲染） -->
+      <div id="player-labels" style="position:absolute;top:0;left:0;pointer-events:none;width:100%;height:100%"></div>
+      <!-- 交互提示 -->
+      <div id="interact-hint" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(0,0,0,.7);border:1px solid var(--gold);border-radius:4px;color:var(--gold);font-size:13px;display:none;pointer-events:none;z-index:10"></div>
+      <!-- 创建桌子按钮 -->
+      <button class="create-btn btn-press" onclick="showCreateModal()" style="position:absolute;top:12px;right:12px;z-index:10">+ 搭新桌</button>
+      <!-- 操作说明 -->
+      <div style="position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--dim);z-index:10;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:4px">
+        <div>WASD / 方向键 移动</div>
+        <div>点击地面 移动</div>
+        <div>走近桌子 加入</div>
       </div>
-      <button class="create-btn btn-press" onclick="showCreateModal()">+ 搭新桌</button>
     </div>
-    <div class="tables-grid" id="tables-grid"></div>
-    <!-- 在线幸存者列表 -->
-    <div class="online-panel" id="online-panel">
+    <!-- 保留旧面板但默认隐藏，可后续切换显示 -->
+    <div class="tables-grid" id="tables-grid" style="display:none"></div>
+    <div class="online-panel" id="online-panel" style="display:none">
       <div class="online-title">📡 信号扫描 - 在线幸存者</div>
       <div class="online-list" id="online-list"><div class="online-empty">扫描中...</div></div>
     </div>
-    <div class="exchange-rate" id="exchange-rate">
+    <div class="exchange-rate" id="exchange-rate" style="display:none">
       <div class="title">今日汇率（物资估价师鉴定）</div>
       <div class="rate-row"><span>阿莫西林 x1</span><span>= 5 单位</span></div>
       <div class="rate-row"><span>压缩饼干 x1</span><span>= 1 单位</span></div>
@@ -329,6 +338,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=44"></script>
+<script src="js/game.js?v=45"></script>
 </body>
 </html>
