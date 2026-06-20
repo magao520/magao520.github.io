@@ -153,11 +153,20 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .player-area{display:flex;flex-direction:column;align-items:center;margin:12px 0}
 .player-name{font-size:12px;color:var(--dim);margin-bottom:6px}
 .player-name.active{color:var(--accent);text-shadow:0 0 8px var(--glow)}
+.player-name.glow-pulse{animation:glowPulse 1.5s ease-in-out infinite}
+@keyframes glowPulse{0%{text-shadow:0 0 4px var(--glow)}50%{text-shadow:0 0 12px var(--glow),0 0 20px var(--gold-glow)}100%{text-shadow:0 0 4px var(--glow)}}
 .cards-row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
 .card{width:64px;height:90px;background:#f0e8d0;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);transition:.3s;font-family:'Special Elite',cursive;user-select:none;border:1px solid #c0b890}
 .card.red{color:#8b2020}.card.black{color:#2a2a2a}
-.card-back{width:64px;height:90px;background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border-radius:4px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.card-back{width:64px;height:90px;background:linear-gradient(135deg,#3a2a1a,#2a1a0a);border-radius:4px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);transition:transform 0.6s;transform-style:preserve-3d}
 .card-back::after{content:'\2620';font-size:24px;color:rgba(184,150,15,.2)}
+.card-flip{perspective:200px;display:inline-block}
+.card-flip .card-back{animation:cardFlip 0.6s ease-out}
+@keyframes cardFlip{0%{transform:rotateY(0)}50%{transform:rotateY(90deg)}100%{transform:rotateY(0)}}
+.card-deal{animation:cardDeal 0.4s ease-out}
+@keyframes cardDeal{0%{transform:translateY(-40px) scale(0.8);opacity:0}100%{transform:translateY(0) scale(1);opacity:1}}
+.dice-roll{animation:diceRollAnim 0.5s ease-out}
+@keyframes diceRollAnim{0%{transform:rotate(0) scale(0.5);opacity:0}50%{transform:rotate(180deg) scale(1.2)}100%{transform:rotate(360deg) scale(1);opacity:1}}
 .card-rank{font-size:22px;font-weight:700}.card-suit{font-size:24px}
 .card:hover{transform:translateY(-3px);box-shadow:0 4px 12px rgba(0,0,0,.5)}
 .pot-area{text-align:center;padding:16px;margin:16px 0}
@@ -238,7 +247,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div class="char-selector" id="char-selector"></div>
     <button class="auth-btn btn-press" id="auth-btn">通 过 消 杀</button>
     <div style="margin-top:12px;font-size:11px;color:var(--dim)"><span id="auth-hint">体温正常方可入场</span></div>
-    <div style="margin-top:8px;font-size:10px;color:var(--dim);opacity:.5">v10.0 废土协议</div>
+    <div style="margin-top:8px;font-size:10px;color:var(--dim);opacity:.5">v11.0 废土协议</div>
   </div>
 </div>
 
@@ -253,6 +262,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <button class="sm-btn btn-press" onclick="logout()">离开交易所</button>
       <button class="sm-btn btn-press" onclick="showSettings()">设置</button>
       <button class="sm-btn btn-press" onclick="showStatsPanel()">数据</button>
+      <button class="sm-btn btn-press" onclick="showFriendPanel()">好友</button>
+      <button class="sm-btn btn-press" onclick="showMailPanel()">邮件 <span id="mail-badge" style="display:none;background:var(--accent);color:#fff;border-radius:50%;padding:0 5px;font-size:10px;margin-left:2px"></span></button>
     </div>
   </div>
   <div class="lobby" style="position:relative;padding:0">
@@ -267,6 +278,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <div id="interact-hint" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(0,0,0,.7);border:1px solid var(--gold);border-radius:4px;color:var(--gold);font-size:13px;display:none;pointer-events:none;z-index:10"></div>
       <!-- 任务面板 -->
       <div id="quest-panel" style="position:absolute;top:12px;left:12px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:8px 12px;border-radius:4px;max-width:160px"></div>
+      <!-- 等级面板 -->
+      <div id="level-panel" style="position:absolute;top:12px;left:180px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:8px 12px;border-radius:4px;max-width:160px"></div>
       <!-- 创建桌子按钮 -->
       <button class="create-btn btn-press" onclick="showCreateModal()" style="position:absolute;top:12px;right:12px;z-index:10">+ 搭新桌</button>
       <!-- 聊天输入 -->
@@ -345,7 +358,16 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">音效</span><button class="sm-btn btn-press" id="settings-sound" onclick="toggleSound()">开启</button></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">背景音乐</span><button class="sm-btn btn-press" id="settings-bgm" onclick="toggleBGM()">开启</button></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">更换角色</span><button class="sm-btn btn-press" onclick="showCharSelect()">选择</button></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">版本</span><span style="font-size:12px;color:var(--dim)">v10.0 废土协议</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">等级</span><span style="font-size:12px;color:var(--gold)" id="settings-level">Lv.1 拾荒者</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">属性</span><span style="font-size:12px;color:var(--dim)" id="settings-stats">幸运 10 | 魅力 10 | 敏捷 10</span></div>
+      <div style="margin:8px 0"><span style="font-size:13px">技能</span><div style="margin-top:4px;padding:6px;background:rgba(0,0,0,.3);border-radius:4px" id="settings-skills"></div></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">好友</span><span style="font-size:12px;color:var(--dim)" id="settings-friends">0/20</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">阵营</span><span style="font-size:12px;color:var(--dim)" id="settings-guild">未加入</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">货币</span><button class="sm-btn btn-press" onclick="showCurrencyPanel()">兑换</button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">背包</span><button class="sm-btn btn-press" onclick="showInventoryPanel()">查看</button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">拍卖行</span><button class="sm-btn btn-press" onclick="renderAuctionPanel()">进入</button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">商店</span><button class="sm-btn btn-press" onclick="showShopPanel()">进入</button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">版本</span><span style="font-size:12px;color:var(--dim)">v12.0 废土协议</span></div>
     </div>
     <div style="text-align:center"><button class="modal-btn btn-press" onclick="closeSettings()">关闭</button></div>
     <div style="text-align:center;margin-top:8px"><button class="sm-btn btn-press" onclick="logout()" style="color:var(--accent);border-color:var(--accent)">退出登录</button></div>
@@ -386,6 +408,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=71"></script>
+<script src="js/game.js?v=80"></script>
 </body>
 </html>
