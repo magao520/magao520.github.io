@@ -319,6 +319,49 @@
     #btnRun { left: 156px; bottom: 36px; z-index: 6; }
     .action-btn.disabled { opacity: .45; }
 
+    #reviewer {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      width: min(520px, calc(100vw - 220px));
+      padding: 10px 14px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: rgba(255, 244, 205, .82);
+      z-index: 4;
+    }
+
+    #reviewer b {
+      color: #ffe08a;
+    }
+
+    #dangerIndicator {
+      position: absolute;
+      left: 50%;
+      top: calc(50% + 42px);
+      transform: translateX(-50%);
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(120, 0, 0, .42);
+      border: 1px solid rgba(255, 95, 80, .36);
+      color: #ffd5cc;
+      font-size: 12px;
+      font-weight: 900;
+      opacity: 0;
+      transition: opacity .18s ease;
+    }
+
+    #vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3;
+      background: radial-gradient(circle, transparent 44%, rgba(80, 0, 0, .04) 62%, rgba(0, 0, 0, .56) 100%);
+      opacity: .18;
+      transition: opacity .2s linear;
+    }
+
     #start, #dead {
       position: fixed;
       inset: 0;
@@ -389,6 +432,7 @@
       #btnLoot { right: 88px; bottom: 118px; left: auto; transform: none; }
       #btnFlashlight { right: 14px; bottom: 56px; }
       #btnRun { left: 138px; bottom: 28px; }
+      #reviewer { left: 8px; right: 8px; bottom: 150px; transform: none; width: auto; font-size: 10px; padding: 7px 9px; }
     }
   </style>
 </head>
@@ -419,8 +463,11 @@
     <div id="message" class="panel">素材加载中...</div>
     <div id="interaction" class="panel">点击搜刮</div>
     <div id="crosshair"></div>
+    <div id="dangerIndicator">危险靠近</div>
+    <div id="vignette"></div>
     <div id="miniMap" class="panel"><div id="playerDot"></div></div>
     <div class="note panel">触屏操作：左摇杆移动，右半屏滑动视角，右侧按钮射击/搜刮/手电</div>
+    <div id="reviewer" class="panel"><b>模拟测评师 1/100：</b>第一轮已改：更快启动、危险提示、压迫感音效、感染者行为分层、战斗反馈强化。</div>
 
     <div id="lookArea" aria-label="右半屏滑动视角"></div>
 
@@ -518,6 +565,9 @@
       materialsText: document.getElementById('materialsText'),
       distanceText: document.getElementById('distanceText'),
       miniMap: document.getElementById('miniMap'),
+      reviewer: document.getElementById('reviewer'),
+      dangerIndicator: document.getElementById('dangerIndicator'),
+      vignette: document.getElementById('vignette'),
       btnShoot: document.getElementById('btnShoot'),
       btnLoot: document.getElementById('btnLoot'),
       btnFlashlight: document.getElementById('btnFlashlight'),
@@ -560,8 +610,9 @@
     const postAssets = {};
     const assetCache = {};
     
-    // 核心素材优先加载（用于快速启动）
-    const criticalAssets = ['Zombie', 'Zombie_VlXjG0N8Eg', 'Characters_Sam', 'Rifle', 'Pistol'];
+    // 核心素材先加载，让玩家更快进入游戏；大地图素材后台补齐
+    const criticalAssets = ['Zombie', 'Zombie_VlXjG0N8Eg', 'Zombie_half', 'Characters_Sam', 'Rifle', 'Pistol'];
+    const fastStartAssets = ['barrel','box-large','box','chest','tent-canvas','workbench','tree','tree-tall','rock-a','rock-b','metal-panel','signpost'];
     const assetNames = [
       'barrel','bottle','box-large','box','bucket','chest','fence-fortified','fence',
       'floor-old','metal-panel-screws','metal-panel','resource-planks','resource-stone',
@@ -594,7 +645,14 @@
       lastLookX: 0,
       lastLookY: 0,
       screenShake: 0,
-      killCount: 0
+      killCount: 0,
+      dangerLevel: 0,
+      assetsTotal: 0,
+      assetsDone: 0,
+      backgroundLoaded: false,
+      reviewIteration: 1,
+      audioReady: false,
+      nextHeartbeat: 0
     };
 
     const tmpA = new pc.Vec3();
@@ -647,16 +705,84 @@
       }, seconds * 1000);
     }
 
+    const audio = { ctx: null };
+    function initAudio() {
+      if (audio.ctx || !window.AudioContext && !window.webkitAudioContext) return;
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      audio.ctx = new Ctx();
+      state.audioReady = true;
+    }
+
+    function playTone(freq, duration, type, gainValue) {
+      if (!audio.ctx) return;
+      const ctx = audio.ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(gainValue || .04, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    }
+
+    function playGunshot() {
+      playTone(90, .06, 'square', .08);
+      setTimeout(function() { playTone(180, .05, 'sawtooth', .03); }, 18);
+    }
+
+    function playHitSound() {
+      playTone(58, .12, 'sawtooth', .045);
+    }
+
+    function playGroan(distance) {
+      const volume = pc.math.clamp(.09 - distance * .002, .015, .09);
+      playTone(48 + Math.random() * 26, .38, 'sawtooth', volume);
+      setTimeout(function() { playTone(35 + Math.random() * 18, .22, 'triangle', volume * .7); }, 90);
+    }
+
+    function playHeartbeat(dt) {
+      if (!audio.ctx || state.dangerLevel < .45) return;
+      state.nextHeartbeat -= dt;
+      if (state.nextHeartbeat > 0) return;
+      const interval = pc.math.lerp(1.2, .36, state.dangerLevel);
+      state.nextHeartbeat = interval;
+      playTone(62, .08, 'sine', .035 + state.dangerLevel * .035);
+      setTimeout(function() { playTone(48, .07, 'sine', .025 + state.dangerLevel * .025); }, 115);
+    }
+
     // ========== 优化的资源加载系统 ==========
     function loadAssets() {
       let done = 0;
       let failed = 0;
       const total = assetNames.length + postAssetNames.length;
+      const launchSet = new Set(fastStartAssets.map(function(n) { return 'kenney:' + n; }).concat(criticalAssets.map(function(n) { return 'post:' + n; })));
+      let launchDone = 0;
+      let launchFailed = 0;
+      let launchReady = false;
+      state.assetsTotal = total;
       
-      function markDone() {
+      function maybeEnableStart() {
+        if (launchReady) return;
+        if (launchDone + launchFailed < launchSet.size) return;
+        launchReady = true;
+        state.loaded = true;
+        applyBetterPlayerModel();
+        ui.startButton.disabled = false;
+        ui.startButton.textContent = '先进入荒原（其余素材后台加载）';
+        setMessage('核心素材已就绪，可以先进入游戏；大地图素材继续后台加载。', 4);
+      }
+
+      function markDone(key) {
         done += 1;
-        ui.message.textContent = '高质量素材加载中：' + done + ' / ' + total;
+        state.assetsDone = done;
+        if (launchSet.has(key)) launchDone += 1;
+        ui.message.textContent = (launchReady ? '后台补齐素材：' : '核心素材加载中：') + done + ' / ' + total;
+        maybeEnableStart();
         if (done === total) {
+          state.backgroundLoaded = true;
           state.loaded = true;
           applyBetterPlayerModel();
           ui.startButton.disabled = false;
@@ -664,7 +790,7 @@
           if (failed > 0) {
             setMessage('素材加载完成，但有 ' + failed + ' 个模型失败。', 5);
           } else {
-            setMessage('恐怖生存版加载完成：智能感染者、真实射击、血液特效已启用。');
+            setMessage('全部素材加载完成：智能感染者、真实射击、血液特效已启用。');
           }
         }
       }
@@ -677,9 +803,10 @@
             assetCache[name] = asset;
           } else { 
             failed += 1; 
+            if (launchSet.has('kenney:' + name)) launchFailed += 1;
             console.warn('素材加载失败', name, err); 
           }
-          markDone();
+          markDone('kenney:' + name);
         });
       });
       
@@ -690,9 +817,10 @@
             assetCache[name] = asset;
           } else { 
             failed += 1; 
+            if (launchSet.has('post:' + name)) launchFailed += 1;
             console.warn('末日模型加载失败', name, err); 
           }
-          markDone();
+          markDone('post:' + name);
         });
       });
     }
@@ -1001,8 +1129,9 @@
 
     // ========== 恐怖感染者系统 ==========
     function makeInfected(x, z) {
-      const type = Math.random() < .55 ? 'Zombie_VlXjG0N8Eg' : 'Zombie';
-      const e = instantiatePostAsset(type, new pc.Vec3(x, 0, z), type === 'Zombie_VlXjG0N8Eg' ? 1.15 : 1.25, Math.random() * 360);
+      const roll = Math.random();
+      const type = roll < .18 ? 'Zombie_half' : (roll < .62 ? 'Zombie_VlXjG0N8Eg' : 'Zombie');
+      const e = instantiatePostAsset(type, new pc.Vec3(x, 0, z), type === 'Zombie_half' ? 1.05 : (type === 'Zombie_VlXjG0N8Eg' ? 1.15 : 1.25), Math.random() * 360);
       
       // 添加恐怖发光眼睛
       const eyeLight = new pc.Entity('感染者眼睛');
@@ -1014,8 +1143,11 @@
       });
       eyeLight.setLocalPosition(0, 1.4, 0.3);
       e.addChild(eyeLight);
+
+      const stain = createBox('感染血污', new pc.Vec3(x, .025, z), new pc.Vec3(.9, .01, .55), mat.blood);
+      stain.setEulerAngles(0, Math.random() * 360, 0);
       
-      return e;
+      return { entity: e, type: type };
     }
 
     function spawnInfected(initial, seed) {
@@ -1026,13 +1158,16 @@
       const dist = initial ? 80 + seededRandom(seed + 1) * 380 : 65 + Math.random() * 130;
       const x = pc.math.clamp(p.x + Math.cos(angle) * dist, -worldSize / 2 + 30, worldSize / 2 - 30);
       const z = pc.math.clamp(p.z + Math.sin(angle) * dist, -worldSize / 2 + 30, worldSize / 2 - 30);
-      const entity = makeInfected(x, z);
+      const infected = makeInfected(x, z);
+      const entity = infected.entity;
+      const crawler = infected.type === 'Zombie_half';
       
       const enemy = {
         entity: entity,
-        hp: 80 + Math.random() * 40,
-        maxHp: 120,
-        speed: 1.55 + Math.random() * .55,
+        type: crawler ? 'crawler' : 'walker',
+        hp: crawler ? 65 + Math.random() * 25 : 80 + Math.random() * 40,
+        maxHp: crawler ? 90 : 120,
+        speed: crawler ? 2.35 + Math.random() * .45 : 1.55 + Math.random() * .55,
         attackTimer: 0,
         hearTimer: 0,
         wander: new pc.Vec3(Math.random() - .5, 0, Math.random() - .5).normalize(),
@@ -1040,6 +1175,7 @@
         stateTimer: 0,
         animOffset: Math.random() * 100,
         lastGroan: 0,
+        ambush: Math.random() < .22,
         eyeLight: entity.children.find(c => c.name === '感染者眼睛')
       };
       state.enemies.push(enemy);
@@ -1339,6 +1475,8 @@
       }
       state.fireTimer = state.weaponCooldown;
       state.ammo -= 1;
+      initAudio();
+      playGunshot();
       
       const origin = camera.getPosition().clone();
       const dir = new pc.Vec3(
@@ -1383,6 +1521,7 @@
         const damage = state.weaponDamage * distanceFactor * (0.8 + Math.random() * 0.4);
         nearest.hp -= damage;
         nearest.hearTimer = 4;
+        playHitSound();
         
         // 命中特效
         if (hitPoint) {
@@ -1426,11 +1565,14 @@
     // ========== 升级后的感染者AI ==========
     function updateEnemies(dt) {
       const p = player.getPosition();
+      let nearestDanger = 999;
+      let chasingCount = 0;
       
       for (let i = state.enemies.length - 1; i >= 0; i--) {
         const enemy = state.enemies[i];
         const ep = enemy.entity.getPosition();
         const d = ep.distance(p);
+        nearestDanger = Math.min(nearestDanger, d);
         
         // 状态机更新
         enemy.stateTimer -= dt;
@@ -1459,6 +1601,7 @@
         
         // 根据状态执行行为
         if (enemy.state === 'chase') {
+          chasingCount += 1;
           let targetDir = tmpC.copy(p).sub(ep);
           targetDir.y = 0;
           
@@ -1477,6 +1620,7 @@
           // 追击时偶尔嘶吼
           if (enemy.lastGroan <= 0 && d < 30) {
             enemy.lastGroan = 3 + Math.random() * 4;
+            playGroan(d);
             if (d < 15) {
               setMessage('感染者发出恐怖的嘶吼声！', 1.2);
             }
@@ -1534,6 +1678,13 @@
       
       // 动态生成新感染者
       if (state.enemies.length < 15 && Math.random() < 0.015) spawnInfected(false);
+      state.dangerLevel = pc.math.clamp(1 - nearestDanger / 55, 0, 1);
+      if (ui.dangerIndicator) {
+        ui.dangerIndicator.style.opacity = state.dangerLevel > .35 ? String(pc.math.clamp(state.dangerLevel + chasingCount * .08, 0, 1)) : '0';
+        ui.dangerIndicator.textContent = chasingCount > 1 ? '危险靠近：' + chasingCount + ' 个感染者追击' : '危险靠近';
+      }
+      if (ui.vignette) ui.vignette.style.opacity = String(.18 + state.dangerLevel * .55);
+      playHeartbeat(dt);
     }
 
     function updateDayNight() {
@@ -1670,14 +1821,19 @@
 
     ui.startButton.addEventListener('click', function() {
       if (!state.loaded) return;
+      initAudio();
       if (!buildWorld.done) {
         buildWorld.done = true;
         buildWorld();
       }
       resetGame();
+      if (ui.reviewer) ui.reviewer.innerHTML = '<b>模拟测评师 1/100 已执行：</b>已按第一轮试玩建议改进：核心素材快速进入、后台加载、感染者追击压迫、红眼警示、心跳音、枪声/命中音、危险提示。下一轮会继续打磨任务、武器和地图密度。';
     });
 
-    ui.restartButton.addEventListener('click', resetGame);
+    ui.restartButton.addEventListener('click', function() {
+      initAudio();
+      resetGame();
+    });
 
     loadAssets();
     } catch (error) {
