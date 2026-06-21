@@ -272,8 +272,8 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   </div>
   <div class="lobby" style="position:relative;padding:0">
     <!-- 2D Canvas 大厅 -->
-    <div style="position:relative;width:100%;height:calc(100vh - 40px - 56px);overflow:hidden;background:#1a1610">
-      <canvas id="lobby-canvas" style="display:block"></canvas>
+    <div style="position:relative;width:100%;height:calc(100vh - 40px - 56px);overflow:hidden;background:#1a1610;display:flex;align-items:center;justify-content:center">
+      <canvas id="lobby-canvas" style="display:block;max-width:100%;max-height:100%"></canvas>
       <!-- 玩家名字标签（跟随canvas渲染） -->
       <div id="player-labels" style="position:absolute;top:0;left:0;pointer-events:none;width:100%;height:100%"></div>
       <!-- 边界警告 -->
@@ -290,6 +290,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
         <button onclick="sendChat()" style="background:var(--gold);border:none;color:#1a1610;font-size:11px;padding:3px 10px;border-radius:2px;cursor:pointer;font-weight:700">发送</button>
       </div>
       <!-- 操作说明已移除（手游不需要） -->
+      <button id="action-btn" onclick="Lobby.doAction()" style="position:absolute;bottom:70px;right:12px;z-index:20;width:60px;height:60px;background:rgba(42,32,16,.9);border:2px solid var(--gold);border-radius:50%;color:var(--gold);font-size:24px;cursor:pointer;display:none">👆</button>
     </div>
     <!-- 保留旧面板但默认隐藏，可后续切换显示 -->
     <div class="tables-grid" id="tables-grid" style="display:none"></div>
@@ -366,7 +367,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       <div style="margin:8px 0"><span style="font-size:13px">技能</span><div style="margin-top:4px;padding:6px;background:rgba(0,0,0,.3);border-radius:4px" id="settings-skills"></div></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">好友</span><span style="font-size:12px;color:var(--dim)" id="settings-friends">0/20</span></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">阵营</span><span style="font-size:12px;color:var(--dim)" id="settings-guild">未加入</span></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">货币</span><button class="sm-btn btn-press" onclick="showCurrencyPanel()">兑换</button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">货币</span><span style="font-size:12px;color:var(--dim)">仅通用单位</span></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">背包</span><button class="sm-btn btn-press" onclick="showInventoryPanel()">查看</button></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">拍卖行</span><button class="sm-btn btn-press" onclick="renderAuctionPanel()">进入</button></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">商店</span><button class="sm-btn btn-press" onclick="showShopPanel()">进入</button></div>
@@ -411,6 +412,6 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=120"></script>
+<script src="js/game.js?v=130"></script>
 </body>
 </html>

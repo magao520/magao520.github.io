@@ -39,7 +39,6 @@ const G = {
   diceJackpot:0, diceJackpotStreak:0,
   spectators:[],
   isSpectator:false,
-  currency:{can:0,gas:0,match:0},
   inventory:[],
   tradeState:null,
   auctionPanelOpen:false
@@ -264,7 +263,7 @@ function resetGameState(){
 
 // ==================== 存储 ====================
 function load(){try{const s=localStorage.getItem('wl_user');if(s){const d=JSON.parse(s);G.user=d.n;G.chips=d.c||50;if(d.s!==undefined)selectedChar=d.s;if(d.px!==undefined&&d.py!==undefined){_savedPos={x:d.px,y:d.py}}if(d.l!==undefined)G.level=d.l;if(d.e!==undefined)G.exp=d.e;if(d.st!==undefined)G.stats=d.st;if(d.sk!==undefined)G.skinIndex=d.sk;return true}}catch(e){}return false}
-function save(){if(G.user)try{const px=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.x:0;const py=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.y:0;localStorage.setItem('wl_user',JSON.stringify({n:G.user,c:G.chips,s:selectedChar,px,py,l:G.level,e:G.exp,st:G.stats,sk:G.skinIndex}));saveCurrency();}catch(e){}}
+function save(){if(G.user)try{const px=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.x:0;const py=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.y:0;localStorage.setItem('wl_user',JSON.stringify({n:G.user,c:G.chips,s:selectedChar,px,py,l:G.level,e:G.exp,st:G.stats,sk:G.skinIndex}));}catch(e){}}
 function loadQuest(){try{const s=localStorage.getItem('wl_quest');if(s)return JSON.parse(s)}catch(e){}return {date:'',progress:0,claimed:false}}
 function saveQuest(q){try{localStorage.setItem('wl_quest',JSON.stringify(q))}catch(e){}}
 function checkQuest(){
@@ -349,11 +348,8 @@ function listAuction(item){
   const list=loadAuction();
   if(list.length>=MAX_AUCTION){toast('拍卖行已满，无法挂售');return}
   const sellerName=G.user||'匿名';
-  const entry={id:genId(),sellerId:G.myId,sellerName,itemType:item.itemType,itemName:item.itemName||item.itemType,quantity:item.quantity,price:item.price,priceType:item.priceType||'chips',listedAt:Date.now(),expiresAt:Date.now()+AUCTION_DURATION};
+  const entry={id:genId(),sellerId:G.myId,sellerName,itemType:item.itemType,itemName:item.itemName||item.itemType,quantity:item.quantity,price:item.price,priceType:'chips',listedAt:Date.now(),expiresAt:Date.now()+AUCTION_DURATION};
   if(item.itemType==='chips'){if(G.chips<item.quantity){toast('物资不足');return}G.chips-=item.quantity;updateChips();save()}
-  else if(item.itemType==='can'){if(G.currency.can<item.quantity){toast('罐头不足');return}G.currency.can-=item.quantity;saveCurrency()}
-  else if(item.itemType==='gas'){if(G.currency.gas<item.quantity){toast('汽油不足');return}G.currency.gas-=item.quantity;saveCurrency()}
-  else if(item.itemType==='match'){if(G.currency.match<item.quantity){toast('火柴不足');return}G.currency.match-=item.quantity;saveCurrency()}
   else{if(!G.inventory||G.inventory.length===0){toast('背包为空');return}const inv=loadInventory();const idx=inv.findIndex(i=>i.type===item.itemType);if(idx===-1){toast('背包中无此物品');return}inv.splice(idx,1);saveInventory(inv);G.inventory=inv}
   list.push(entry);saveAuction(list);toast('挂售成功！物品已进入拍卖行');Sound.win();
 }
@@ -366,19 +362,14 @@ function buyAuction(id){
   if(a.sellerId===G.myId){toast('不能购买自己的拍卖');return}
   const tax=Math.max(1,Math.floor(a.price*0.1));
   const total=a.price+tax;
-  if(a.priceType==='chips'){if(G.chips<total){toast('物资不足（含10%拍卖税）');return}G.chips-=total;updateChips();save()}
-  else if(a.priceType==='can'){if(G.currency.can<total){toast('罐头不足');return}G.currency.can-=total;saveCurrency()}
-  else if(a.priceType==='gas'){if(G.currency.gas<total){toast('汽油不足');return}G.currency.gas-=total;saveCurrency()}
-  else if(a.priceType==='match'){if(G.currency.match<total){toast('火柴不足');return}G.currency.match-=total;saveCurrency()}
+  if(G.chips<total){toast('物资不足（含10%拍卖税）');return}
+  G.chips-=total;updateChips();save();
   list.splice(idx,1);saveAuction(list);
   if(a.itemType==='chips'){G.chips+=a.quantity;updateChips();save()}
-  else if(a.itemType==='can'){G.currency.can+=a.quantity;saveCurrency()}
-  else if(a.itemType==='gas'){G.currency.gas+=a.quantity;saveCurrency()}
-  else if(a.itemType==='match'){G.currency.match+=a.quantity;saveCurrency()}
   else{addInventoryItem({type:a.itemType})}
-  addMail({type:'auction',title:'拍卖成交',content:`你购买了 ${a.itemName} x${a.quantity}，花费${a.price}${a.priceType==='chips'?'单位':a.priceType==='can'?'罐头':a.priceType==='gas'?'汽油':'火柴'}（税${tax}）。`,from:'拍卖行'});
+  addMail({type:'auction',title:'拍卖成交',content:`你购买了 ${a.itemName} x${a.quantity}，花费${a.price}单位（税${tax}）。`,from:'拍卖行'});
   if(G.mqtt&&G.mqttConnected){
-    G.mqtt.publish(`${TOPIC_WHISPER}/${G.myId}/${a.sellerId}`,JSON.stringify({type:'auction_sold',itemName:a.itemName,quantity:a.quantity,price:a.price,priceType:a.priceType,tax,ts:Date.now()}),{qos:0});
+    G.mqtt.publish(`${TOPIC_WHISPER}/${G.myId}/${a.sellerId}`,JSON.stringify({type:'auction_sold',itemName:a.itemName,quantity:a.quantity,price:a.price,priceType:'chips',tax,ts:Date.now()}),{qos:0});
   }
   toast('购买成功！物品已到账');Sound.win();renderAuctionPanel();
 }
@@ -410,17 +401,16 @@ function renderAuctionPanel(){
 }
 function showListAuctionModal(){
   const div=document.createElement('div');div.className='modal-overlay open';div.id='list-auction-modal';
-  div.innerHTML=`<div class="modal" style="max-width:360px;text-align:left"><h3 style="text-align:center">挂售物品</h3><div style="display:flex;flex-direction:column;gap:8px;margin:12px 0"><div><div style="font-size:11px;color:var(--dim);margin-bottom:4px">选择物品类型</div><select id="auction-item-type" class="auth-input" style="width:100%"><option value="chips">通用单位 (${G.chips})</option><option value="can">罐头 (${G.currency.can})</option><option value="gas">汽油 (${G.currency.gas})</option><option value="match">火柴 (${G.currency.match})</option></select></div><div><div style="font-size:11px;color:var(--dim);margin-bottom:4px">数量</div><input id="auction-qty" class="auth-input" type="number" min="1" value="1" style="width:100%"></div><div><div style="font-size:11px;color:var(--dim);margin-bottom:4px">价格</div><input id="auction-price" class="auth-input" type="number" min="1" value="10" style="width:100%"></div><div><div style="font-size:11px;color:var(--dim);margin-bottom:4px">货币类型</div><select id="auction-price-type" class="auth-input" style="width:100%"><option value="chips">通用单位</option><option value="can">罐头</option><option value="gas">汽油</option><option value="match">火柴</option></select></div></div><div style="text-align:center"><button class="action-btn primary" onclick="submitListAuction()">确认挂售</button><button class="sm-btn btn-press" onclick="document.getElementById('list-auction-modal').remove()" style="margin-left:8px">取消</button></div></div>`;
+  div.innerHTML=`<div class="modal" style="max-width:360px;text-align:left"><h3 style="text-align:center">挂售物品</h3><div style="display:flex;flex-direction:column;gap:8px;margin:12px 0"><div><div style="font-size:11px;color:var(--dim);margin-bottom:4px">选择物品类型</div><select id="auction-item-type" class="auth-input" style="width:100%"><option value="chips">通用单位 (${G.chips})</option></select></div><div><div style="font-size:11px;color:var(--dim);margin-bottom:4px">数量</div><input id="auction-qty" class="auth-input" type="number" min="1" value="1" style="width:100%"></div><div><div style="font-size:11px;color:var(--dim);margin-bottom:4px">价格（单位）</div><input id="auction-price" class="auth-input" type="number" min="1" value="10" style="width:100%"></div></div><div style="text-align:center"><button class="action-btn primary" onclick="submitListAuction()">确认挂售</button><button class="sm-btn btn-press" onclick="document.getElementById('list-auction-modal').remove()" style="margin-left:8px">取消</button></div></div>`;
   document.body.appendChild(div);
 }
 function submitListAuction(){
   const type=$('auction-item-type').value;
   const qty=parseInt($('auction-qty').value)||0;
   const price=parseInt($('auction-price').value)||0;
-  const priceType=$('auction-price-type').value;
   if(qty<=0||price<=0){toast('数量和价格必须大于0');return}
-  const itemNames={chips:'通用单位',can:'罐头',gas:'汽油',match:'火柴'};
-  listAuction({itemType:type,itemName:itemNames[type]||type,quantity:qty,price,priceType});
+  const itemNames={chips:'通用单位'};
+  listAuction({itemType:type,itemName:itemNames[type]||type,quantity:qty,price});
   const modal=$('list-auction-modal');if(modal)modal.remove();
   renderAuctionPanel();
 }
@@ -475,9 +465,6 @@ function showMailDetail(id){
 function claimMailAttachment(id){
   const list=loadMail();const m=list.find(x=>x.id===id);if(!m||!m.attachment)return;
   if(m.attachment.chips){G.chips+=m.attachment.chips;updateChips();save();}
-  if(m.attachment.can){G.currency.can+=m.attachment.can;save();}
-  if(m.attachment.gas){G.currency.gas+=m.attachment.gas;save();}
-  if(m.attachment.match){G.currency.match+=m.attachment.match;save();}
   m.attachment=null;saveMail(list);
   toast('附件已领取');Sound.win();
   const modal=$('mail-panel-modal');if(modal)modal.remove();showMailPanel();
@@ -603,13 +590,9 @@ function handleWhisperMsg(topic,payload){
     if(msg.type==='invite'){
       if(confirm(`${msg.fromName||'某人'} 邀请你加入房间 ${msg.roomCode}，是否接受？`)){joinTableByCode(msg.roomCode)}
     }else if(msg.type==='auction_sold'){
-      const priceLabel=msg.priceType==='chips'?'单位':msg.priceType==='can'?'罐头':msg.priceType==='gas'?'汽油':'火柴';
       const net=msg.price-(msg.tax||0);
-      addMail({type:'auction',title:'拍卖售出',content:`你的 ${msg.itemName} x${msg.quantity} 已被购买，售价${msg.price}${priceLabel}（扣除税${msg.tax||0}），实得${net}${priceLabel}已到账。`,from:'拍卖行'});
-      if(msg.priceType==='chips'){G.chips+=net;updateChips();save()}
-      else if(msg.priceType==='can'){G.currency.can+=net;saveCurrency()}
-      else if(msg.priceType==='gas'){G.currency.gas+=net;saveCurrency()}
-      else if(msg.priceType==='match'){G.currency.match+=net;saveCurrency()}
+      addMail({type:'auction',title:'拍卖售出',content:`你的 ${msg.itemName} x${msg.quantity} 已被购买，售价${msg.price}单位（扣除税${msg.tax||0}），实得${net}单位已到账。`,from:'拍卖行'});
+      G.chips+=net;updateChips();save();
       toast(`拍卖售出：${msg.itemName} x${msg.quantity}`);Sound.win();
     }else{
       toast(`[私聊] ${msg.fromName||'?'}: ${msg.text}`);
@@ -778,7 +761,6 @@ function showModal(t,m,w){
   const expGain=w?(10+G.level*2):5;addExp(expGain);
   const ch2=CHARACTERS[selectedChar];if(ch2&&ch2.skills&&ch2.skills.find(s=>s.effect==='regen5'&&s.unlocked)){G.chips+=5;toast('壁虎再生：恢复5物资');updateChips();}
   if(!w){const ch3=CHARACTERS[selectedChar];if(ch3&&ch3.skills&&ch3.skills.find(s=>s.effect==='teamReward'&&s.unlocked)){const winner=G.players.find(p=>p.id!==G.myId&&p.chips>50);if(winner){const bonus=Math.floor(G.pot*0.1);if(bonus>0){G.chips+=bonus;toast(`忠诚：队友获胜，你获得${bonus}物资奖励`);updateChips();}}}}
-  if(w){if(G.gameType==='zjh'){G.currency.can+=1;toast('获得1罐头');}else if(G.gameType==='bj'){G.currency.gas+=1;toast('获得1汽油');}else if(G.gameType==='dice'){G.currency.match+=1;toast('获得1火柴');}saveCurrency();}
   updateStreak(w);
   updateStats(G.gameType||'zjh',w);
   saveReplayFromGame(w);
@@ -812,6 +794,7 @@ function closeEmoteWheel(){const e=$('emote-wheel');if(e)e.remove()}
 function sendEmote(emoji){
   closeEmoteWheel();
   Lobby.me.reaction=emoji;Lobby.me.reactionTime=Date.now();
+  Lobby.me.animState='interact';Lobby.me.animTimer=0.5;
   if(G.mqtt&&G.mqttConnected){
     const ch=CHARACTERS[selectedChar];const myEmoji=ch&&ch.skins?ch.skins[G.skinIndex||0]:ch?.emoji||'🐦';
     G.mqtt.publish(TOPIC_CHAT,JSON.stringify({id:G.myId,name:G.user,text:emoji,emoji:myEmoji,ts:Date.now(),isEmote:true}),{qos:0});
@@ -1006,8 +989,7 @@ function handleChatMsg(msg){
     const p=Lobby.others.get(msg.id);
     if(p){const dx=p.x-Lobby.me.x,dy=p.y-Lobby.me.y;if(Math.sqrt(dx*dx+dy*dy)>maxDist)return;p.reaction='💬';p.reactionTime=Date.now();}
   }
-  if(typeof showChatBubble==='function'){showChatBubble(msg.id,msg.name,msg.text,msg.emoji)}
-  else{toast(`${msg.name}: ${msg.text}`)}
+  toast(`${msg.name}: ${msg.text}`);
   Sound.chat();
 }
 function showChatBubble(id,name,text,emoji){
@@ -1027,10 +1009,10 @@ function sendChat(){
   if(!G.mqtt||!G.mqttConnected){toast('信号未连接');return}
   const ch=CHARACTERS[selectedChar];const emoji=ch&&ch.skins?ch.skins[G.skinIndex||0]:ch?.emoji||'🐦';
   const msg={id:G.myId,name:G.user,text,emoji:emoji,ts:Date.now()};
-  G.mqtt.publish(TOPIC_CHAT,JSON.stringify(msg),{qos:0});
+  try{G.mqtt.publish(TOPIC_CHAT,JSON.stringify(msg),{qos:0});}catch(e){toast('发送失败');return}
   input.value='';
-  if(typeof showChatBubble==='function'){showChatBubble(G.myId,G.user,text,msg.emoji)}
-  else{toast(`${G.user}: ${text}`)}
+  // 直接显示在自己的消息区域
+  toast(`${G.user}: ${text}`);
   Sound.click();
   Lobby.me.reaction='💬';Lobby.me.reactionTime=Date.now();
 }
@@ -1090,11 +1072,11 @@ const _authBtn=$('auth-btn');if(_authBtn){
     if(!validateNameInput())return;
     const n=$('auth-name').value.trim();G.user=n;
     if(!load()){G.chips=50;G.level=1;G.exp=0;G.stats={luck:10,charm:10,agility:10};G.skinIndex=0}G.myId=genId();save();
-    const un=$('user-name');if(un)un.textContent=n;updateChips();showScreen('main');initMQTT(); loadCurrency(); G.inventory=loadInventory(); updateMailBadge(); updateFriendCountUI();
+    const un=$('user-name');if(un)un.textContent=n;updateChips();showScreen('main');initMQTT();G.inventory=loadInventory();updateMailBadge();updateFriendCountUI();
   };
 }
 function logout(){cleanupAll();G.user=null;G.onlineUsers={};try{localStorage.removeItem('wl_user')}catch(e){}showScreen('auth')}
-if(load()){G.myId=genId();refreshSkills();updateLevelPanel();const un=$('user-name');if(un)un.textContent=G.user;updateChips();showScreen('main');initMQTT();loadCurrency();G.inventory=loadInventory();updateMailBadge();updateFriendCountUI();}else{hideLoading()}
+if(load()){G.myId=genId();refreshSkills();updateLevelPanel();const un=$('user-name');if(un)un.textContent=G.user;updateChips();showScreen('main');initMQTT();G.inventory=loadInventory();updateMailBadge();updateFriendCountUI();}else{hideLoading()}
 
 // ==================== MQTT ====================
 function initMQTT(){
@@ -1640,9 +1622,7 @@ function leaveGame(){
   if(!G.inGame)return;G.gameOver=true;G.myTurn=false;const me=G.players.find(p=>p.isMe);if(me){me.folded=true;me.stood=true;publishRoom({type:'game-leave',playerId:me.id,playerName:me.name});publishRoom({type:'action',playerId:me.id,action:'fold',data:{cards:G.players.map(p=>({id:p.id,chips:p.chips,bet:p.bet,folded:p.folded,seen:p.seen,busted:p.busted,stood:p.stood,choice:p.choice,hands:p.hands,currentHand:p.currentHand})),pot:G.pot,currentBet:G.currentBet,gameOver:false}})}publishRoom({type:'leave',playerId:G.myId,playerName:G.user});if(G.mqtt&&G.mqttConnected){try{G.mqtt.unsubscribe(roomTopic(G.roomCode))}catch(e){}}G.inGame=false;G.resultShown=false;G.roomPeers=[];G.roomCode=null;G.isHost=false;G.isSpectator=false;stopCandle();stopHeartbeat();Sound.stopRoomBGM();Sound.startAmbient(G.weather.type);const wp=$('wait-panel');if(wp)wp.style.display='none';showScreen('main');publishPresence();renderLobby();toast('已撤离牌桌');
 }
 
-// ==================== 多币种经济与NPC商店 (升华20) ====================
-function loadCurrency(){try{const s=localStorage.getItem('wl_currency');if(s){const d=JSON.parse(s);G.currency.can=d.can||0;G.currency.gas=d.gas||0;G.currency.match=d.match||0}}catch(e){}}
-function saveCurrency(){try{localStorage.setItem('wl_currency',JSON.stringify(G.currency))}catch(e){}}
+// ==================== 背包系统 ====================
 function loadInventory(){try{const s=localStorage.getItem('wl_inventory');return s?JSON.parse(s):[]}catch(e){return []}}
 function saveInventory(inv){try{localStorage.setItem('wl_inventory',JSON.stringify(inv))}catch(e){}}
 function addInventoryItem(item){const inv=loadInventory();inv.push({...item,acquiredAt:Date.now()});saveInventory(inv);G.inventory=inv;}
@@ -1654,25 +1634,6 @@ function useInventoryItem(idx){
   else if(item.type==='shield'){/* 由结算逻辑处理 */toast('护盾生效！下一局输时只损失一半');}
   else if(item.type==='rename_card'){const newName=prompt('输入新名称:');if(newName&&newName.trim()){G.user=newName.trim();const un=$('user-name');if(un)un.textContent=G.user;save();toast('改名成功！');}}
   inv.splice(idx,1);saveInventory(inv);G.inventory=inv;
-}
-function convertCurrency(from,to,amount){
-  if(amount<=0){toast('数量无效');return}
-  const rates={chips:{can:1,gas:1,match:1},can:{chips:0.8},gas:{chips:0.8},match:{chips:0.8}};
-  if(from==='chips'){
-    if(G.chips<amount){toast('单位不足');return}
-    G.chips-=amount;G.currency[to]+=amount;save();saveCurrency();updateChips();
-    toast(`兑换成功: ${amount}单位 → ${amount}${to==='can'?'罐头':to==='gas'?'汽油':'火柴'}`);
-  }else{
-    if(G.currency[from]<amount){toast(`${from==='can'?'罐头':from==='gas'?'汽油':'火柴'}不足`);return}
-    const out=Math.floor(amount*(rates[from]?.chips||0.8));
-    G.currency[from]-=amount;G.chips+=out;save();saveCurrency();updateChips();
-    toast(`兑换成功: ${amount}${from==='can'?'罐头':from==='gas'?'汽油':'火柴'} → ${out}单位`);
-  }
-}
-function showCurrencyPanel(){
-  const div=document.createElement('div');div.className='modal-overlay open';div.id='currency-panel-modal';
-  div.innerHTML=`<div class="modal" style="max-width:320px;text-align:center"><h3>货币兑换</h3><div style="font-size:12px;color:var(--dim);margin:8px 0">通用单位 ↔ 专用货币</div><div style="display:flex;flex-direction:column;gap:8px;margin:12px 0"><div style="display:flex;align-items:center;justify-content:space-between;padding:6px;background:rgba(255,255,255,.03);border-radius:4px"><span>🥫 罐头: ${G.currency.can}</span><button class="sm-btn" onclick="convertCurrency('chips','can',parseInt(prompt('兑换数量')))" style="font-size:10px">单位→罐头</button><button class="sm-btn" onclick="convertCurrency('can','chips',parseInt(prompt('兑换数量')))" style="font-size:10px">罐头→单位</button></div><div style="display:flex;align-items:center;justify-content:space-between;padding:6px;background:rgba(255,255,255,.03);border-radius:4px"><span>⛽ 汽油: ${G.currency.gas}</span><button class="sm-btn" onclick="convertCurrency('chips','gas',parseInt(prompt('兑换数量')))" style="font-size:10px">单位→汽油</button><button class="sm-btn" onclick="convertCurrency('gas','chips',parseInt(prompt('兑换数量')))" style="font-size:10px">汽油→单位</button></div><div style="display:flex;align-items:center;justify-content:space-between;padding:6px;background:rgba(255,255,255,.03);border-radius:4px"><span>🎲 火柴: ${G.currency.match}</span><button class="sm-btn" onclick="convertCurrency('chips','match',parseInt(prompt('兑换数量')))" style="font-size:10px">单位→火柴</button><button class="sm-btn" onclick="convertCurrency('match','chips',parseInt(prompt('兑换数量')))" style="font-size:10px">火柴→单位</button></div></div><div style="font-size:10px;color:var(--dim)">专用货币兑换通用单位有20%损耗</div><div style="text-align:center;margin-top:12px"><button class="modal-btn btn-press" onclick="document.getElementById('currency-panel-modal').remove()">关闭</button></div></div>`;
-  document.body.appendChild(div);
 }
 function showInventoryPanel(){
   const inv=loadInventory();G.inventory=inv;
@@ -1711,7 +1672,7 @@ function buyBuff(type,amount,cost){
 }
 
 // ==================== 初始化 ====================
-function initApp(){renderLobby();renderOnlineList();renderCharSelector();refreshSkills();updateLevelPanel();loadCurrency();G.inventory=loadInventory();cleanOldMail();updateMailBadge();updateFriendCountUI();cleanupExpiredAuctions();if(!G._roomCleanupTimer){G._roomCleanupTimer=setInterval(()=>{const now=Date.now();let changed=false;for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}}if(changed)renderLobby()},10000)}const st=document.getElementById('sound-toggle');if(st)st.onclick=toggleSound;Sound.startAmbient(G.weather.type);}
+function initApp(){renderLobby();renderOnlineList();renderCharSelector();refreshSkills();updateLevelPanel();G.inventory=loadInventory();cleanOldMail();updateMailBadge();updateFriendCountUI();cleanupExpiredAuctions();if(!G._roomCleanupTimer){G._roomCleanupTimer=setInterval(()=>{const now=Date.now();let changed=false;for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}}if(changed)renderLobby()},10000)}const st=document.getElementById('sound-toggle');if(st)st.onclick=toggleSound;Sound.startAmbient(G.weather.type);}
 if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initApp)}else{initApp()}
 setTimeout(()=>{try{const m=$('main-screen');if(m&&m.style.display!=='none'&&Lobby&&!Lobby.animId){Lobby.show()}}catch(e){}},100);
 
@@ -1723,21 +1684,21 @@ const Lobby={
   dayNightCycle:480,
   others:new Map(),
   tables:[
-    {x:400,y:350,code:'',game:'zjh',label:'🥫 炸金花',players:0,max:3,host:'',region:'slum',minBet:5},
-    {x:1000,y:300,code:'',game:'bj',label:'⛽ 二十一点',players:0,max:3,host:'',region:'black',minBet:20},
-    {x:700,y:900,code:'',game:'dice',label:'🎲 骰子',players:0,max:3,host:'',region:'safe',minBet:5},
-    {x:1400,y:600,code:'',game:'zjh',label:'🥫 炸金花 II',players:0,max:3,host:'',region:'black',minBet:10},
-    {x:300,y:1100,code:'',game:'bj',label:'⛽ 二十一点 II',players:0,max:3,host:'',region:'slum',minBet:10},
-    {x:1200,y:1200,code:'',game:'dice',label:'🎲 骰子 II',players:0,max:3,host:'',region:'safe',minBet:5}
+    {x:200,y:175,code:'',game:'zjh',label:'🥫 炸金花',players:0,max:3,host:'',region:'slum',minBet:5},
+    {x:500,y:150,code:'',game:'bj',label:'⛽ 二十一点',players:0,max:3,host:'',region:'black',minBet:20},
+    {x:350,y:450,code:'',game:'dice',label:'🎲 骰子',players:0,max:3,host:'',region:'safe',minBet:5},
+    {x:700,y:300,code:'',game:'zjh',label:'🥫 炸金花 II',players:0,max:3,host:'',region:'black',minBet:10},
+    {x:150,y:550,code:'',game:'bj',label:'⛽ 二十一点 II',players:0,max:3,host:'',region:'slum',minBet:10},
+    {x:600,y:600,code:'',game:'dice',label:'🎲 骰子 II',players:0,max:3,host:'',region:'safe',minBet:5}
   ],
-  benches:[{x:900,y:600},{x:1100,y:800},{x:700,y:700}],
+  benches:[{x:450,y:300},{x:550,y:400},{x:350,y:350}],
   currentRegion:'',
   keys:{},joystick:{active:false,cx:0,cy:0,dx:0,dy:0,touchId:null,opacity:0},
   particles:[],time:0,lastDir:{x:0,y:1},
   floorCache:null,fountainParticles:[],lootCrates:[],fountainTime:0,scraps:[],scrapCount:0,
   barrels:[],portal:null,portalParticles:[],
   floorCacheW:0,floorCacheH:0,dirty:true,welcomeTime:0,walkParticles:[],animId:null,lastBroadcast:0,
-  camera:{x:0,y:0},mapW:2000,mapH:1500,dayNightAlpha:0,dustStorm:0,ambientParticles:[],
+  camera:{x:0,y:0},mapW:1000,mapH:750,dayNightAlpha:0,dustStorm:0,ambientParticles:[],
   _tableGlowGrad:null,_vignetteGrad:null,_floorPattern:null,_brickPattern:null,
   _cachedDecor:null,_lastLightAngle:0,_lightAngle:0,_particlePool:[],_dustParticles:[],
   _hoveredTable:null,_screenShake:0,_transitionAlpha:0,_transitionTarget:0,
@@ -1753,12 +1714,22 @@ const Lobby={
     this.me.name=G.user||'幸存者';const chInit=CHARACTERS[selectedChar];this.me.emoji=chInit&&chInit.skins?chInit.skins[G.skinIndex||0]:chInit?.emoji||'🐦';this.keys={};
     if(_savedPos){this.me.x=_savedPos.x;this.me.y=_savedPos.y;_savedPos=null}
     this.time=0;this.welcomeTime=2;this.fountainTime=0;updateQuestPanel();
+    // 加载角色精灵图
+    this.sprites={};
+    const loadSprite=(name,src)=>{
+      const img=new Image();
+      img.src=src;
+      img.onload=()=>{this.sprites[name]=img};
+    };
+    loadSprite('adventurer','assets/rpg_characters.png');
+    loadSprite('peasant','assets/rpg_peasant.png');
+    loadSprite('base','assets/rpg_base.png');
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
     // 移除喷泉粒子（减少光污染）
     this.fountainParticles=[];
-    this.lootCrates=[];const cratePositions=[[250,250],[1700,1200],[300,1200],[1600,300],[900,600]];for(const[posX,posY]of cratePositions){this.lootCrates.push({x:posX,y:posY,opened:false,cooldown:0,sparkleTime:Math.random()*Math.PI*2,openAnim:0})}
-    this.barrels=[];const barrelPositions=[[400,400],[1500,1100],[600,1300],[1800,500],[800,700]];for(const[posX,posY]of barrelPositions){this.barrels.push({x:posX,y:posY,state:'idle',vx:0,vy:0,respawnTimer:0,explodeAnim:0})}
-    this.portal={x:100,y:750,active:true,respawnTimer:0};
+    this.lootCrates=[];const cratePositions=[[125,125],[850,600],[150,600],[800,150],[450,300]];for(const[posX,posY]of cratePositions){this.lootCrates.push({x:posX,y:posY,opened:false,cooldown:0,sparkleTime:Math.random()*Math.PI*2,openAnim:0})}
+    this.barrels=[];const barrelPositions=[[200,200],[750,550],[300,650],[900,250],[400,350]];for(const[posX,posY]of barrelPositions){this.barrels.push({x:posX,y:posY,state:'idle',vx:0,vy:0,respawnTimer:0,explodeAnim:0})}
+    this.portal={x:50,y:375,active:true,respawnTimer:0};
     const chScrap=CHARACTERS[selectedChar];const hasFindScrap=chScrap&&chScrap.skills&&chScrap.skills.find(s=>s.effect==='findScrap'&&s.unlocked);const scrapCountInit=hasFindScrap?20:15;
     this.scraps=[];for(let i=0;i<scrapCountInit;i++){this.scraps.push({x:50+Math.random()*(this.mapW-100),y:50+Math.random()*(this.mapH-100),collected:false,rot:Math.random()*Math.PI*2})}
     this.scrapCount=0;
@@ -1798,36 +1769,37 @@ const Lobby={
     }
   },
   drawNPCs(ctx){
+    const sprite=Lobby.sprites['peasant'];
     for(const npc of this.npcs){
       let alpha=1;if(G.weather.type==='fog'){const ddx=npc.x-this.me.x,ddy=npc.y-this.me.y;const d=Math.sqrt(ddx*ddx+ddy*ddy);if(d>300)alpha=Math.max(0.1,1-(d-300)/400)}
       ctx.globalAlpha=alpha;
-      const nx=Math.floor(npc.x),ny=Math.floor(npc.y);
-      // 像素风格NPC：简单方块身体
-      ctx.fillStyle='#5a4a30';
-      ctx.fillRect(nx-6,ny-4,12,14);
-      ctx.fillStyle='#7a6a50';
-      ctx.fillRect(nx-4,ny-12,8,8);
-      ctx.font='12px monospace';
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-      ctx.fillText(npc.emoji||'🧔',nx,ny-8);
-      // 简化名字标签
+      const px=Math.floor(npc.x),py=Math.floor(npc.y);
+      if(sprite&&sprite.complete){
+        const frame=Math.floor(this.time*4)%4;
+        ctx.drawImage(sprite,frame*40,0,40,40,px-20,py-20,40,40);
+      }else{
+        // 后备
+        ctx.fillStyle='#8a7060';
+        ctx.fillRect(px-6,py-8,12,16);
+      }
+      // 名字标签
       ctx.fillStyle='rgba(0,0,0,0.6)';
-      ctx.fillRect(nx-22,ny-28,44,12);
+      ctx.fillRect(px-22,py-28,44,12);
       ctx.fillStyle='#b8960f';
       ctx.font='9px monospace';
       ctx.textAlign='center';
-      ctx.fillText(npc.name||'NPC',nx,ny-22);
+      ctx.fillText(npc.name||'NPC',px,py-22);
+      // 对话气泡
       if(npc.bubble){
         const age=(Date.now()-npc.bubble.ts)/5000;
         const ba=Math.max(0,1-age);
         if(ba>0){
           ctx.fillStyle=`rgba(0,0,0,${ba*0.7})`;
-          ctx.fillRect(nx-40,ny-50,80,14);
+          ctx.fillRect(px-40,py-50,80,14);
           ctx.fillStyle=`rgba(212,200,160,${ba})`;
           ctx.font='9px monospace';
           ctx.textAlign='center';
-          ctx.fillText(npc.bubble.text,nx,ny-42);
+          ctx.fillText(npc.bubble.text,px,py-42);
         }
       }
       ctx.globalAlpha=1;
@@ -1965,12 +1937,12 @@ const Lobby={
     // 沙尘暴减速已移除
     const isNight=hour>=20||hour<6;
     const ch=CHARACTERS[selectedChar];if(isNight&&ch&&ch.skills&&ch.skills.find(s=>s.effect==='nightSpeed'&&s.unlocked)){speed*=1.2}
-    if(this.me.sitting){dx=0;dy=0;this.me.moving=false}
+    if(this.me.sitting){dx=0;dy=0;this.me.moving=false;this.me.animState='sit'}
     const isMovingNow=(dx!==0||dy!==0)||(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0))||this.me.moving;
     if(dx!==0||dy!==0){const len=Math.sqrt(dx*dx+dy*dy);dx/=len;dy/=len;this.lastDir.x=dx;this.lastDir.y=dy;this.me.faceDir=dx<0?-1:1;this.me.x+=dx*speed*dt;this.me.y+=dy*speed*dt;this.me.moving=true;this.me.animState='walk'}
     else if(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0)){if(this.me.moving){this.me.moving=false;this.me.tx=this.me.x;this.me.ty=this.me.y;}this.lastDir.x=this.joystick.dx;this.lastDir.y=this.joystick.dy;this.me.faceDir=this.joystick.dx<0?-1:1;this.me.x+=this.joystick.dx*speed*dt;this.me.y+=this.joystick.dy*speed*dt;this.me.moving=true;this.me.animState='walk'}
     else if(this.me.moving){const tx=this.me.tx,ty=this.me.ty;const ddx=tx-this.me.x,ddy=ty-this.me.y;const dist=Math.sqrt(ddx*ddx+ddy*ddy);if(dist<5){this.me.moving=false;this.me.animState='idle'}else{const mx=(ddx/dist)*speed*dt,my=(ddy/dist)*speed*dt;this.me.x+=mx;this.me.y+=my;this.me.faceDir=mx<0?-1:1;this.me.animState='walk'}}
-    else{this.me.animState='idle'}
+    else if(!this.me.sitting){this.me.animState='idle'}
     const chClimb=CHARACTERS[selectedChar];const hasClimb=chClimb&&chClimb.skills&&chClimb.skills.find(s=>s.effect==='climb'&&s.unlocked);const margin=hasClimb?0:16;this.me.x=Math.max(margin,Math.min(this.mapW-margin,this.me.x));this.me.y=Math.max(margin,Math.min(this.mapH-margin,this.me.y));
     const edgeDist=Math.min(this.me.x,this.me.y,this.mapW-this.me.x,this.mapH-this.me.y);
     const bw=$('boundary-warning');if(bw)bw.style.display=edgeDist<50?'block':'none';
@@ -2001,6 +1973,27 @@ const Lobby={
     if(this._transitionAlpha!==this._transitionTarget){const diff=this._transitionTarget-this._transitionAlpha;this._transitionAlpha+=diff*Math.min(1,dt*3)}
   },
 
+  doAction(){
+    // 检查附近的交互对象
+    if(this.me.sitting){this.leaveTable();return}
+    if(this._hoveredTable){this.joinTable(this._hoveredTable);return}
+    // 检查物资箱
+    for(const c of this.lootCrates){
+      const dx=c.x-this.me.x,dy=c.y-this.me.y;
+      if(Math.sqrt(dx*dx+dy*dy)<30&&c.cooldown<=0){this.openCrate(c);return}
+    }
+    // 检查油桶
+    for(const b of this.barrels){
+      if(b.state!=='idle')continue;
+      const dx=b.x-this.me.x,dy=b.y-this.me.y;
+      if(Math.sqrt(dx*dx+dy*dy)<30){this.kickBarrel(b);return}
+    }
+    // 检查长椅
+    for(const b of this.benches){
+      const dx=b.x-this.me.x,dy=b.y-this.me.y;
+      if(Math.sqrt(dx*dx+dy*dy)<40){sitOnBench();return}
+    }
+  },
   checkTableInteraction(){
     const hint=$('interact-hint');if(!hint)return;
     let nearTable=null;let minDist=Infinity;
@@ -2012,6 +2005,16 @@ const Lobby={
     let nearBarrel=null;for(const b of this.barrels){if(b.state!=='idle')continue;const dx=b.x-this.me.x,dy=b.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<30){nearBarrel=b;break}}
     // 检查长椅
     let nearBench=null;for(const b of this.benches){const dx=b.x-this.me.x,dy=b.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<40){nearBench=b;break}}
+    // 更新交互按钮
+    const actionBtn=$('action-btn');
+    if(actionBtn){
+      if(nearTable||nearCrate||nearBarrel||nearBench||this.me.sitting){
+        actionBtn.style.display='block';
+        actionBtn.textContent=this.me.sitting?'🚪':nearTable?'🎮':nearCrate?'📦':nearBarrel?'⚽':'🪑';
+      }else{
+        actionBtn.style.display='none';
+      }
+    }
     if(this.me.sitting){hint.textContent='点击退出桌子';hint.style.display='block';hint.style.fontSize='16px';return;}
     if(this.checkNPCInteraction()){}
     else if(nearTable){const isMobile=('ontouchstart' in window)||this.w<640;const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';const actionText=isMobile?'点击加入':'按 E 或点击加入';hint.textContent=`${nearTable.label}${status} — ${actionText}`;hint.style.display='block';hint.style.fontSize=isMobile?'16px':'13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else if(nearCrate){hint.textContent='按 E 打开物资箱';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.openCrate(nearCrate)}}else if(nearBarrel){hint.textContent='按 E 踢油桶';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.kickBarrel(nearBarrel)}}else if(nearBench){hint.textContent='按 E 坐下 / 点击长椅';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;sitOnBench()}}else{hint.style.display='none'}
@@ -2184,9 +2187,9 @@ const Lobby={
   },
 
   getRegionAt(x,y){
-    if(x>=0&&x<=800&&y>=800&&y<=1500)return'slum';
-    if(x>=1200&&x<=2000&&y>=0&&y<=700)return'black';
-    if(x>=600&&x<=1400&&y>=400&&y<=1100)return'safe';
+    if(x>=0&&x<=400&&y>=400&&y<=750)return'slum';
+    if(x>=600&&x<=1000&&y>=0&&y<=350)return'black';
+    if(x>=300&&x<=700&&y>=200&&y<=550)return'safe';
     return'neutral';
   },
   getRegionColor(r){return{slum:'#4a3828',black:'#6a2828',safe:'#3a4a2a'}[r]||'#4a4028'},
@@ -2215,10 +2218,10 @@ const Lobby={
     ctx.strokeStyle='rgba(100,80,60,0.4)';
     ctx.lineWidth=2;
     ctx.beginPath();
-    ctx.moveTo(800,800);ctx.lineTo(800,1500);
-    ctx.moveTo(1200,0);ctx.lineTo(1200,700);
-    ctx.moveTo(600,400);ctx.lineTo(1400,400);
-    ctx.moveTo(600,1100);ctx.lineTo(1400,1100);
+    ctx.moveTo(400,400);ctx.lineTo(400,750);
+    ctx.moveTo(600,0);ctx.lineTo(600,350);
+    ctx.moveTo(300,200);ctx.lineTo(700,200);
+    ctx.moveTo(300,550);ctx.lineTo(700,550);
     ctx.stroke();
   },
 
@@ -2329,7 +2332,10 @@ const Lobby={
     let last=performance.now();let skipped=0;
     const loop=(now)=>{
       if(document.hidden){this.animId=requestAnimationFrame(loop);return}
-      let dt=(now-last)/1000;last=now;if(dt>0.1){dt=0.016;skipped++;if(skipped>5)skipped=0}this.time+=dt;this.update(dt);this.draw();this.animId=requestAnimationFrame(loop);
+      let dt=(now-last)/1000;last=now;if(dt>0.1){dt=0.016;skipped++;if(skipped>5)skipped=0}this.time+=dt;this.update(dt);
+    // 交互动作计时恢复
+    if(this.me.animState==='interact'){this.me.animTimer-=dt;if(this.me.animTimer<=0)this.me.animState='idle'}
+    this.draw();this.animId=requestAnimationFrame(loop);
     };this.animId=requestAnimationFrame(loop);
   },
 
@@ -2478,29 +2484,29 @@ function _drawNameTag(ctx,x,y,name,isMe){
 
 function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
   const px=Math.floor(x),py=Math.floor(y);
-  const bodyColor=isMe?'#5a8a3c':'#7a7060';
-  const headColor=isMe?'#6a9a4c':'#8a8070';
-  // 身体 8x12
-  ctx.fillStyle=bodyColor;
-  ctx.fillRect(px-4,py-6,8,12);
-  // 头部 6x6
-  ctx.fillStyle=headColor;
-  ctx.fillRect(px-3,py-14,6,6);
-  // 简单的行走动画：1px 上下
-  const p=playerObj||{};
-  const bounce=(p.animState==='walk')?Math.floor(time*8)%2:0;
-  if(bounce){
+  const sprite=Lobby.sprites['adventurer'];
+  if(sprite&&sprite.complete){
+    // 精灵图是 40x40 的格子，每行3个方向（下、上、右）
+    // 每方向4帧动画
+    const p=playerObj||{};
+    const dir=p.faceDir>0?2:1; // 1=左/上, 2=右/下
+    let animFrame=0;
+    if(p.animState==='walk')animFrame=Math.floor(time*8)%4;
+    else if(p.animState==='interact')animFrame=2;
+    else if(p.animState==='sit')animFrame=0;
+    const sx=animFrame*40;
+    const sy=dir*40;
+    ctx.drawImage(sprite,sx,sy,40,40,px-20,py-20,40,40);
+  }else{
+    // 后备：像素方块
+    const bodyColor=isMe?'#5a8a3c':'#7a7060';
     ctx.fillStyle=bodyColor;
-    ctx.fillRect(px-4,py-7,8,12);
-    ctx.fillStyle=headColor;
-    ctx.fillRect(px-3,py-15,6,6);
+    ctx.fillRect(px-4,py-6,8,12);
+    ctx.fillStyle=isMe?'#6a9a4c':'#8a8070';
+    ctx.fillRect(px-3,py-14,6,6);
   }
-  // emoji 覆盖在头部
-  ctx.font='12px monospace';
-  ctx.textAlign='center';
-  ctx.textBaseline='middle';
-  ctx.fillText(emoji||'🐦',px,py-11);
-  // 名字标签（简化）
+  // 名字标签
+  const p=playerObj||{};
   if(p.name){
     ctx.fillStyle='rgba(0,0,0,0.6)';
     ctx.fillRect(px-20,py-28,40,12);
@@ -2600,9 +2606,9 @@ Lobby._drawMinimap = function(ctx){
     ctx.strokeRect(mx,my+4,mw,mh);
     // 区域底色（纯色块）
     const mmy=my+4;
-    ctx.fillStyle='#4a3828';ctx.fillRect(mx,mmy+800*sy,800*sx,700*sy);
-    ctx.fillStyle='#6a2828';ctx.fillRect(mx+1200*sx,mmy,800*sx,700*sy);
-    ctx.fillStyle='#3a4a2a';ctx.fillRect(mx+600*sx,mmy+400*sy,800*sx,700*sy);
+    ctx.fillStyle='#4a3828';ctx.fillRect(mx,mmy+400*sy,400*sx,350*sy);
+    ctx.fillStyle='#6a2828';ctx.fillRect(mx+600*sx,mmy,400*sx,350*sy);
+    ctx.fillStyle='#3a4a2a';ctx.fillRect(mx+300*sx,mmy+200*sy,400*sx,350*sy);
     // 桌子
     for(const t of this.tables){ctx.fillStyle=t.code?'#5a8a3c':'#7a7060';ctx.fillRect(mx+t.x*sx-2,mmy+t.y*sy-1,4,2)}
     // NPC位置
