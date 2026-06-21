@@ -1766,6 +1766,23 @@ const Lobby={
   hp:100, maxHp:100,
   _mouseDown:false,_wasMouseDown:false,
 
+  // 开火按钮按下
+  _fireDown(){
+    this._mouseDown=true;
+    if(this.joystick.active&&this.joystick.dx!==0){
+      this.me.faceDir=this.joystick.dx>0?1:-1;
+    }
+  },
+  // 开火按钮松开
+  _fireUp(){
+    this._mouseDown=false;
+  },
+  // 换枪
+  swapGun(){
+    this.currentGun=(this.currentGun+1)%this.guns.length;
+    toast('切换武器: '+this.guns[this.currentGun].name);
+  },
+
   init(){
     if(this.animId)return true;
     this.canvas=$('lobby-canvas');if(!this.canvas)return false;
