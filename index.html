@@ -295,6 +295,8 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       </div>
       <!-- 操作说明已移除（手游不需要） -->
       <button id="action-btn" onclick="Lobby.doAction()" style="position:absolute;bottom:70px;right:12px;z-index:20;width:60px;height:60px;background:rgba(42,32,16,.9);border:2px solid var(--gold);border-radius:50%;color:var(--gold);font-size:24px;cursor:pointer;display:none">👆</button>
+      <button id="fire-btn" ontouchstart="Lobby._fireDown()" ontouchend="Lobby._fireUp()" onmousedown="Lobby._fireDown()" onmouseup="Lobby._fireUp()" style="position:absolute;bottom:140px;right:12px;z-index:20;width:60px;height:60px;background:rgba(180,40,40,.9);border:2px solid #c4463a;border-radius:50%;color:#fff;font-size:24px;cursor:pointer;display:none">🔥</button>
+      <button id="swap-btn" onclick="Lobby.swapGun()" style="position:absolute;bottom:210px;right:12px;z-index:20;width:50px;height:50px;background:rgba(42,32,16,.9);border:2px solid var(--gold);border-radius:50%;color:var(--gold);font-size:18px;cursor:pointer;display:none">🔫</button>
     </div>
     <!-- 保留旧面板但默认隐藏，可后续切换显示 -->
     <div class="tables-grid" id="tables-grid" style="display:none"></div>
@@ -416,6 +418,6 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=220"></script>
+<script src="js/game.js?v=230"></script>
 </body>
 </html>

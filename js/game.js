@@ -1985,8 +1985,8 @@ const Lobby={
     for(const npc of this.npcs){
       const dx=this.me.x-npc.x,dy=this.me.y-npc.y;if(Math.sqrt(dx*dx+dy*dy)<40){
         const hint=$('interact-hint');
-        if(npc.type==='merchant'){hint.textContent='按 E 交易';hint.style.display='block';if(this.keys['e']){this.keys['e']=false;this.openNPCShop(npc)}}
-        else if(npc.type==='beggar'){hint.textContent='按 E 给物资';hint.style.display='block';if(this.keys['e']){this.keys['e']=false;this.giveToBeggar(npc)}}
+        if(npc.type==='merchant'){hint.textContent='点击交易';hint.style.display='block';this.openNPCShop(npc)}
+        else if(npc.type==='beggar'){hint.textContent='点击给物资';hint.style.display='block';this.giveToBeggar(npc)}
         else if(npc.type==='guard'){hint.textContent='守卫正在巡逻';hint.style.display='block';}
         return true;
       }
@@ -2068,36 +2068,86 @@ const Lobby={
 
   bindInput(){
     const c=this.canvas;this._onResize=()=>this.resize();window.addEventListener('resize',this._onResize);
-    this._onKeyDown=e=>{if(G.inGame&&G.gameType){return}this.keys[e.key.toLowerCase()]=true;if(e.key==='Enter'){const bar=$('chat-bar');if(bar&&bar.style.display!=='none'){sendChat();e.preventDefault()}else{toggleChat();e.preventDefault()}}if(e.key==='Escape'){const modals=document.querySelectorAll('.modal-overlay.open');if(modals.length>0){modals[modals.length-1].remove();return}const bar=$('chat-bar');if(bar)bar.style.display='none';closeEmoteWheel()}if(e.key.toLowerCase()==='q'){showEmoteWheel()}if(e.key==='q'||e.key==='Q'){this.currentGun=(this.currentGun+1)%this.guns.length;toast('切换武器: '+this.guns[this.currentGun].name)}if(e.key.toLowerCase()==='z'){this.me.sitting=!this.me.sitting;this.me.moving=false;if(this.me.sitting){this.me.emoji='🧘'}else{const ch=CHARACTERS[selectedChar];this.me.emoji=ch&&ch.skins?ch.skins[G.skinIndex||0]:ch?.emoji||'🐦'}this.broadcastPos()}};
-    this._onKeyUp=e=>{this.keys[e.key.toLowerCase()]=false};
-    window.addEventListener('keydown',this._onKeyDown);window.addEventListener('keyup',this._onKeyUp);
-    this._sprintHintTimer=setTimeout(()=>{if(this.keys['shift']===undefined)toast('按住 Shift 冲刺移动')},15000);
+    
+    // 触摸事件 - 摇杆区域
     this._onTouchStart=e=>{
-      const rect=c.getBoundingClientRect();
-      const t=e.changedTouches[0];
-      const tx=t.clientX-rect.left;
-      const ty=t.clientY-rect.top;
-      // 摇杆区域：左下45%宽度，下半屏
-      if(tx<rect.width*0.45&&ty>rect.height*0.5){
-        e.preventDefault();
-        if(this.joystick.active)return;
-        this._ignoreNextClick=true;
-        this.joystick.active=true;
-        this.joystick.touchId=t.identifier;
-        this.joystick.cx=tx;
-        this.joystick.cy=ty;
-        this.joystick.dx=0;
-        this.joystick.dy=0;
-        this.joystick.opacity=1;
+      for(let i=0;i<e.changedTouches.length;i++){
+        const t=e.changedTouches[i];
+        const rect=c.getBoundingClientRect();
+        const tx=t.clientX-rect.left;
+        const ty=t.clientY-rect.top;
+        // 摇杆区域：左下45%宽度，下半屏
+        if(tx<rect.width*0.45&&ty>rect.height*0.5){
+          e.preventDefault();
+          if(this.joystick.active)continue;
+          this._ignoreNextClick=true;
+          this.joystick.active=true;
+          this.joystick.touchId=t.identifier;
+          this.joystick.cx=tx;
+          this.joystick.cy=ty;
+          this.joystick.dx=0;
+          this.joystick.dy=0;
+          this.joystick.opacity=1;
+        }
       }
-      // 非摇杆区域不阻止默认行为，允许 click 事件正常触发
     };
-    this._onTouchMove=e=>{if(this.joystick.active){e.preventDefault();for(const t of e.changedTouches){if(t.identifier===this.joystick.touchId){const rect=c.getBoundingClientRect();const tx=t.clientX-rect.left;const ty=t.clientY-rect.top;let ddx=tx-this.joystick.cx;let ddy=ty-this.joystick.cy;const dist=Math.sqrt(ddx*ddx+ddy*ddy);if(dist>40){ddx=(ddx/dist)*40;ddy=(ddy/dist)*40}this.joystick.dx=ddx/40;this.joystick.dy=ddy/40;this.joystick.opacity=1}}}};
-    this._onTouchEnd=e=>{for(const t of e.changedTouches){if(t.identifier===this.joystick.touchId){this.joystick.active=false;this.joystick.dx=0;this.joystick.dy=0;this.joystick.touchId=null;this.joystick.opacity=0.4}}};
-    c.addEventListener('touchstart',this._onTouchStart,{passive:false});c.addEventListener('touchmove',this._onTouchMove,{passive:false});c.addEventListener('touchend',this._onTouchEnd);c.addEventListener('touchcancel',this._onTouchEnd);
-    // 鼠标按下射击
-    c.addEventListener('mousedown',(e)=>{if(e.button===0)this._mouseDown=true});
+    this._onTouchMove=e=>{
+      if(this.joystick.active){
+        e.preventDefault();
+        for(const t of e.changedTouches){
+          if(t.identifier===this.joystick.touchId){
+            const rect=c.getBoundingClientRect();
+            const tx=t.clientX-rect.left;
+            const ty=t.clientY-rect.top;
+            let ddx=tx-this.joystick.cx;
+            let ddy=ty-this.joystick.cy;
+            const dist=Math.sqrt(ddx*ddx+ddy*ddy);
+            if(dist>40){ddx=(ddx/dist)*40;ddy=(ddy/dist)*40}
+            this.joystick.dx=ddx/40;
+            this.joystick.dy=ddy/40;
+            this.joystick.opacity=1;
+          }
+        }
+      }
+    };
+    this._onTouchEnd=e=>{
+      for(const t of e.changedTouches){
+        if(t.identifier===this.joystick.touchId){
+          this.joystick.active=false;
+          this.joystick.dx=0;
+          this.joystick.dy=0;
+          this.joystick.touchId=null;
+          this.joystick.opacity=0.4;
+        }
+      }
+    };
+    c.addEventListener('touchstart',this._onTouchStart,{passive:false});
+    c.addEventListener('touchmove',this._onTouchMove,{passive:false});
+    c.addEventListener('touchend',this._onTouchEnd);
+    c.addEventListener('touchcancel',this._onTouchEnd);
+    
+    // 鼠标事件（用于PC测试）- 左键射击，右键交互
+    c.addEventListener('mousedown',(e)=>{
+      if(e.button===0){
+        this._mouseDown=true;
+        // 同时更新faceDir朝向鼠标
+        const rect=c.getBoundingClientRect();
+        const mx=e.clientX-rect.left;
+        const my=e.clientY-rect.top;
+        const worldX=mx+this.camera.x;
+        const worldY=my+this.camera.y;
+        this.me.faceDir=worldX>this.me.x?1:-1;
+      }
+    });
     c.addEventListener('mouseup',(e)=>{if(e.button===0)this._mouseDown=false});
+    c.addEventListener('mousemove',(e)=>{
+      const rect=c.getBoundingClientRect();
+      const mx=e.clientX-rect.left;
+      const my=e.clientY-rect.top;
+      const worldX=mx+this.camera.x;
+      const worldY=my+this.camera.y;
+      this.me.faceDir=worldX>this.me.x?1:-1;
+    });
   },
 
   update(dt){
@@ -2108,8 +2158,7 @@ const Lobby={
     else if(hour>=18&&hour<20){this.dayNightAlpha=(hour-18)/2*0.4}
     else if(hour>=20||hour<6){this.dayNightAlpha=0.6}
     const baseSpeed=280;const sprintSpeed=480;let dx=0,dy=0;
-    if(this.keys['w']||this.keys['arrowup'])dy=-1;if(this.keys['s']||this.keys['arrowdown'])dy=1;if(this.keys['a']||this.keys['arrowleft'])dx=-1;if(this.keys['d']||this.keys['arrowright'])dx=1;
-    let isSprinting=false;if(this.keys['shift'])isSprinting=true;
+    let isSprinting=false;
     if(this.joystick.active){const jLen=Math.sqrt(this.joystick.dx*this.joystick.dx+this.joystick.dy*this.joystick.dy);if(jLen>0.9)isSprinting=true}
     let speed=isSprinting?sprintSpeed:baseSpeed;
     speed*=1+G.stats.agility/200;
@@ -2188,7 +2237,7 @@ const Lobby={
       }
       if(b.life<=0)this.bullets.splice(i,1);
     }
-    // 自动射击
+    // 自动射击（按住开火按钮）
     if(this._mouseDown){
       const gun=this.guns[this.currentGun];
       if(gun.auto||!this._wasMouseDown){
@@ -2235,13 +2284,13 @@ const Lobby={
       }
     }
     if(this.me.sitting){hint.textContent='点击退出桌子';hint.style.display='block';hint.style.fontSize='16px';return;}
-    if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else{hint.style.display='none'}
+    if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;this.joinTable(nearTable)}else{hint.style.display='none'}
     // 检查附近的桌子 - 弹药补给
     for(const t of this.tables){
       const dx=t.x-this.me.x,dy=t.y-this.me.y;
       const dist=Math.sqrt(dx*dx+dy*dy);
       if(dist<60){
-        hint.textContent='按E补给弹药';
+        hint.textContent='点击补给弹药';
         hint.style.display='block';
         this._nearTable=t;
         return;
@@ -2764,7 +2813,7 @@ const Lobby={
     ctx.fillRect(8,this.h-96,140,14);
     ctx.fillStyle='#6a6050';
     ctx.font='8px monospace';
-    ctx.fillText('Q换枪 | 鼠标射击',14,this.h-93);
+    ctx.fillText('🔫换枪 | 🔥开火',14,this.h-93);
   },
 
   startLoop(){
@@ -2778,14 +2827,15 @@ const Lobby={
     };this.animId=requestAnimationFrame(loop);
   },
 
-  stop(){if(this.animId){cancelAnimationFrame(this.animId);this.animId=null}if(this._onResize){window.removeEventListener('resize',this._onResize);this._onResize=null}if(this._onKeyDown){window.removeEventListener('keydown',this._onKeyDown);this._onKeyDown=null}if(this._onKeyUp){window.removeEventListener('keyup',this._onKeyUp);this._onKeyUp=null}if(this._onTouchStart&&this.canvas){this.canvas.removeEventListener('touchstart',this._onTouchStart);this.canvas.removeEventListener('touchmove',this._onTouchMove);this.canvas.removeEventListener('touchend',this._onTouchEnd);this.canvas.removeEventListener('touchcancel',this._onTouchEnd);this._onTouchStart=null;this._onTouchMove=null;this._onTouchEnd=null}if(this._sprintHintTimer){clearTimeout(this._sprintHintTimer);this._sprintHintTimer=null}},
+  stop(){if(this.animId){cancelAnimationFrame(this.animId);this.animId=null}if(this._onResize){window.removeEventListener('resize',this._onResize);this._onResize=null}if(this._onTouchStart&&this.canvas){this.canvas.removeEventListener('touchstart',this._onTouchStart);this.canvas.removeEventListener('touchmove',this._onTouchMove);this.canvas.removeEventListener('touchend',this._onTouchEnd);this.canvas.removeEventListener('touchcancel',this._onTouchEnd);this._onTouchStart=null;this._onTouchMove=null;this._onTouchEnd=null}},
 
   showTutorial(){
     const steps=[{text:'WASD或方向键移动角色',x:this.w/2,y:this.h/2+60},{text:'走近桌子按E或点击加入',x:this.w/2,y:this.h/2+60},{text:'点击右上角搭新桌创建房间',x:this.w/2,y:80},{text:'Enter键打开聊天',x:this.w/2,y:this.h-80}];let idx=0;
     const showNext=()=>{if(idx>=steps.length){localStorage.setItem('wl_tutorial','1');return}const s=steps[idx];const div=document.createElement('div');div.className='tutorial-overlay';div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px';div.innerHTML=`<div style="background:var(--panel);border:1px solid var(--gold);padding:20px 28px;border-radius:4px;text-align:center;max-width:300px"><div style="font-size:14px;color:var(--text);margin-bottom:12px">${s.text}</div><button style="background:var(--gold);border:none;color:#1a1610;padding:8px 20px;border-radius:2px;font-size:12px;font-weight:700;cursor:pointer">下一步 (${idx+1}/${steps.length})</button></div>`;document.body.appendChild(div);div.querySelector('button').onclick=()=>{div.remove();idx++;showNext()}};showNext();
   },
 
-  show(){this.init();if(!this.animId)this.startLoop()},hide(){this.stop()}
+  show(){this.init();if(!this.animId)this.startLoop();const actionBtn=$('action-btn');if(actionBtn)actionBtn.style.display='block';const fireBtn=$('fire-btn');if(fireBtn)fireBtn.style.display='block';const swapBtn=$('swap-btn');if(swapBtn)swapBtn.style.display='block';},
+  hide(){this.stop();const actionBtn=$('action-btn');if(actionBtn)actionBtn.style.display='none';const fireBtn=$('fire-btn');if(fireBtn)fireBtn.style.display='none';const swapBtn=$('swap-btn');if(swapBtn)swapBtn.style.display='none';}
 };
 
 const _origRenderLobby=renderLobby;
