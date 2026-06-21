@@ -1006,7 +1006,8 @@ function handleChatMsg(msg){
     const p=Lobby.others.get(msg.id);
     if(p){const dx=p.x-Lobby.me.x,dy=p.y-Lobby.me.y;if(Math.sqrt(dx*dx+dy*dy)>maxDist)return;p.reaction='💬';p.reactionTime=Date.now();}
   }
-  showChatBubble(msg.id,msg.name,msg.text,msg.emoji);
+  if(typeof showChatBubble==='function'){showChatBubble(msg.id,msg.name,msg.text,msg.emoji)}
+  else{toast(`${msg.name}: ${msg.text}`)}
   Sound.chat();
 }
 function showChatBubble(id,name,text,emoji){
@@ -1028,7 +1029,8 @@ function sendChat(){
   const msg={id:G.myId,name:G.user,text,emoji:emoji,ts:Date.now()};
   G.mqtt.publish(TOPIC_CHAT,JSON.stringify(msg),{qos:0});
   input.value='';
-  showChatBubble(G.myId,G.user,text,msg.emoji);
+  if(typeof showChatBubble==='function'){showChatBubble(G.myId,G.user,text,msg.emoji)}
+  else{toast(`${G.user}: ${text}`)}
   Sound.click();
   Lobby.me.reaction='💬';Lobby.me.reactionTime=Date.now();
 }
@@ -1900,8 +1902,8 @@ const Lobby={
       const t=e.changedTouches[0];
       const tx=t.clientX-rect.left;
       const ty=t.clientY-rect.top;
-      // 只在摇杆区域阻止默认行为
-      if(tx<rect.width*0.35&&ty>rect.height*0.6){
+      // 摇杆区域：左下45%宽度，下半屏
+      if(tx<rect.width*0.45&&ty>rect.height*0.5){
         e.preventDefault();
         if(this.joystick.active)return;
         this._ignoreNextClick=true;
@@ -1921,7 +1923,7 @@ const Lobby={
   },
 
   update(dt){
-    this.dayNightCycle+=dt*2;
+    this.dayNightCycle+=dt*0.5;
     this.gameTime=(this.dayNightCycle/24)%24;
     const hour=this.gameTime;
     if(hour>=6&&hour<18){this.dayNightAlpha=0}
@@ -1939,7 +1941,7 @@ const Lobby={
     if(this.me.sitting){dx=0;dy=0;this.me.moving=false}
     const isMovingNow=(dx!==0||dy!==0)||(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0))||this.me.moving;
     if(dx!==0||dy!==0){const len=Math.sqrt(dx*dx+dy*dy);dx/=len;dy/=len;this.lastDir.x=dx;this.lastDir.y=dy;this.me.faceDir=dx<0?-1:1;this.me.x+=dx*speed*dt;this.me.y+=dy*speed*dt;this.me.moving=true;this.me.animState='walk'}
-    else if(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0)){this.lastDir.x=this.joystick.dx;this.lastDir.y=this.joystick.dy;this.me.faceDir=this.joystick.dx<0?-1:1;this.me.x+=this.joystick.dx*speed*dt;this.me.y+=this.joystick.dy*speed*dt;this.me.moving=true;this.me.animState='walk'}
+    else if(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0)){if(this.me.moving){this.me.moving=false;this.me.tx=this.me.x;this.me.ty=this.me.y;}this.lastDir.x=this.joystick.dx;this.lastDir.y=this.joystick.dy;this.me.faceDir=this.joystick.dx<0?-1:1;this.me.x+=this.joystick.dx*speed*dt;this.me.y+=this.joystick.dy*speed*dt;this.me.moving=true;this.me.animState='walk'}
     else if(this.me.moving){const tx=this.me.tx,ty=this.me.ty;const ddx=tx-this.me.x,ddy=ty-this.me.y;const dist=Math.sqrt(ddx*ddx+ddy*ddy);if(dist<5){this.me.moving=false;this.me.animState='idle'}else{const mx=(ddx/dist)*speed*dt,my=(ddy/dist)*speed*dt;this.me.x+=mx;this.me.y+=my;this.me.faceDir=mx<0?-1:1;this.me.animState='walk'}}
     else{this.me.animState='idle'}
     const chClimb=CHARACTERS[selectedChar];const hasClimb=chClimb&&chClimb.skills&&chClimb.skills.find(s=>s.effect==='climb'&&s.unlocked);const margin=hasClimb?0:16;this.me.x=Math.max(margin,Math.min(this.mapW-margin,this.me.x));this.me.y=Math.max(margin,Math.min(this.mapH-margin,this.me.y));
@@ -1981,6 +1983,7 @@ const Lobby={
     let nearBarrel=null;for(const b of this.barrels){if(b.state!=='idle')continue;const dx=b.x-this.me.x,dy=b.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<30){nearBarrel=b;break}}
     // 检查长椅
     let nearBench=null;for(const b of this.benches){const dx=b.x-this.me.x,dy=b.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<40){nearBench=b;break}}
+    if(this.me.sitting){hint.textContent='点击退出桌子';hint.style.display='block';hint.style.fontSize='16px';return;}
     if(this.checkNPCInteraction()){}
     else if(nearTable){const isMobile=('ontouchstart' in window)||this.w<640;const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';const actionText=isMobile?'点击加入':'按 E 或点击加入';hint.textContent=`${nearTable.label}${status} — ${actionText}`;hint.style.display='block';hint.style.fontSize=isMobile?'16px':'13px';const pulse=0.7+Math.sin(this.time*4)*.3;hint.style.opacity=pulse;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else if(nearCrate){hint.textContent='按 E 打开物资箱';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=0.7+Math.sin(this.time*4)*.3;if(this.keys['e']){this.keys['e']=false;this.openCrate(nearCrate)}}else if(nearBarrel){hint.textContent='按 E 踢油桶';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=0.7+Math.sin(this.time*4)*.3;if(this.keys['e']){this.keys['e']=false;this.kickBarrel(nearBarrel)}}else if(nearBench){hint.textContent='按 E 坐下 / 点击长椅';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=0.7+Math.sin(this.time*4)*.3;if(this.keys['e']){this.keys['e']=false;sitOnBench()}}else{hint.style.display='none'}
   },
@@ -2012,7 +2015,23 @@ const Lobby={
     toast('传送门：你被传送到了地图另一端！');Sound.win();
   },
 
-  joinTable(table){if(table.players>=table.max){toast('这桌满了');return}if(table.code){Sound.join();doJoinTable(table.code);const gameType=table.label.includes('炸金花')?'zjh':table.label.includes('21点')?'bj':'dice';Sound.stopAmbient();Sound.startRoomBGM(gameType);}else{toast('空桌子，先搭一个吧');showCreateModal()}},
+  joinTable(table){
+    if(table.players>=table.max){toast('这桌满了');return}
+    if(table.code){
+      this.me.sitting=true;
+      this.me.moving=false;
+      this.me.sitTable=table;
+      toast(`已坐到 ${table.label}，点击退出才能移动`);
+      Sound.join();
+      const hint=$('interact-hint');
+      if(hint)hint.textContent='已入座 — 点击退出桌子';
+    }else{toast('空桌子，先搭一个吧');showCreateModal()}
+  },
+  leaveTable(){
+    this.me.sitting=false;
+    this.me.sitTable=null;
+    toast('已离开桌子');
+  },
 
   broadcastPos(){if(!G.mqtt||!G.mqttConnected)return;const msg={type:'pos',x:Math.round(this.me.x),y:Math.round(this.me.y),name:G.user,emoji:this.me.emoji,sitting:this.me.sitting,animState:this.me.animState,faceDir:this.me.faceDir};G.mqtt.publish(`wl_pos_v6/${G.myId}`,JSON.stringify(msg),{qos:0})},
 
@@ -2136,7 +2155,7 @@ const Lobby={
   getRegionName(r){return{slum:'贫民区',black:'黑市区',safe:'安全区'}[r]||''},
   _drawFloor(ctx){
     const tileSize=80;const startX=Math.floor(this.camera.x/tileSize)*tileSize;const startY=Math.floor(this.camera.y/tileSize)*tileSize;const endX=startX+this.w+tileSize;const endY=startY+this.h+tileSize;
-    for(let tx=startX;tx<endX;tx+=tileSize){for(let ty=startY;ty<endY;ty+=tileSize){if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);const baseColor=this.getRegionColor(region);const dark=((tx/tileSize+ty/tileSize)%2===0);ctx.fillStyle=dark?baseColor:adjustColor(baseColor,4);ctx.fillRect(tx,ty,tileSize,tileSize);ctx.fillStyle=dark?'rgba(0,0,0,.03)':'rgba(255,255,255,.02)';ctx.fillRect(tx+2,ty+2,tileSize-4,tileSize-4)}}
+    for(let tx=startX;tx<endX;tx+=tileSize){for(let ty=startY;ty<endY;ty+=tileSize){if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);const baseColor=this.getRegionColor(region);const dark=((tx/tileSize+ty/tileSize)%2===0);ctx.fillStyle=dark?baseColor:adjustColor(baseColor,4);ctx.fillRect(tx,ty,tileSize,tileSize);ctx.fillStyle=dark?'rgba(0,0,0,.03)':'rgba(255,255,255,.02)';ctx.fillRect(tx+2,ty+2,tileSize-4,tileSize-4);ctx.strokeStyle='rgba(0,0,0,.08)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx+tileSize,ty);ctx.stroke();ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx,ty+tileSize);ctx.stroke();if((tx/tileSize+ty/tileSize)%3===0){ctx.fillStyle='rgba(0,0,0,.05)';ctx.fillRect(tx+tileSize/2-2,ty+tileSize/2-2,4,4);}}}
     // 区域边界渐变过渡带（50px宽）
     this._drawRegionBorders(ctx);
   },
@@ -2273,6 +2292,15 @@ function bindLobbyCanvasClick(){
         }
       }
     }
+    // 检查是否点击了小地图
+    const mx=Lobby.w-120-12,my=12;
+    if(screenX>=mx&&screenX<=mx+120&&screenY>=my&&screenY<=my+80){
+      const region=Lobby.getRegionName(Lobby.currentRegion)||'未知区域';
+      toast(`📍 ${region} (${Math.round(Lobby.me.x)},${Math.round(Lobby.me.y)})`);
+      return;
+    }
+    // 如果正在坐着，点击退出桌子
+    if(Lobby.me.sitting){Lobby.leaveTable();return}
     // 先检查是否点击了桌子
     let clickedTable=false;
     for(const t of Lobby.tables){
