@@ -1747,26 +1747,31 @@ const Lobby={
   init(){
     if(this.animId)return true;
     this.canvas=$('lobby-canvas');if(!this.canvas)return false;
-    this.ctx=this.canvas.getContext('2d');this.resize();
+    this.ctx=this.canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled=false;
+    this.resize();
     this.me.name=G.user||'幸存者';const chInit=CHARACTERS[selectedChar];this.me.emoji=chInit&&chInit.skins?chInit.skins[G.skinIndex||0]:chInit?.emoji||'🐦';this.keys={};
     if(_savedPos){this.me.x=_savedPos.x;this.me.y=_savedPos.y;_savedPos=null}
     this.time=0;this.welcomeTime=2;this.fountainTime=0;updateQuestPanel();
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
-    this.fountainParticles=[];for(let i=0;i<30;i++){this.fountainParticles.push({x:this.mapW/2,y:this.mapH/2,vx:(Math.random()-.5)*1.5,vy:-Math.random()*2-1,life:Math.random()*2,maxLife:2+Math.random()})}
+    // 移除喷泉粒子（减少光污染）
+    this.fountainParticles=[];
     this.lootCrates=[];const cratePositions=[[250,250],[1700,1200],[300,1200],[1600,300],[900,600]];for(const[posX,posY]of cratePositions){this.lootCrates.push({x:posX,y:posY,opened:false,cooldown:0,sparkleTime:Math.random()*Math.PI*2,openAnim:0})}
     this.barrels=[];const barrelPositions=[[400,400],[1500,1100],[600,1300],[1800,500],[800,700]];for(const[posX,posY]of barrelPositions){this.barrels.push({x:posX,y:posY,state:'idle',vx:0,vy:0,respawnTimer:0,explodeAnim:0})}
     this.portal={x:100,y:750,active:true,respawnTimer:0};
     const chScrap=CHARACTERS[selectedChar];const hasFindScrap=chScrap&&chScrap.skills&&chScrap.skills.find(s=>s.effect==='findScrap'&&s.unlocked);const scrapCountInit=hasFindScrap?20:15;
     this.scraps=[];for(let i=0;i<scrapCountInit;i++){this.scraps.push({x:50+Math.random()*(this.mapW-100),y:50+Math.random()*(this.mapH-100),collected:false,rot:Math.random()*Math.PI*2})}
-    this.scrapCount=0;this.ambientParticles=[];for(let i=0;i<20;i++){this.ambientParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*3,size:1+Math.random()*1.5})}
-    this._dustParticles=[];for(let i=0;i<40;i++){this._dustParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*2,vy:(Math.random()-.5)*1+0.3,size:0.5+Math.random()*1.5,alpha:0.1+Math.random()*0.3})}
-    this._particlePool=[];for(let i=0;i<100;i++){this._particlePool.push({x:0,y:0,vx:0,vy:0,life:0,maxLife:1,size:2,color:'#fff',active:false})}
+    this.scrapCount=0;
+    // 环境粒子大幅减少
+    this.ambientParticles=[];for(let i=0;i<5;i++){this.ambientParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*2,vy:(Math.random()-.5)*1,size:1+Math.random()})}
+    this._dustParticles=[];for(let i=0;i<10;i++){this._dustParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*1,vy:(Math.random()-.5)*0.5+0.2,size:0.5+Math.random(),alpha:0.1+Math.random()*0.2})}
+    this._particlePool=[];for(let i=0;i<20;i++){this._particlePool.push({x:0,y:0,vx:0,vy:0,life:0,maxLife:1,size:2,color:'#fff',active:false})}
     this._cachedDecor=null;this._lastLightAngle=0;this._lightAngle=0;this._hoveredTable=null;this._screenShake=0;this._transitionAlpha=0;this._transitionTarget=0;
     this.weatherParticles=[];this.greenTrails=[];this.lastWeatherCollect=0;this._regionFlash=0;this._regionFlashColor='';
     this.initWeather();this.initNPCs();
     // 只生成少量极淡环境粒子
     for(let i=0;i<5;i++){
-      this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*0.3,vy:(Math.random()-.5)*0.3,life:5+Math.random()*3,size:15+Math.random()*20,color:'rgba(200,200,220,0.02)',type:'fog'});
+      this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*0.3,vy:(Math.random()-.5)*0.3,life:5+Math.random()*3,size:2,color:'rgba(200,200,220,0.02)',type:'fog'});
     }
     this.bindInput();bindLobbyCanvasClick();this.startLoop();return true;
   },
@@ -1796,15 +1801,35 @@ const Lobby={
     for(const npc of this.npcs){
       let alpha=1;if(G.weather.type==='fog'){const ddx=npc.x-this.me.x,ddy=npc.y-this.me.y;const d=Math.sqrt(ddx*ddx+ddy*ddy);if(d>300)alpha=Math.max(0.1,1-(d-300)/400)}
       ctx.globalAlpha=alpha;
-      ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(npc.emoji,npc.x,npc.y);
-      // NPC标记
-      ctx.fillStyle='#b8960f';ctx.font='bold 8px sans-serif';ctx.fillText('NPC',npc.x,npc.y-22);
-      // 金色边框名字标签
-      const nameW=ctx.measureText(npc.name).width;
-      ctx.fillStyle='rgba(0,0,0,.7)';ctx.beginPath();ctx.roundRect(npc.x-nameW/2-6,npc.y-42,nameW+12,14,3);ctx.fill();
-      ctx.strokeStyle='rgba(184,150,15,.7)';ctx.lineWidth=1;ctx.stroke();
-      ctx.fillStyle='#b8960f';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(npc.name,npc.x,npc.y-35);
-      if(npc.bubble){const age=(Date.now()-npc.bubble.ts)/5000;const ba=Math.max(0,1-age);const bubbleW=ctx.measureText(npc.bubble.text).width+24;ctx.fillStyle=`rgba(255,255,255,${ba*0.92})`;ctx.beginPath();ctx.roundRect(npc.x-bubbleW/2,npc.y-72,bubbleW,28,8);ctx.fill();ctx.strokeStyle=`rgba(184,150,15,${ba*0.7})`;ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle=`rgba(40,30,20,${ba})`;ctx.font='bold 14px "Noto Sans SC",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(npc.bubble.text,npc.x,npc.y-58)}
+      const nx=Math.floor(npc.x),ny=Math.floor(npc.y);
+      // 像素风格NPC：简单方块身体
+      ctx.fillStyle='#5a4a30';
+      ctx.fillRect(nx-6,ny-4,12,14);
+      ctx.fillStyle='#7a6a50';
+      ctx.fillRect(nx-4,ny-12,8,8);
+      ctx.font='12px monospace';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText(npc.emoji||'🧔',nx,ny-8);
+      // 简化名字标签
+      ctx.fillStyle='rgba(0,0,0,0.6)';
+      ctx.fillRect(nx-22,ny-28,44,12);
+      ctx.fillStyle='#b8960f';
+      ctx.font='9px monospace';
+      ctx.textAlign='center';
+      ctx.fillText(npc.name||'NPC',nx,ny-22);
+      if(npc.bubble){
+        const age=(Date.now()-npc.bubble.ts)/5000;
+        const ba=Math.max(0,1-age);
+        if(ba>0){
+          ctx.fillStyle=`rgba(0,0,0,${ba*0.7})`;
+          ctx.fillRect(nx-40,ny-50,80,14);
+          ctx.fillStyle=`rgba(212,200,160,${ba})`;
+          ctx.font='9px monospace';
+          ctx.textAlign='center';
+          ctx.fillText(npc.bubble.text,nx,ny-42);
+        }
+      }
       ctx.globalAlpha=1;
     }
   },
@@ -1837,8 +1862,8 @@ const Lobby={
     G.tempLuckBonus=0;
   },
   randomWeatherInterval(){return(3+Math.random()*2)*60*1000},
-  getWeatherName(type){const names={clear:'晴朗',sandstorm:'沙尘暴','rad rain':'辐射雨',fog:'浓雾'};return names[type]||type},
-  getWeatherIcon(type){const icons={clear:'☀️',sandstorm:'🌪️','rad rain':'☢️',fog:'🌫️'};return icons[type]||'🌤️'},
+  getWeatherName(type){const names={clear:'晴朗',fog:'浓雾'};return names[type]||type},
+  getWeatherIcon(type){const icons={clear:'☀️',fog:'🌫️'};return icons[type]||'🌤️'},
   updateWeather(dt){
     const now=Date.now();
     if(now>=G.weather.nextChange){
@@ -1848,7 +1873,7 @@ const Lobby={
       G.weather.intensity=0.5+Math.random()*0.5;
       G.weather.timer=0;
       G.weather.nextChange=now+this.randomWeatherInterval();
-      if(G.weather.type==='clear'){G.tempLuckBonus=5;toast(`天气变晴朗！幸运值临时+5%`)}else{G.tempLuckBonus=0}
+      if(G.weather.type==='clear'){G.tempLuckBonus=5;toast('天气变晴朗！幸运值临时+5%')}else{G.tempLuckBonus=0}
       if(oldType!==G.weather.type){
         toast(`天气变为${this.getWeatherName(G.weather.type)} ${this.getWeatherIcon(G.weather.type)}`);
         this.broadcastWeather();
@@ -1856,17 +1881,17 @@ const Lobby={
       }
     }
     G.weather.timer+=dt;
-    // 只保留雾粒子，沙尘暴和辐射雨已移除
+    // 极少量雾粒子
     if(G.weather.type==='fog'){
-      if(Math.random()<0.1){
-        this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*0.5,vy:(Math.random()-.5)*0.5,life:3+Math.random()*2,size:20+Math.random()*40,color:'rgba(200,200,220,0.03)',type:'fog'});
+      if(Math.random()<0.02){
+        this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*0.2,vy:(Math.random()-.5)*0.2,life:5+Math.random()*3,size:2,color:'rgba(200,200,220,0.02)',type:'fog'});
       }
     }
     for(let i=this.weatherParticles.length-1;i>=0;i--){
       const p=this.weatherParticles[i];p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.life-=dt;
       if(p.life<=0||p.x>this.mapW+50||p.y>this.mapH+50)this.weatherParticles.splice(i,1);
     }
-    if(this.weatherParticles.length>300)this.weatherParticles.length=300;
+    if(this.weatherParticles.length>5)this.weatherParticles.length=5;
   },
   broadcastWeather(){
     if(!G.mqtt||!G.mqttConnected)return;
@@ -1885,7 +1910,9 @@ const Lobby={
     const dpr=window.devicePixelRatio||1;
     this.canvas.width=rect.width*dpr;this.canvas.height=rect.height*dpr;
     this.canvas.style.width=rect.width+'px';this.canvas.style.height=rect.height+'px';
-    this.ctx=this.canvas.getContext('2d');this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.ctx=this.canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled=false;
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
     this.w=rect.width;this.h=rect.height;
     this.floorCache=null;this.dirty=true;this._cachedDecor=null;this._vignetteGrad=null;
     this.particles=[];this.me.x=Math.max(30,Math.min(this.mapW-30,this.me.x));this.me.y=Math.max(30,Math.min(this.mapH-30,this.me.y));
@@ -1954,13 +1981,14 @@ const Lobby={
     const now=Date.now();if(now-this.lastBroadcast>100){this.lastBroadcast=now;this.broadcastPos()}
     for(const[id,p]of this.others){if(now-p.lastSeen>10000)this.others.delete(id)}
     for(const[id,p]of this.others){if(p.tx!==undefined){p.x+=(p.tx-p.x)*0.15;p.y+=(p.ty-p.y)*0.15}if(p.fadeIn<1)p.fadeIn=Math.min(1,p.fadeIn+0.05);if(p.scale<1)p.scale=Math.min(1,p.scale+0.04);if(p.reaction&&now-p.reactionTime>2000)p.reaction=null;if(p.warpParticles){for(let i=p.warpParticles.length-1;i>=0;i--){const wp=p.warpParticles[i];wp.x+=wp.vx;wp.y+=wp.vy;wp.life-=dt*2;if(wp.life<=0)p.warpParticles.splice(i,1)}}}
-    if(isMovingNow&&Math.random()<.4){const pCount=isSprinting?2:1;for(let pi=0;pi<pCount;pi++){this.walkParticles.push({x:this.me.x+(Math.random()-.5)*8,y:this.me.y+12,vy:-Math.random()*.6-.3,life:1,size:1.5+Math.random(),color:isSprinting?'#ffdd88':'#b4a078'});}if(Math.random()<.12)Sound.step()}
+    if(isMovingNow&&Math.random()<.2){const pCount=isSprinting?1:0;for(let pi=0;pi<pCount;pi++){this.walkParticles.push({x:this.me.x+(Math.random()-.5)*8,y:this.me.y+12,vy:-Math.random()*.6-.3,life:1,size:1.5+Math.random(),color:isSprinting?'#ffdd88':'#b4a078'});}if(Math.random()<.06)Sound.step()}
     // 辐射雨绿色轨迹已移除
-    for(let i=this.greenTrails.length-1;i>=0;i--){const gt=this.greenTrails[i];gt.life-=dt;if(gt.life<=0)this.greenTrails.splice(i,1)}
-    for(let i=this.walkParticles.length-1;i>=0;i--){const wp=this.walkParticles[i];wp.y+=wp.vy*dt*60;wp.life-=dt*2;if(wp.life<=0)this.walkParticles.splice(i,1)}if(this.walkParticles.length>60)this.walkParticles.length=60;
+    this.greenTrails=[];
+    for(let i=this.walkParticles.length-1;i>=0;i--){const wp=this.walkParticles[i];wp.y+=wp.vy*dt*60;wp.life-=dt*2;if(wp.life<=0)this.walkParticles.splice(i,1)}if(this.walkParticles.length>20)this.walkParticles.length=20;
     for(const ap of this.ambientParticles){ap.x+=ap.vx*dt;ap.y+=ap.vy*dt;if(ap.x<0)ap.x+=this.mapW;if(ap.x>this.mapW)ap.x-=this.mapW;if(ap.y<0)ap.y+=this.mapH;if(ap.y>this.mapH)ap.y-=this.mapH}
     for(const dp of this._dustParticles){dp.x+=dp.vx*dt;dp.y+=dp.vy*dt;if(dp.x<0)dp.x+=this.mapW;if(dp.x>this.mapW)dp.x-=this.mapW;if(dp.y<0)dp.y+=this.mapH;if(dp.y>this.mapH)dp.y-=this.mapH}
-    this.fountainTime+=dt;for(const fp of this.fountainParticles){fp.x+=fp.vx;fp.y+=fp.vy;fp.vy+=0.04;fp.life+=dt;if(fp.life>fp.maxLife||fp.y>this.mapH/2+20){fp.x=this.mapW/2;fp.y=this.mapH/2;fp.vx=(Math.random()-.5)*1.5;fp.vy=-Math.random()*2-1;fp.life=0}}
+    // 喷泉粒子已移除
+    this.fountainTime+=dt;
     for(const crate of this.lootCrates){crate.sparkleTime+=dt*3;if(crate.cooldown>0){crate.cooldown-=dt;if(crate.cooldown<0)crate.cooldown=0}if(crate.openAnim>0){crate.openAnim-=dt*2;if(crate.openAnim<0)crate.openAnim=0}}
     for(const b of this.barrels){
       if(b.state==='rolling'){b.x+=b.vx*dt*60;b.y+=b.vy*dt*60;b.vx*=0.95;b.vy*=0.95;if(Math.sqrt(b.vx*b.vx+b.vy*b.vy)<10){b.state='explode';b.explodeAnim=1;this.doBarrelExplosion(b.x,b.y)}}
@@ -1974,7 +2002,8 @@ const Lobby={
   },
 
   checkTableInteraction(){
-    const hint=$('interact-hint');let nearTable=null;let minDist=Infinity;
+    const hint=$('interact-hint');if(!hint)return;
+    let nearTable=null;let minDist=Infinity;
     for(const t of this.tables){const dx=t.x-this.me.x,dy=t.y-this.me.y;const dist=Math.sqrt(dx*dx+dy*dy);if(dist<70&&dist<minDist){minDist=dist;nearTable=t}}
     this._hoveredTable=nearTable;
     // 检查物资箱
@@ -1985,7 +2014,7 @@ const Lobby={
     let nearBench=null;for(const b of this.benches){const dx=b.x-this.me.x,dy=b.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<40){nearBench=b;break}}
     if(this.me.sitting){hint.textContent='点击退出桌子';hint.style.display='block';hint.style.fontSize='16px';return;}
     if(this.checkNPCInteraction()){}
-    else if(nearTable){const isMobile=('ontouchstart' in window)||this.w<640;const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';const actionText=isMobile?'点击加入':'按 E 或点击加入';hint.textContent=`${nearTable.label}${status} — ${actionText}`;hint.style.display='block';hint.style.fontSize=isMobile?'16px':'13px';const pulse=0.7+Math.sin(this.time*4)*.3;hint.style.opacity=pulse;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else if(nearCrate){hint.textContent='按 E 打开物资箱';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=0.7+Math.sin(this.time*4)*.3;if(this.keys['e']){this.keys['e']=false;this.openCrate(nearCrate)}}else if(nearBarrel){hint.textContent='按 E 踢油桶';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=0.7+Math.sin(this.time*4)*.3;if(this.keys['e']){this.keys['e']=false;this.kickBarrel(nearBarrel)}}else if(nearBench){hint.textContent='按 E 坐下 / 点击长椅';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=0.7+Math.sin(this.time*4)*.3;if(this.keys['e']){this.keys['e']=false;sitOnBench()}}else{hint.style.display='none'}
+    else if(nearTable){const isMobile=('ontouchstart' in window)||this.w<640;const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';const actionText=isMobile?'点击加入':'按 E 或点击加入';hint.textContent=`${nearTable.label}${status} — ${actionText}`;hint.style.display='block';hint.style.fontSize=isMobile?'16px':'13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else if(nearCrate){hint.textContent='按 E 打开物资箱';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.openCrate(nearCrate)}}else if(nearBarrel){hint.textContent='按 E 踢油桶';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.kickBarrel(nearBarrel)}}else if(nearBench){hint.textContent='按 E 坐下 / 点击长椅';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;sitOnBench()}}else{hint.style.display='none'}
   },
 
   openCrate(crate){
@@ -2057,15 +2086,17 @@ const Lobby={
     ctx.fillRect(0,0,this.mapW,20);ctx.fillRect(0,this.mapH-20,this.mapW,20);
     ctx.fillRect(0,0,20,this.mapH);ctx.fillRect(this.mapW-20,0,20,this.mapH);
     // 装饰物
-    if(this._cachedDecor){ctx.drawImage(this._cachedDecor,0,0)}else{const dc=document.createElement('canvas');dc.width=this.mapW;dc.height=this.mapH;const dctx=dc.getContext('2d');_drawDecorFunc(dctx,this.mapW,this.mapH);this._cachedDecor=dc;ctx.drawImage(dc,0,0)}
+    if(this._cachedDecor){ctx.drawImage(this._cachedDecor,0,0)}else{const dc=document.createElement('canvas');dc.width=this.mapW;dc.height=this.mapH;const dctx=dc.getContext('2d');dctx.imageSmoothingEnabled=false;_drawDecorFunc(dctx,this.mapW,this.mapH);this._cachedDecor=dc;ctx.drawImage(dc,0,0)}
+    // 废金属
+    this._drawScraps(ctx);
     // 物资箱
     for(const crate of this.lootCrates){this._drawCrate(ctx,crate)}
     // 油桶
     for(const b of this.barrels){if(b.state!=='dead')this._drawBarrel(ctx,b)}
     // 传送门
     if(this.portal)this._drawPortal(ctx,this.portal);
-    // 长椅
-    for(const b of this.benches){ctx.fillStyle='#5a4a30';ctx.fillRect(b.x-22,b.y-9,44,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=2;ctx.strokeRect(b.x-22,b.y-9,44,18);ctx.fillStyle='#3a3020';ctx.fillRect(b.x-18,b.y-14,36,5);ctx.fillRect(b.x-18,b.y+9,36,5)}
+    // 长椅（像素风格）
+    for(const b of this.benches){const bx=Math.floor(b.x),by=Math.floor(b.y);ctx.fillStyle='#5a4a30';ctx.fillRect(bx-22,by-9,44,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=2;ctx.strokeRect(bx-22,by-9,44,18);ctx.fillStyle='#3a3020';ctx.fillRect(bx-18,by-14,36,5);ctx.fillRect(bx-18,by+9,36,5)}
     // 桌子
     for(const t of this.tables){const dx=t.x-this.me.x,dy=t.y-this.me.y;const dist=Math.sqrt(dx*dx+dy*dy);const isHovered=dist<50;const isFull=t.code&&t.players>=t.max;_drawTable(ctx,t,isHovered,isFull,this.time)}
     // 绿色轨迹已移除（辐射雨已移除）
@@ -2078,23 +2109,24 @@ const Lobby={
       // 沙尘暴透明度已移除
       ctx.globalAlpha=pAlpha;
       _drawAnimatedPlayer(ctx,p.x,p.y,p.emoji||'🐦',p,false,this.time);
-      _drawNameTag(ctx,p.x,p.y-28,p.name||'幸存者',false);
       ctx.globalAlpha=1;
     }
     // 自己
     _drawAnimatedPlayer(ctx,this.me.x,this.me.y,this.me.emoji,this.me,true,this.time);
-    _drawNameTag(ctx,this.me.x,this.me.y-32,this.me.name,true)
     // 行走粒子
     _drawWalkParticles(ctx,this.walkParticles);
     // 环境粒子
     _drawAmbientParticles(ctx,this.ambientParticles);
     // 灰尘粒子
     _drawDustParticles(ctx,this._dustParticles);
-    // 天气粒子
+    // 天气粒子极简化（最多5个）
+    let wpCount=0;
     for(const wp of this.weatherParticles){
+      if(wpCount>=5)break;
       ctx.globalAlpha=Math.min(1,wp.life);
-      if(wp.type==='fog'){ctx.fillStyle=wp.color;ctx.beginPath();ctx.arc(wp.x,wp.y,wp.size,0,Math.PI*2);ctx.fill()}
-      else{ctx.fillStyle=wp.color;ctx.beginPath();ctx.arc(wp.x,wp.y,wp.size,0,Math.PI*2);ctx.fill()}
+      ctx.fillStyle=wp.color||'rgba(200,200,220,0.02)';
+      ctx.fillRect(Math.floor(wp.x),Math.floor(wp.y),Math.floor(wp.size)||2,Math.floor(wp.size)||2);
+      wpCount++;
     }
     ctx.globalAlpha=1;
     ctx.restore();
@@ -2110,16 +2142,25 @@ const Lobby={
     this._drawJoystick(ctx);
     // 转场
     this._drawTransition(ctx);
-    // 昼夜遮罩
-    if(this.dayNightAlpha>0.01){ctx.fillStyle=`rgba(10,10,30,${this.dayNightAlpha*0.25})`;ctx.fillRect(0,0,this.w,this.h)}
-    // 天气遮罩 - 沙尘暴和辐射雨已移除
-    if(G.weather.type==='fog'){ctx.fillStyle=`rgba(200,200,220,${0.03+G.weather.intensity*0.04})`;ctx.fillRect(0,0,this.w,this.h)}
-    // 灯笼光晕
-    if(this.dayNightAlpha>0.2){for(const t of this.tables){const sx=t.x-this.camera.x,sy=t.y-this.camera.y;if(sx>-50&&sx<this.w+50&&sy>-50&&sy<this.h+50){const glow=ctx.createRadialGradient(sx,sy,5,sx,sy,100);glow.addColorStop(0,'rgba(255,160,60,0.45)');glow.addColorStop(1,'transparent');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(sx,sy,100,0,Math.PI*2);ctx.fill()}}}
-    // 区域切换闪烁
-    if(this._regionFlash>0.01){ctx.fillStyle=this._regionFlashColor.replace(')',`,${this._regionFlash})`).replace('rgb','rgba');ctx.fillRect(0,0,this.w,this.h);this._regionFlash-=0.015;if(this._regionFlash<0)this._regionFlash=0}
-    // 区域名称大字体toast
-    if(this._regionToastTime>0){this._regionToastTime-=0.016;const ta=Math.min(1,this._regionToastTime/0.8);ctx.globalAlpha=ta;const toastText=this._regionToastName;ctx.font='bold 36px "Noto Sans SC",sans-serif';const tw=ctx.measureText(toastText).width;const tbx=this.w/2-tw/2-20,tby=this.h/2-110;ctx.fillStyle='rgba(0,0,0,.6)';ctx.beginPath();ctx.roundRect(tbx,tby,tw+40,50,8);ctx.fill();ctx.strokeStyle='rgba(184,150,15,.5)';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#b8960f';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(toastText,this.w/2,this.h/2-85);ctx.globalAlpha=1;if(this._regionToastTime<=0)this._regionToastName='';}
+    // 昼夜遮罩简化
+    if(this.dayNightAlpha>0.01){ctx.fillStyle=`rgba(10,10,30,${this.dayNightAlpha*0.12})`;ctx.fillRect(0,0,this.w,this.h)}
+    // 天气遮罩 - 沙尘暴和辐射雨已移除，雾极简化
+    if(G.weather.type==='fog'){ctx.fillStyle='rgba(200,200,220,0.02)';ctx.fillRect(0,0,this.w,this.h)}
+    // 灯笼光晕已移除（减少光污染）
+    // 区域切换闪烁已移除
+    // 区域名称toast简化
+    if(this._regionToastTime>0){
+      this._regionToastTime-=0.016;
+      const ta=Math.min(1,this._regionToastTime/0.8);
+      ctx.globalAlpha=ta;
+      ctx.fillStyle='#b8960f';
+      ctx.font='bold 14px monospace';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText(this._regionToastName,this.w/2,this.h/2-40);
+      ctx.globalAlpha=1;
+      if(this._regionToastTime<=0)this._regionToastName='';
+    }
     // 天气UI
     this._drawWeatherUI(ctx);
     // 时间钟表
@@ -2127,16 +2168,13 @@ const Lobby={
   },
 
   _drawWeatherUI(ctx){
-    const wx=8,wy=8;
-    const ww=120,wh=30;
-    ctx.fillStyle='rgba(0,0,0,.5)';ctx.beginPath();ctx.roundRect(wx,wy,ww,wh,4);ctx.fill();ctx.strokeStyle='rgba(184,150,15,.3)';ctx.lineWidth=1;ctx.stroke();
-    ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(this.getWeatherIcon(G.weather.type),wx+14,wy+15);
-    ctx.fillStyle='#d4c8a8';ctx.font='bold 11px sans-serif';ctx.textAlign='left';
-    ctx.fillText(this.getWeatherName(G.weather.type),wx+28,wy+12);
-    const effectText=G.weather.type==='fog'?'视野受限':'幸运+5%';
-    ctx.fillStyle='rgba(200,180,140,.6)';ctx.font='9px sans-serif';
-    ctx.fillText(effectText,wx+28,wy+24);
+    ctx.fillStyle='#d4c8a8';
+    ctx.font='10px monospace';
+    ctx.textAlign='left';
+    ctx.textBaseline='top';
+    const icon=this.getWeatherIcon(G.weather.type);
+    const name=this.getWeatherName(G.weather.type);
+    ctx.fillText(`${icon} ${name}`,8,8);
   },
 
   _updateCamera(){
@@ -2149,60 +2187,63 @@ const Lobby={
     if(x>=0&&x<=800&&y>=800&&y<=1500)return'slum';
     if(x>=1200&&x<=2000&&y>=0&&y<=700)return'black';
     if(x>=600&&x<=1400&&y>=400&&y<=1100)return'safe';
-    return'';
+    return'neutral';
   },
   getRegionColor(r){return{slum:'#4a3828',black:'#6a2828',safe:'#3a4a2a'}[r]||'#4a4028'},
   getRegionName(r){return{slum:'贫民区',black:'黑市区',safe:'安全区'}[r]||''},
   _drawFloor(ctx){
-    const tileSize=80;const startX=Math.floor(this.camera.x/tileSize)*tileSize;const startY=Math.floor(this.camera.y/tileSize)*tileSize;const endX=startX+this.w+tileSize;const endY=startY+this.h+tileSize;
-    for(let tx=startX;tx<endX;tx+=tileSize){for(let ty=startY;ty<endY;ty+=tileSize){if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);const baseColor=this.getRegionColor(region);const dark=((tx/tileSize+ty/tileSize)%2===0);ctx.fillStyle=dark?baseColor:adjustColor(baseColor,4);ctx.fillRect(tx,ty,tileSize,tileSize);ctx.fillStyle=dark?'rgba(0,0,0,.03)':'rgba(255,255,255,.02)';ctx.fillRect(tx+2,ty+2,tileSize-4,tileSize-4);ctx.strokeStyle='rgba(0,0,0,.08)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx+tileSize,ty);ctx.stroke();ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx,ty+tileSize);ctx.stroke();if((tx/tileSize+ty/tileSize)%3===0){ctx.fillStyle='rgba(0,0,0,.05)';ctx.fillRect(tx+tileSize/2-2,ty+tileSize/2-2,4,4);}}}
-    // 区域边界渐变过渡带（50px宽）
+    const tileSize=32;
+    const startX=Math.floor(this.camera.x/tileSize)*tileSize;
+    const startY=Math.floor(this.camera.y/tileSize)*tileSize;
+    const endX=startX+this.w+tileSize;
+    const endY=startY+this.h+tileSize;
+    for(let tx=startX;tx<endX;tx+=tileSize){
+      for(let ty=startY;ty<endY;ty+=tileSize){
+        if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
+        const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);
+        const baseColor=this.getRegionColor(region);
+        ctx.fillStyle=baseColor;
+        ctx.fillRect(Math.floor(tx),Math.floor(ty),tileSize,tileSize);
+        ctx.strokeStyle='rgba(0,0,0,0.15)';
+        ctx.lineWidth=1;
+        ctx.strokeRect(Math.floor(tx)+0.5,Math.floor(ty)+0.5,tileSize-1,tileSize-1);
+      }
+    }
     this._drawRegionBorders(ctx);
   },
   _drawRegionBorders(ctx){
-    const bw=50;
-    // 贫民区边界 (x:0-800, y:800-1500)
-    const borders=[
-      {x1:0,y1:800,x2:800,y2:800,color1:'#4a3828',color2:'#4a4028',dir:'h'},
-      {x1:800,y1:800,x2:800,y2:1500,color1:'#4a3828',color2:'#4a4028',dir:'v'},
-      // 黑市区边界 (x:1200-2000, y:0-700)
-      {x1:1200,y1:0,x2:1200,y2:700,color1:'#4a4028',color2:'#6a2828',dir:'v'},
-      {x1:1200,y1:700,x2:2000,y2:700,color1:'#6a2828',color2:'#4a4028',dir:'h'},
-      // 安全区边界 (x:600-1400, y:400-1100)
-      {x1:600,y1:400,x2:1400,y2:400,color1:'#4a4028',color2:'#3a4a2a',dir:'h'},
-      {x1:600,y1:1100,x2:1400,y2:1100,color1:'#3a4a2a',color2:'#4a4028',dir:'h'},
-      {x1:600,y1:400,x2:600,y2:1100,color1:'#4a4028',color2:'#3a4a2a',dir:'v'},
-      {x1:1400,y1:400,x2:1400,y2:1100,color1:'#3a4a2a',color2:'#4a4028',dir:'v'},
-    ];
-    for(const b of borders){
-      if(b.dir==='h'){
-        const grad=ctx.createLinearGradient(b.x1,b.y1,b.x1,b.y1+bw);
-        grad.addColorStop(0,b.color1);grad.addColorStop(1,b.color2);
-        ctx.fillStyle=grad;ctx.fillRect(b.x1,b.y1,b.x2-b.x1,bw);
-        const grad2=ctx.createLinearGradient(b.x1,b.y1-bw,b.x1,b.y1);
-        grad2.addColorStop(0,b.color2);grad2.addColorStop(1,b.color1);
-        ctx.fillStyle=grad2;ctx.fillRect(b.x1,b.y1-bw,b.x2-b.x1,bw);
-      }else{
-        const grad=ctx.createLinearGradient(b.x1,b.y1,b.x1+bw,b.y1);
-        grad.addColorStop(0,b.color1);grad.addColorStop(1,b.color2);
-        ctx.fillStyle=grad;ctx.fillRect(b.x1,b.y1,bw,b.y2-b.y1);
-        const grad2=ctx.createLinearGradient(b.x1-bw,b.y1,b.x1,b.y1);
-        grad2.addColorStop(0,b.color2);grad2.addColorStop(1,b.color1);
-        ctx.fillStyle=grad2;ctx.fillRect(b.x1-bw,b.y1,bw,b.y2-b.y1);
-      }
-    }
+    ctx.strokeStyle='rgba(100,80,60,0.4)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(800,800);ctx.lineTo(800,1500);
+    ctx.moveTo(1200,0);ctx.lineTo(1200,700);
+    ctx.moveTo(600,400);ctx.lineTo(1400,400);
+    ctx.moveTo(600,1100);ctx.lineTo(1400,1100);
+    ctx.stroke();
   },
 
   _drawVignette(ctx){
-    if(!this._vignetteGrad){const cx=this.w/2,cy=this.h/2,r=Math.max(this.w,this.h)*0.75;this._vignetteGrad=ctx.createRadialGradient(cx,cy,r*0.35,cx,cy,r);this._vignetteGrad.addColorStop(0,'rgba(0,0,0,0)');this._vignetteGrad.addColorStop(1,'rgba(10,8,20,0.1)')}
-    ctx.fillStyle=this._vignetteGrad;ctx.fillRect(0,0,this.w,this.h);
-    const cold=ctx.createLinearGradient(0,0,this.w,0);cold.addColorStop(0,'rgba(20,30,60,0.02)');cold.addColorStop(1,'rgba(20,30,60,0.02)');ctx.fillStyle=cold;ctx.fillRect(0,0,this.w,this.h);
+    // 极度简化：只画一层极淡遮罩
+    ctx.fillStyle='rgba(10,8,6,0.03)';
+    ctx.fillRect(0,0,this.w,this.h);
   },
 
   _drawJoystick(ctx){
-    if(!this.joystick.active&&this.joystick.opacity<=0)return;const cx=this.joystick.cx,cy=this.joystick.cy;const op=this.joystick.opacity||0.6;
-    ctx.beginPath();ctx.arc(cx,cy,40,0,Math.PI*2);const og=ctx.createRadialGradient(cx,cy,10,cx,cy,40);og.addColorStop(0,`rgba(255,255,255,${0.15*op})`);og.addColorStop(1,`rgba(255,255,255,${0.05*op})`);ctx.fillStyle=og;ctx.fill();ctx.strokeStyle=`rgba(255,255,255,${0.2*op})`;ctx.lineWidth=2;ctx.stroke();
-    const ix=cx+this.joystick.dx*40;const iy=cy+this.joystick.dy*40;ctx.beginPath();ctx.arc(ix,iy,16,0,Math.PI*2);const ig=ctx.createRadialGradient(ix-3,iy-3,2,ix,iy,16);ig.addColorStop(0,`rgba(212,168,32,${op})`);ig.addColorStop(1,`rgba(138,106,8,${op})`);ctx.fillStyle=ig;ctx.fill();ctx.strokeStyle=`rgba(255,255,255,${0.25*op})`;ctx.lineWidth=1;ctx.stroke();
+    if(!this.joystick.active&&this.joystick.opacity<=0)return;
+    const cx=Math.floor(this.joystick.cx),cy=Math.floor(this.joystick.cy);
+    const op=this.joystick.opacity||0.6;
+    ctx.fillStyle=`rgba(255,255,255,${0.1*op})`;
+    ctx.fillRect(cx-40,cy-40,80,80);
+    ctx.strokeStyle=`rgba(255,255,255,${0.2*op})`;
+    ctx.lineWidth=2;
+    ctx.strokeRect(cx-40,cy-40,80,80);
+    const ix=Math.floor(cx+this.joystick.dx*40);
+    const iy=Math.floor(cy+this.joystick.dy*40);
+    ctx.fillStyle=`rgba(212,168,32,${op})`;
+    ctx.fillRect(ix-12,iy-12,24,24);
+    ctx.strokeStyle=`rgba(255,255,255,${0.25*op})`;
+    ctx.lineWidth=1;
+    ctx.strokeRect(ix-12,iy-12,24,24);
     if(!this.joystick.active&&op>0){this.joystick.opacity=Math.max(0,op-0.02)}
   },
 
@@ -2210,38 +2251,78 @@ const Lobby={
     if(this._transitionAlpha>0.01){ctx.fillStyle=`rgba(10,8,6,${this._transitionAlpha})`;ctx.fillRect(0,0,this.w,this.h)}
   },
 
+  _drawScraps(ctx){
+    for(const scrap of this.scraps){
+      if(scrap.collected)continue;
+      const sx=Math.floor(scrap.x),sy=Math.floor(scrap.y);
+      ctx.fillStyle='#8a8070';
+      ctx.fillRect(sx-3,sy-3,6,6);
+      ctx.strokeStyle='#a09080';
+      ctx.lineWidth=1;
+      ctx.strokeRect(sx-3,sy-3,6,6);
+    }
+  },
+
   _drawCrate(ctx,crate){
-    const x=crate.x,y=crate.y;const size=26;
-    // 金色脉冲闪烁效果
-    const pulse=0.6+Math.sin(crate.sparkleTime*1.5)*0.4;
-    ctx.shadowColor=`rgba(255,200,60,${pulse*0.8})`;ctx.shadowBlur=12+Math.sin(crate.sparkleTime*1.5)*8;
-    ctx.fillStyle='#6a5a3a';ctx.fillRect(x-size,y-size/2,size*2,size);
-    ctx.strokeStyle='#b8960f';ctx.lineWidth=2;ctx.strokeRect(x-size,y-size/2,size*2,size);
-    ctx.shadowBlur=0;
-    ctx.fillStyle=crate.opened?'#3a3020':'#5a4a30';ctx.fillRect(x-size+2,y-size/2+2,size*2-4,size-4);
-    if(!crate.opened){ctx.fillStyle='#b8960f';ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('📦',x,y)}
-    else{ctx.fillStyle='#7a7060';ctx.font='12px sans-serif';ctx.fillText('空',x,y)}
-    if(crate.openAnim>0){ctx.fillStyle=`rgba(255,200,80,${crate.openAnim*0.5})`;ctx.beginPath();ctx.arc(x,y-10,15+crate.openAnim*20,0,Math.PI*2);ctx.fill()}
-    if(crate.cooldown>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.font='10px sans-serif';ctx.fillText(`${Math.ceil(crate.cooldown)}s`,x,y+size+8)}
+    const x=Math.floor(crate.x),y=Math.floor(crate.y);const size=26;
+    // 像素风格物资箱：无发光脉冲
+    ctx.fillStyle='#6a5a3a';
+    ctx.fillRect(x-size,y-size/2,size*2,size);
+    ctx.strokeStyle='#b8960f';
+    ctx.lineWidth=2;
+    ctx.strokeRect(x-size,y-size/2,size*2,size);
+    ctx.fillStyle=crate.opened?'#3a3020':'#5a4a30';
+    ctx.fillRect(x-size+2,y-size/2+2,size*2-4,size-4);
+    if(!crate.opened){
+      ctx.fillStyle='#b8960f';
+      ctx.font='14px monospace';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText('📦',x,y);
+    }else{
+      ctx.fillStyle='#7a7060';
+      ctx.font='10px monospace';
+      ctx.fillText('空',x,y);
+    }
+    if(crate.cooldown>0){
+      ctx.fillStyle='rgba(0,0,0,0.6)';
+      ctx.font='10px monospace';
+      ctx.fillText(`${Math.ceil(crate.cooldown)}s`,x,y+size+8);
+    }
   },
   _drawBarrel(ctx,b){
-    const x=b.x,y=b.y;const r=16;
-    ctx.fillStyle=b.state==='explode'?'#ff6622':'#c4463a';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#ff3333';ctx.lineWidth=3;ctx.stroke();
-    ctx.fillStyle='#a03020';ctx.font='16px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🛢️',x,y);
-    // 红色危险标记
-    ctx.fillStyle='#ff3333';ctx.font='bold 10px sans-serif';ctx.fillText('⚠',x,y-r-6);
-    if(b.state==='explode'&&b.explodeAnim>0){ctx.fillStyle=`rgba(255,100,30,${b.explodeAnim})`;ctx.beginPath();ctx.arc(x,y,r+b.explodeAnim*40,0,Math.PI*2);ctx.fill()}
+    const x=Math.floor(b.x),y=Math.floor(b.y);const r=16;
+    // 像素风格油桶：矩形代替圆形
+    ctx.fillStyle=b.state==='explode'?'#ff6622':'#c4463a';
+    ctx.fillRect(x-r,y-r,r*2,r*2);
+    ctx.strokeStyle='#8b2020';
+    ctx.lineWidth=2;
+    ctx.strokeRect(x-r,y-r,r*2,r*2);
+    ctx.fillStyle='#a03020';
+    ctx.font='14px monospace';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText('🛢️',x,y);
+    if(b.state==='explode'&&b.explodeAnim>0){
+      ctx.fillStyle=`rgba(255,100,30,${b.explodeAnim})`;
+      ctx.fillRect(x-r-10,y-r-10,r*2+20,r*2+20);
+    }
   },
   _drawPortal(ctx,portal){
-    const x=portal.x,y=portal.y;const pulse=0.7+Math.sin(this.time*6)*0.3;
-    const g=ctx.createRadialGradient(x,y,2,x,y,40);
-    g.addColorStop(0,`rgba(184,150,15,${pulse})`);g.addColorStop(0.6,`rgba(120,100,20,${pulse*0.4})`);g.addColorStop(1,'transparent');
-    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,40,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle=`rgba(255,220,100,${pulse})`;ctx.font='24px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🌀',x,y);
-    // 传送门文字标签
-    ctx.fillStyle=`rgba(184,150,15,${0.6+Math.sin(this.time*3)*0.4})`;ctx.font='bold 11px sans-serif';ctx.fillText('传送门',x,y+28);
-    for(const pp of this.portalParticles){ctx.fillStyle=`rgba(184,150,15,${pp.life})`;ctx.beginPath();ctx.arc(pp.x,pp.y,3,0,Math.PI*2);ctx.fill()}
+    const x=Math.floor(portal.x),y=Math.floor(portal.y);
+    // 像素风格传送门：无发光渐变
+    ctx.fillStyle='#4a3a20';
+    ctx.fillRect(x-20,y-20,40,40);
+    ctx.strokeStyle='#b8960f';
+    ctx.lineWidth=2;
+    ctx.strokeRect(x-20,y-20,40,40);
+    ctx.fillStyle='#b8960f';
+    ctx.font='16px monospace';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText('🌀',x,y);
+    ctx.font='9px monospace';
+    ctx.fillText('传送门',x,y+28);
   },
 
   startLoop(){
@@ -2355,6 +2436,7 @@ function bindLobbyCanvasClick(){
 
 // ==================== 辅助绘制函数 ====================
 function _drawDecorFunc(ctx,w,h){
+  ctx.imageSmoothingEnabled=false;
   ctx.fillStyle='#4a3a20';ctx.fillRect(35,35,18,24);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,35,18,24);ctx.strokeStyle='#8a7a5a';ctx.beginPath();ctx.moveTo(35,42);ctx.lineTo(53,42);ctx.stroke();ctx.beginPath();ctx.moveTo(35,50);ctx.lineTo(53,50);ctx.stroke();
   ctx.fillStyle='#5a4a30';ctx.fillRect(w-55,35,22,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=1;ctx.strokeRect(w-55,35,22,18);ctx.beginPath();ctx.moveTo(w-55,44);ctx.lineTo(w-33,44);ctx.stroke();
   ctx.fillStyle='#4a3a25';ctx.fillRect(35,h-55,20,20);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,h-55,20,20);
@@ -2366,64 +2448,123 @@ function _drawDecorFunc(ctx,w,h){
   ctx.fillStyle='#4a3a20';ctx.fillRect(w/2-40,h/2-30,18,24);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(w/2-40,h/2-30,18,24);
   ctx.fillStyle='#5a4a30';ctx.fillRect(w/2+30,h/2+20,20,18);ctx.strokeStyle='#7a6a4a';ctx.strokeRect(w/2+30,h/2+20,20,18);
   ctx.fillStyle='#2a2a2a';ctx.fillRect(120,80,70,35);ctx.strokeStyle='#444';ctx.lineWidth=1;ctx.strokeRect(120,80,70,35);
-  ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(140,115,8,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(170,115,8,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#333';ctx.fillRect(125,85,60,20);ctx.fillStyle='#c4463a';ctx.font='10px sans-serif';ctx.fillText('🚗',155,100);
-  ctx.fillStyle='#3a3020';ctx.beginPath();ctx.moveTo(w-150,60);ctx.lineTo(w-80,60);ctx.lineTo(w-90,130);ctx.lineTo(w-160,120);ctx.closePath();ctx.fill();ctx.strokeStyle='#5a4a30';ctx.stroke();
+  ctx.fillStyle='#1a1a1a';ctx.fillRect(132,107,16,16);ctx.fillRect(162,107,16,16);
+  ctx.fillStyle='#333';ctx.fillRect(125,85,60,20);ctx.fillStyle='#c4463a';ctx.font='10px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🚗',155,100);
+  ctx.fillStyle='#3a3020';ctx.fillRect(w-160,60,80,70);ctx.strokeStyle='#5a4a30';ctx.lineWidth=1;ctx.strokeRect(w-160,60,80,70);
   ctx.fillStyle='#2a2010';ctx.fillRect(w-140,70,15,20);ctx.fillRect(w-110,75,15,18);
   ctx.fillStyle='#3a2a18';ctx.fillRect(90,h-140,22,28);ctx.strokeStyle='#5a4a3a';ctx.strokeRect(90,h-140,22,28);
   ctx.fillStyle='#4a3a20';ctx.fillRect(118,h-135,20,24);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(118,h-135,20,24);
   ctx.fillStyle='#2a1a0a';ctx.fillRect(108,h-150,18,22);ctx.strokeStyle='#4a3a2a';ctx.strokeRect(108,h-150,18,22);
-  ctx.fillStyle='#4a3a25';ctx.beginPath();ctx.moveTo(w-120,h-140);ctx.lineTo(w-60,h-140);ctx.lineTo(w-90,h-190);ctx.closePath();ctx.fill();ctx.strokeStyle='#6a5a3a';ctx.stroke();
+  ctx.fillStyle='#4a3a25';ctx.fillRect(w-120,h-190,60,50);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(w-120,h-190,60,50);
   ctx.fillStyle='#2a2010';ctx.fillRect(w-100,h-140,4,25);ctx.fillRect(w-80,h-140,4,25);
 }
 
 function _drawNameTag(ctx,x,y,name,isMe){
   const guildTag=getGuildTag();
   const fullName=guildTag+name;
-  ctx.font=isMe?'bold 10px "Noto Sans SC",sans-serif':'10px "Noto Sans SC",sans-serif';let displayName=fullName;const maxNameW=120;let nameW=ctx.measureText(displayName).width;while(nameW>maxNameW&&displayName.length>1){displayName=displayName.slice(0,-1)+'...';nameW=ctx.measureText(displayName).width}
-  const tagH=14;ctx.fillStyle='rgba(0,0,0,.6)';ctx.beginPath();ctx.roundRect(x-nameW/2-5,y-tagH/2,nameW+10,tagH,4);ctx.fill();ctx.strokeStyle=isMe?'rgba(196,70,58,.4)':'rgba(122,112,96,.3)';ctx.lineWidth=1;ctx.stroke();ctx.fillStyle=isMe?'#c4463a':'#a09080';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(displayName,x,y);
+  ctx.font=isMe?'bold 10px monospace':'10px monospace';
+  let displayName=fullName;
+  const maxNameW=120;
+  let nameW=ctx.measureText(displayName).width;
+  while(nameW>maxNameW&&displayName.length>1){displayName=displayName.slice(0,-1)+'...';nameW=ctx.measureText(displayName).width}
+  const tagH=14;
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.fillRect(x-nameW/2-5,y-tagH/2,nameW+10,tagH);
+  ctx.fillStyle=isMe?'#c4463a':'#a09080';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillText(displayName,x,y);
 }
 
 function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
-  ctx.save();
-  ctx.translate(x,y);
+  const px=Math.floor(x),py=Math.floor(y);
+  const bodyColor=isMe?'#5a8a3c':'#7a7060';
+  const headColor=isMe?'#6a9a4c':'#8a8070';
+  // 身体 8x12
+  ctx.fillStyle=bodyColor;
+  ctx.fillRect(px-4,py-6,8,12);
+  // 头部 6x6
+  ctx.fillStyle=headColor;
+  ctx.fillRect(px-3,py-14,6,6);
+  // 简单的行走动画：1px 上下
   const p=playerObj||{};
-  const isSitting=!!p.sitting;
-  const animState=p.animState||'idle';
-  const faceDir=p.faceDir||1;
-  const reaction=p.reaction;
-  const reactionTime=p.reactionTime||0;
-  let scaleX=faceDir;
-  let scaleY=1;
-  let offsetY=0;
-  let rotation=0;
-  if(isSitting){scaleY=1;offsetY=0;}
-  else if(animState==='walk'){offsetY=Math.sin(time*Math.PI*4)*6;rotation=Math.sin(time*Math.PI*4)*0.08;}
-  else if(animState==='idle'){const breathe=0.95+Math.sin(time*Math.PI*1.5)*0.05;scaleY=breathe;scaleX=faceDir*breathe;}
-  if(reaction&&Date.now()-reactionTime<2000){const t=(Date.now()-reactionTime)/2000;const bounce=1+Math.sin(t*Math.PI*3)*0.5*(1-t);scaleX=faceDir*bounce;scaleY=bounce;}
-  ctx.rotate(rotation);
-  ctx.scale(scaleX,scaleY);
-  ctx.font=isMe?'22px sans-serif':'20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(emoji,0,offsetY);
-  ctx.restore();
+  const bounce=(p.animState==='walk')?Math.floor(time*8)%2:0;
+  if(bounce){
+    ctx.fillStyle=bodyColor;
+    ctx.fillRect(px-4,py-7,8,12);
+    ctx.fillStyle=headColor;
+    ctx.fillRect(px-3,py-15,6,6);
+  }
+  // emoji 覆盖在头部
+  ctx.font='12px monospace';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillText(emoji||'🐦',px,py-11);
+  // 名字标签（简化）
+  if(p.name){
+    ctx.fillStyle='rgba(0,0,0,0.6)';
+    ctx.fillRect(px-20,py-28,40,12);
+    ctx.fillStyle='#d4c8a8';
+    ctx.font='10px monospace';
+    ctx.textAlign='center';
+    ctx.fillText(p.name,px,py-20);
+  }
 }
-function _drawWalkParticles(ctx,walkParticles){for(const wp of walkParticles){ctx.fillStyle=wp.color?`rgba(${hexToRgb(wp.color)},${wp.life*0.6})`:`rgba(180,160,120,${wp.life*0.6})`;ctx.beginPath();ctx.arc(wp.x,wp.y,wp.size||2,0,Math.PI*2);ctx.fill()}}
+function _drawWalkParticles(ctx,walkParticles){for(const wp of walkParticles){ctx.fillStyle=wp.color?`rgba(${hexToRgb(wp.color)},${wp.life*0.6})`:`rgba(180,160,120,${wp.life*0.6})`;ctx.fillRect(Math.floor(wp.x),Math.floor(wp.y),Math.floor(wp.size)||2,Math.floor(wp.size)||2)}}
 function hexToRgb(hex){const num=parseInt(hex.replace('#',''),16);const r=(num>>16)&255;const g=(num>>8)&255;const b=num&255;return `${r},${g},${b}`;}
 
-function _drawAmbientParticles(ctx,ambientParticles){ctx.fillStyle='rgba(200,180,140,0.35)';for(const ap of ambientParticles){ctx.beginPath();ctx.arc(ap.x,ap.y,ap.size,0,Math.PI*2);ctx.fill()}}
+function _drawAmbientParticles(ctx,ambientParticles){ctx.fillStyle='rgba(200,180,140,0.2)';for(const ap of ambientParticles){ctx.fillRect(Math.floor(ap.x),Math.floor(ap.y),Math.floor(ap.size)||1,Math.floor(ap.size)||1)}}
 
-function _drawDustParticles(ctx,dustParticles){for(const dp of dustParticles){ctx.fillStyle=`rgba(200,180,140,${dp.alpha*0.4})`;ctx.beginPath();ctx.arc(dp.x,dp.y,dp.size,0,Math.PI*2);ctx.fill()}}
+function _drawDustParticles(ctx,dustParticles){for(const dp of dustParticles){ctx.fillStyle=`rgba(200,180,140,${dp.alpha*0.3})`;ctx.fillRect(Math.floor(dp.x),Math.floor(dp.y),Math.floor(dp.size)||1,Math.floor(dp.size)||1)}}
 
 function _drawTable(ctx,t,isHovered,isFull,time){
-  const x=t.x,y=t.y;const tw=64,th=40;const glowR=isHovered?70:60;
+  const x=Math.floor(t.x),y=Math.floor(t.y);
+  const tw=64,th=40;
   const isBlackMarket=t.region==='black';
-  const glow=ctx.createRadialGradient(x,y,10,x,y,glowR);glow.addColorStop(0,isFull?'rgba(196,70,58,.2)':(isBlackMarket?'rgba(196,70,58,.2)':(t.code?'rgba(184,150,15,.15)':'rgba(100,90,80,.1)')));glow.addColorStop(1,'transparent');ctx.fillStyle=glow;ctx.fillRect(x-glowR,y-glowR,glowR*2,glowR*2);
-  ctx.fillStyle=isFull?'rgba(196,70,58,.2)':(t.code?'rgba(90,138,60,.2)':'rgba(60,50,40,.4)');ctx.beginPath();ctx.roundRect(x-tw/2,y-th/2,tw,th,6);ctx.fill();
-  ctx.strokeStyle=isFull?'#c4463a':(t.code?'#5a8a3c':'#7a7060');ctx.lineWidth=2;ctx.stroke();
-  if(isBlackMarket){ctx.strokeStyle='rgba(196,70,58,.4)';ctx.lineWidth=3;ctx.stroke()}
-  ctx.fillStyle='rgba(120,100,60,.12)';ctx.lineWidth=1;for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(x-tw/2+8,y-th/2+10+i*10);ctx.lineTo(x+tw/2-8,y-th/2+10+i*10);ctx.stroke()}
-    const chairColor='rgba(80,65,45,.7)';ctx.fillStyle=chairColor;ctx.beginPath();ctx.roundRect(x-tw/2-12,y-7,12,14,3);ctx.fill();ctx.beginPath();ctx.roundRect(x+tw/2,y-7,12,14,3);ctx.fill();ctx.beginPath();ctx.roundRect(x-7,y-th/2-12,14,12,3);ctx.fill();ctx.beginPath();ctx.roundRect(x-7,y+th/2,14,12,3);ctx.fill();
-    const isNightTable=typeof Lobby!=='undefined'&&Lobby.gameTime!==undefined&&(Lobby.gameTime>=20||Lobby.gameTime<6);ctx.fillStyle=isNightTable?'#ff6622':'#ffcc44';ctx.beginPath();ctx.arc(x+22,y-18,3,0,Math.PI*2);ctx.fill();ctx.shadowColor=isNightTable?'rgba(255,80,30,.8)':'rgba(255,180,60,.6)';ctx.shadowBlur=12;ctx.fill();ctx.shadowBlur=0;
-  if(t.code&&t.players>0){ctx.fillStyle='rgba(0,0,0,.5)';ctx.font='9px sans-serif';ctx.textAlign='center';for(let i=0;i<Math.min(t.players,3);i++){const cx=x-tw/2+14+i*18;const cy=y-4;ctx.beginPath();ctx.roundRect(cx-6,cy-8,12,10,2);ctx.fill();ctx.fillStyle='#d4c8a8';ctx.fillText('🂠',cx,cy)}}if(isFull){ctx.strokeStyle='rgba(196,70,58,.5)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x-tw/2+8,y-th/2+8);ctx.lineTo(x+tw/2-8,y+th/2-8);ctx.stroke();ctx.beginPath();ctx.moveTo(x+tw/2-8,y-th/2+8);ctx.lineTo(x-tw/2+8,y+th/2-8);ctx.stroke();ctx.fillStyle='#c4463a';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.fillText('FULL',x,y+3)}ctx.fillStyle=isFull?'#c4463a':(isBlackMarket?'#c4463a':'#b8960f');ctx.font='11px "Noto Sans SC",sans-serif';ctx.textAlign='center';ctx.fillText(t.label,x,y+th/2+16);ctx.fillStyle='#7a7060';ctx.font='10px sans-serif';ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',x,y+th/2+28);
+  // 像素风格桌子：矩形+纯色+1px边框
+  ctx.fillStyle=isFull?'#5a2020':(t.code?'#3a4a2a':'#3a3020');
+  ctx.fillRect(x-tw/2,y-th/2,tw,th);
+  ctx.strokeStyle=isFull?'#8b2020':(t.code?'#4a7a3a':'#5a4a30');
+  ctx.lineWidth=2;
+  ctx.strokeRect(x-tw/2,y-th/2,tw,th);
+  if(isBlackMarket){
+    ctx.strokeStyle='#8b2020';
+    ctx.lineWidth=2;
+    ctx.strokeRect(x-tw/2-2,y-th/2-2,tw+4,th+4);
+  }
+  // 简单的椅子标记
+  ctx.fillStyle='#4a3828';
+  ctx.fillRect(x-tw/2-10,y-6,10,12);
+  ctx.fillRect(x+tw/2,y-6,10,12);
+  ctx.fillRect(x-6,y-th/2-10,12,10);
+  ctx.fillRect(x-6,y+th/2,12,10);
+  // 蜡烛标记（无发光）
+  ctx.fillStyle='#b8960f';
+  ctx.fillRect(x+18,y-20,4,6);
+  if(t.code&&t.players>0){
+    ctx.fillStyle='#d4c8a8';
+    ctx.font='9px monospace';
+    ctx.textAlign='center';
+    for(let i=0;i<Math.min(t.players,3);i++){
+      ctx.fillRect(x-tw/2+10+i*18,y-8,12,10);
+      ctx.fillStyle='#1a1610';
+      ctx.fillText('P',x-tw/2+16+i*18,y-2);
+      ctx.fillStyle='#d4c8a8';
+    }
+  }
+  if(isFull){
+    ctx.fillStyle='#8b2020';
+    ctx.font='bold 9px monospace';
+    ctx.textAlign='center';
+    ctx.fillText('FULL',x,y+3);
+  }
+  ctx.fillStyle=isFull?'#8b2020':(isBlackMarket?'#8b2020':'#b8960f');
+  ctx.font='11px monospace';
+  ctx.textAlign='center';
+  ctx.fillText(t.label,x,y+th/2+16);
+  ctx.fillStyle='#7a7060';
+  ctx.font='10px monospace';
+  ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',x,y+th/2+28);
 }
 
 function _drawDecorOn(ctx,w,h){
@@ -2451,34 +2592,39 @@ function _drawDecorOn(ctx,w,h){
 
 Lobby._drawMinimap = function(ctx){
     const mw=120,mh=80;const mx=this.w-mw-8,my=8;const sx=mw/this.mapW,sy=mh/this.mapH;
-    // 地图标签
-    ctx.fillStyle='rgba(184,150,15,.7)';ctx.font='bold 8px "Noto Sans SC",sans-serif';ctx.textAlign='center';
-    ctx.fillText('地图',mx+mw/2,my-1);
-    // 背景
-    ctx.fillStyle='rgba(0,0,0,.6)';ctx.beginPath();ctx.roundRect(mx,my+4,mw,mh,4);ctx.fill();
-    ctx.strokeStyle='rgba(184,150,15,.4)';ctx.lineWidth=1;ctx.stroke();
-    // 区域底色
+    // 像素风格小地图：简单矩形背景
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillRect(mx,my+4,mw,mh);
+    ctx.strokeStyle='rgba(100,80,60,0.4)';
+    ctx.lineWidth=1;
+    ctx.strokeRect(mx,my+4,mw,mh);
+    // 区域底色（纯色块）
     const mmy=my+4;
-    ctx.fillStyle='rgba(60,40,20,.4)';ctx.fillRect(mx,mmy+800*sy,(800)*sx,(700)*sy);
-    ctx.fillStyle='rgba(180,40,40,.4)';ctx.fillRect(mx+1200*sx,mmy,(800)*sx,(700)*sy);
-    ctx.fillStyle='rgba(40,100,40,.4)';ctx.fillRect(mx+600*sx,mmy+400*sy,(800)*sx,(700)*sy);
+    ctx.fillStyle='#4a3828';ctx.fillRect(mx,mmy+800*sy,800*sx,700*sy);
+    ctx.fillStyle='#6a2828';ctx.fillRect(mx+1200*sx,mmy,800*sx,700*sy);
+    ctx.fillStyle='#3a4a2a';ctx.fillRect(mx+600*sx,mmy+400*sy,800*sx,700*sy);
     // 桌子
     for(const t of this.tables){ctx.fillStyle=t.code?'#5a8a3c':'#7a7060';ctx.fillRect(mx+t.x*sx-2,mmy+t.y*sy-1,4,2)}
     // NPC位置
-    for(const npc of this.npcs){ctx.fillStyle='#ffdd44';ctx.beginPath();ctx.arc(mx+npc.x*sx,mmy+npc.y*sy,2,0,Math.PI*2);ctx.fill()}
+    for(const npc of this.npcs){ctx.fillStyle='#ffdd44';ctx.fillRect(mx+npc.x*sx-1,mmy+npc.y*sy-1,2,2)}
     // 其他玩家
     for(const[id,p]of this.others){ctx.fillStyle='#d4c8a8';ctx.fillRect(mx+p.x*sx-1,mmy+p.y*sy-1,2,2)}
     // 自己
     ctx.fillStyle='#c4463a';ctx.fillRect(mx+this.me.x*sx-2,mmy+this.me.y*sy-2,4,4);
     // 视野框
-    ctx.strokeStyle='rgba(196,70,58,.3)';ctx.lineWidth=1;const vx=mx+this.camera.x*sx,vy=mmy+this.camera.y*sy,vw=this.w*sx,vh=this.h*sy;ctx.strokeRect(vx,vy,vw,vh);
+    ctx.strokeStyle='rgba(196,70,58,0.3)';ctx.lineWidth=1;
+    const vx=mx+this.camera.x*sx,vy=mmy+this.camera.y*sy,vw=this.w*sx,vh=this.h*sy;
+    ctx.strokeRect(vx,vy,vw,vh);
   };
 
 Lobby._drawWelcome = function(ctx){
     if(this.time<this.welcomeTime){
       const fadeOut=Math.min(1,(this.welcomeTime-this.time)/0.5);
       ctx.globalAlpha=fadeOut;
-      ctx.fillStyle='#b8960f';ctx.font='bold 16px "Noto Sans SC",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='#b8960f';
+      ctx.font='bold 12px monospace';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
       ctx.fillText('欢迎来到废土交易所',this.w/2,40);
       ctx.globalAlpha=1;
     }
@@ -2489,14 +2635,12 @@ Lobby._drawFeatureGuide = function(ctx){
 Lobby._drawClock = function(ctx){
     const hour=Math.floor(this.gameTime);const minute=Math.floor((this.gameTime-hour)*60);
     const timeStr=`${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
-    const cx=this.w-60,cy=60,r=30;
-    ctx.fillStyle='rgba(0,0,0,.7)';ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(184,150,15,.6)';ctx.lineWidth=2;ctx.stroke();
-    ctx.fillStyle='#b8960f';ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(timeStr,cx,cy-4);
     const isNight=this.gameTime>=20||this.gameTime<6;
-    ctx.fillStyle=isNight?'rgba(100,100,220,.8)':'rgba(255,200,80,.8)';ctx.beginPath();ctx.arc(cx,cy+r+10,5,0,Math.PI*2);ctx.fill();
-    ctx.font='bold 10px sans-serif';ctx.textAlign='center';
-    ctx.fillStyle=isNight?'rgba(100,100,220,.9)':'rgba(255,200,80,.9)';
-    ctx.fillText(isNight?'夜晚':'白天',cx,cy+r+22);
+    ctx.fillStyle='#d4c8a8';
+    ctx.font='10px monospace';
+    ctx.textAlign='right';
+    ctx.textBaseline='top';
+    ctx.fillText(`${timeStr} ${isNight?'[夜]':'[日]'}`,this.w-8,8);
   };
 
 function _renderPotChips(pot){const stacks=Math.min(Math.floor(pot/10)+1,10);let html='<div style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;vertical-align:middle">';for(let i=0;i<stacks;i++){html+=`<div style="font-size:13px;line-height:1;filter:drop-shadow(0 0 2px var(--gold-glow));transform:translateY(${-i*2}px)">🪙</div>`}html+=`<div style="font-size:16px;color:var(--gold);font-family:Special Elite,cursive;margin-top:2px">${pot}</div>`;html+='</div>';return html}
