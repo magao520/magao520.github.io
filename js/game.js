@@ -1900,12 +1900,11 @@ const Lobby={
     for(const t of this.tables){
       this.colliders.push({x:t.x-30,y:t.y-15,w:60,h:30,type:'table'});
     }
-    // 等待所有素材加载完毕再启动
+    // 等待所有素材加载完毕关闭loading遮罩
     const checkLoaded=()=>{
       if(this._loadedCount>=this._loadTotal){
         updateProgress(100);
         if(loadingOverlay){loadingOverlay.style.opacity='0';setTimeout(()=>{loadingOverlay.style.display='none'},500)}
-        this.bindInput();bindLobbyCanvasClick();this.startLoop();
       }else{
         setTimeout(checkLoaded,100);
       }
@@ -2084,6 +2083,7 @@ const Lobby={
   },
 
   bindInput(){
+    if(this._inputBound)return;
     const c=this.canvas;this._onResize=()=>this.resize();window.addEventListener('resize',this._onResize);
     
     // WASD键盘移动（PC测试用）
@@ -2165,6 +2165,7 @@ const Lobby={
       const worldX=mx+this.camera.x;
       this.me.faceDir=worldX>this.me.x?1:-1;
     });
+    this._inputBound=true;
   },
 
   update(dt){
@@ -2849,14 +2850,14 @@ const Lobby={
     };this.animId=requestAnimationFrame(loop);
   },
 
-  stop(){if(this.animId){cancelAnimationFrame(this.animId);this.animId=null}if(this._onResize){window.removeEventListener('resize',this._onResize);this._onResize=null}if(this._onTouchStart&&this.canvas){this.canvas.removeEventListener('touchstart',this._onTouchStart);this.canvas.removeEventListener('touchmove',this._onTouchMove);this.canvas.removeEventListener('touchend',this._onTouchEnd);this.canvas.removeEventListener('touchcancel',this._onTouchEnd);this._onTouchStart=null;this._onTouchMove=null;this._onTouchEnd=null}},
+  stop(){if(this.animId){cancelAnimationFrame(this.animId);this.animId=null}if(this._onResize){window.removeEventListener('resize',this._onResize);this._onResize=null}if(this._onKeyDown){window.removeEventListener('keydown',this._onKeyDown);window.removeEventListener('keyup',this._onKeyUp);this._onKeyDown=null;this._onKeyUp=null}if(this._onTouchStart&&this.canvas){this.canvas.removeEventListener('touchstart',this._onTouchStart);this.canvas.removeEventListener('touchmove',this._onTouchMove);this.canvas.removeEventListener('touchend',this._onTouchEnd);this.canvas.removeEventListener('touchcancel',this._onTouchEnd);this._onTouchStart=null;this._onTouchMove=null;this._onTouchEnd=null}this._inputBound=false;},
 
   showTutorial(){
     const steps=[{text:'WASD或方向键移动角色',x:this.w/2,y:this.h/2+60},{text:'走近桌子按E或点击加入',x:this.w/2,y:this.h/2+60},{text:'点击右上角搭新桌创建房间',x:this.w/2,y:80},{text:'Enter键打开聊天',x:this.w/2,y:this.h-80}];let idx=0;
     const showNext=()=>{if(idx>=steps.length){localStorage.setItem('wl_tutorial','1');return}const s=steps[idx];const div=document.createElement('div');div.className='tutorial-overlay';div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px';div.innerHTML=`<div style="background:var(--panel);border:1px solid var(--gold);padding:20px 28px;border-radius:4px;text-align:center;max-width:300px"><div style="font-size:14px;color:var(--text);margin-bottom:12px">${s.text}</div><button style="background:var(--gold);border:none;color:#1a1610;padding:8px 20px;border-radius:2px;font-size:12px;font-weight:700;cursor:pointer">下一步 (${idx+1}/${steps.length})</button></div>`;document.body.appendChild(div);div.querySelector('button').onclick=()=>{div.remove();idx++;showNext()}};showNext();
   },
 
-  show(){this.init();if(!this.animId)this.startLoop();this.bindInput();const actionBtn=$('action-btn');if(actionBtn)actionBtn.style.display='block';const fireBtn=$('fire-btn');if(fireBtn)fireBtn.style.display='block';const swapBtn=$('swap-btn');if(swapBtn)swapBtn.style.display='block';},
+  show(){this.init();if(!this.animId)this.startLoop();this.bindInput();bindLobbyCanvasClick();const actionBtn=$('action-btn');if(actionBtn)actionBtn.style.display='block';const fireBtn=$('fire-btn');if(fireBtn)fireBtn.style.display='block';const swapBtn=$('swap-btn');if(swapBtn)swapBtn.style.display='block';},
   hide(){this.stop();const actionBtn=$('action-btn');if(actionBtn)actionBtn.style.display='none';const fireBtn=$('fire-btn');if(fireBtn)fireBtn.style.display='none';const swapBtn=$('swap-btn');if(swapBtn)swapBtn.style.display='none';}
 };
 
