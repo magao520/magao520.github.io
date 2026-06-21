@@ -1996,6 +1996,15 @@ const Lobby={
   doAction(){
     // 检查附近的交互对象
     if(this.me.sitting){this.leaveTable();return}
+    // 检查NPC（优先）
+    for(const npc of this.npcs){
+      const dx=this.me.x-npc.x,dy=this.me.y-npc.y;
+      if(Math.sqrt(dx*dx+dy*dy)<40){
+        if(npc.type==='merchant'){this.openNPCShop(npc);return}
+        else if(npc.type==='beggar'){this.giveToBeggar(npc);return}
+        return;
+      }
+    }
     if(this._hoveredTable){this.joinTable(this._hoveredTable);return}
     // 检查物资箱
     for(const c of this.lootCrates){
@@ -2025,19 +2034,33 @@ const Lobby={
     let nearBarrel=null;for(const b of this.barrels){if(b.state!=='idle')continue;const dx=b.x-this.me.x,dy=b.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<30){nearBarrel=b;break}}
     // 检查长椅
     let nearBench=null;for(const b of this.benches){const dx=b.x-this.me.x,dy=b.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<40){nearBench=b;break}}
+    // 检查NPC
+    let nearNPC=null;
+    for(const npc of this.npcs){const dx=this.me.x-npc.x,dy=this.me.y-npc.y;if(Math.sqrt(dx*dx+dy*dy)<40){nearNPC=npc;break}}
     // 更新交互按钮
     const actionBtn=$('action-btn');
     if(actionBtn){
-      if(nearTable||nearCrate||nearBarrel||nearBench||this.me.sitting){
+      if(nearNPC||nearTable||nearCrate||nearBarrel||nearBench||this.me.sitting){
         actionBtn.style.display='block';
-        actionBtn.textContent=this.me.sitting?'🚪':nearTable?'🎮':nearCrate?'📦':nearBarrel?'⚽':'🪑';
+        if(this.me.sitting)actionBtn.textContent='🚪';
+        else if(nearNPC)actionBtn.textContent=nearNPC.type==='merchant'?'🛒':nearNPC.type==='beggar'?'🪙':'🛡️';
+        else if(nearTable)actionBtn.textContent='🎮';
+        else if(nearCrate)actionBtn.textContent='📦';
+        else if(nearBarrel)actionBtn.textContent='⚽';
+        else actionBtn.textContent='🪑';
       }else{
         actionBtn.style.display='none';
       }
     }
     if(this.me.sitting){hint.textContent='点击退出桌子';hint.style.display='block';hint.style.fontSize='16px';return;}
-    if(this.checkNPCInteraction()){}
-    else if(nearTable){const isMobile=('ontouchstart' in window)||this.w<640;const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';const actionText=isMobile?'点击加入':'按 E 或点击加入';hint.textContent=`${nearTable.label}${status} — ${actionText}`;hint.style.display='block';hint.style.fontSize=isMobile?'16px':'13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else if(nearCrate){hint.textContent='按 E 打开物资箱';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.openCrate(nearCrate)}}else if(nearBarrel){hint.textContent='按 E 踢油桶';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.kickBarrel(nearBarrel)}}else if(nearBench){hint.textContent='按 E 坐下 / 点击长椅';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;sitOnBench()}}else{hint.style.display='none'}
+    if(nearNPC){
+      const npc=nearNPC;
+      if(npc.type==='merchant'){hint.textContent='🛒 点击交互 — 打开商店';hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;}
+      else if(npc.type==='beggar'){hint.textContent='🪙 点击交互 — 施舍物资';hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;}
+      else if(npc.type==='guard'){hint.textContent='🛡️ 守卫正在巡逻';hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;}
+      return;
+    }
+    if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else if(nearCrate){hint.textContent='📦 点击交互 — 打开物资箱';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.openCrate(nearCrate)}}else if(nearBarrel){hint.textContent='⚽ 点击交互 — 踢油桶';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.kickBarrel(nearBarrel)}}else if(nearBench){hint.textContent='🪑 点击交互 — 坐下';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;sitOnBench()}}else{hint.style.display='none'}
   },
 
   openCrate(crate){
