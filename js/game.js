@@ -1636,7 +1636,7 @@ setTimeout(()=>{try{const m=$('main-screen');if(m&&m.style.display!=='none'&&Lob
 // ==================== 2D 大厅系统 v10.0 全面升级 ====================
 const Lobby={
   canvas:null,ctx:null,w:0,h:0,
-  me:{x:400,y:300,tx:400,ty:300,moving:false,emoji:'🐦',name:'',level:1,exp:0,sitting:false,animState:'idle',animTimer:0,faceDir:1},
+  me:{x:800,y:600,tx:800,ty:600,moving:false,emoji:'🐦',name:'',level:1,exp:0,sitting:false,animState:'idle',animTimer:0,faceDir:1},
   gameTime:20,
   dayNightCycle:480,
   others:new Map(),
@@ -1652,40 +1652,40 @@ const Lobby={
     {x:0,y:1168,w:1600,h:32,type:'wall'},    // 下墙
     {x:0,y:0,w:32,h:1200,type:'wall'},       // 左墙
     {x:1568,y:0,w:32,h:1200,type:'wall'},    // 右墙
-    // 内墙 - 卧室
-    {x:400,y:50,w:32,h:250,type:'wall'},     // 卧室右墙(上段,留门)
+    // 内墙 - 卧室 (留门在y=300-380)
+    {x:400,y:50,w:32,h:220,type:'wall'},     // 卧室右墙(上段,门在220-280)
+    {x:400,y:380,w:32,h:70,type:'wall'},     // 卧室右墙(下段)
     {x:50,y:400,w:350,h:32,type:'wall'},     // 卧室下墙
-    // 内墙 - 厨房
-    {x:1200,y:50,w:32,h:250,type:'wall'},    // 厨房左墙(上段,留门)
+    // 内墙 - 厨房 (留门在y=300-380)
+    {x:1200,y:50,w:32,h:220,type:'wall'},    // 厨房左墙(上段)
+    {x:1200,y:380,w:32,h:70,type:'wall'},    // 厨房左墙(下段)
     {x:1200,y:400,w:350,h:32,type:'wall'},   // 厨房下墙
-    // 内墙 - 浴室
-    {x:400,y:800,w:32,h:350,type:'wall'},    // 浴室右墙
+    // 内墙 - 浴室 (留门在y=900-980)
+    {x:400,y:800,w:32,h:80,type:'wall'},     // 浴室右墙(上段)
+    {x:400,y:980,w:32,h:170,type:'wall'},    // 浴室右墙(下段)
     {x:50,y:800,w:350,h:32,type:'wall'},     // 浴室上墙
-    // 内墙 - 储藏室
-    {x:1200,y:800,w:32,h:350,type:'wall'},   // 储藏室左墙
+    // 内墙 - 储藏室 (留门在y=900-980)
+    {x:1200,y:800,w:32,h:80,type:'wall'},    // 储藏室左墙(上段)
+    {x:1200,y:980,w:32,h:170,type:'wall'},   // 储藏室左墙(下段)
     {x:1200,y:800,w:350,h:32,type:'wall'},   // 储藏室上墙
-    // 家具碰撞体 - 卧室
-    {x:80,y:80,w:78,h:114,type:'furniture'},   // 双人床
-    {x:230,y:100,w:45,h:31,type:'furniture'},  // 床头柜
-    {x:300,y:60,w:108,h:60,type:'furniture'},  // 大柜子
-    {x:250,y:250,w:39,h:110,type:'furniture'}, // 单人床
-    // 家具碰撞体 - 厨房
-    {x:1220,y:60,w:150,h:42,type:'furniture'}, // 超长柜台
-    {x:1400,y:250,w:46,h:37,type:'furniture'}, // 洗衣机
-    {x:1300,y:300,w:57,h:56,type:'furniture'}, // 方桌
-    // 家具碰撞体 - 大厅
-    {x:500,y:400,w:60,h:51,type:'furniture'},  // 三人沙发
-    {x:800,y:400,w:108,h:51,type:'furniture'},  // 双人沙发
-    {x:700,y:550,w:76,h:73,type:'furniture'},   // 圆桌
-    {x:500,y:650,w:120,h:42,type:'furniture'},  // 长桌
-    {x:500,y:800,w:108,h:51,type:'furniture'},  // 双人沙发
-    {x:750,y:800,w:60,h:51,type:'furniture'},   // 三人沙发
+    // 家具碰撞体 - 卧室 (贴边放,留中间通道)
+    {x:60,y:60,w:78,h:114,type:'furniture'},   // 双人床(左上)
+    {x:60,y:280,w:45,h:31,type:'furniture'},   // 床头柜(左下)
+    {x:280,y:60,w:108,h:60,type:'furniture'},  // 大柜子(右上)
+    // 家具碰撞体 - 厨房 (贴边放)
+    {x:1230,y:60,w:150,h:42,type:'furniture'}, // 超长柜台(贴右墙)
+    {x:1230,y:320,w:46,h:37,type:'furniture'}, // 洗衣机(贴右墙)
+    // 家具碰撞体 - 大厅 (靠边放,留中央大通道)
+    {x:450,y:350,w:60,h:51,type:'furniture'},  // 三人沙发(左上)
+    {x:1050,y:350,w:108,h:51,type:'furniture'}, // 双人沙发(右上)
+    {x:620,y:520,w:76,h:73,type:'furniture'},   // 圆桌(中央偏左)
+    {x:450,y:750,w:120,h:42,type:'furniture'},  // 长桌(左下)
+    {x:1050,y:750,w:108,h:51,type:'furniture'}, // 双人沙发(右下)
     // 家具碰撞体 - 浴室
-    {x:100,y:850,w:46,h:37,type:'furniture'},   // 洗衣机
+    {x:60,y:830,w:46,h:37,type:'furniture'},   // 洗衣机(左上)
     // 家具碰撞体 - 储藏室
-    {x:1250,y:850,w:72,h:60,type:'furniture'},  // 滚轮柜
-    {x:1400,y:850,w:120,h:72,type:'furniture'}, // 大柜子
-    {x:1300,y:1000,w:57,h:56,type:'furniture'}, // 方桌
+    {x:1230,y:830,w:72,h:60,type:'furniture'},  // 滚轮柜(贴右墙)
+    {x:1230,y:1050,w:120,h:72,type:'furniture'}, // 大柜子(贴右墙)
   ],
   benches:[],
   currentRegion:'',
