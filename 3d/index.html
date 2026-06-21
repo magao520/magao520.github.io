@@ -1,111 +1,1313 @@
-<!DOCTYPE html>
-<html lang="zh">
+<!doctype html>
+<html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>生存小镇 3D</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{overflow:hidden;background:#000;font-family:'Courier New',monospace;touch-action:none;user-select:none}
-canvas{display:block}
-#ui-overlay{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
-#ui-overlay *{pointer-events:auto}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>末日荒原：美术升级手游版</title>
+  <script src="https://cdn.jsdelivr.net/npm/playcanvas@1.70.3/build/playcanvas.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #070907;
+      color: #f3f0e8;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
 
-/* HUD */
-#hud-top{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start}
-#hp-bar-container{width:200px;height:16px;background:rgba(0,0,0,0.7);border:2px solid rgba(255,255,255,0.3);border-radius:3px;overflow:hidden}
-#hp-bar{width:100%;height:100%;background:linear-gradient(to bottom,#5a5,#484);transition:width 0.3s}
-#hp-text{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;text-shadow:1px 1px 2px #000}
-#ammo-display{color:#ffdd44;font-size:14px;text-shadow:1px 1px 3px #000;text-align:right}
-#gun-name{color:#aaa;font-size:11px}
-#dead-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(139,0,0,0.5);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:20}
-#dead-overlay.active{display:flex}
-#dead-text{color:#ff4444;font-size:28px;font-weight:bold;text-shadow:2px 2px 4px #000}
-#respawn-text{color:#ffaaaa;font-size:16px;margin-top:10px}
+    #application-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
 
-/* 虚拟摇杆 */
-#joystick-zone{position:fixed;bottom:0;left:0;width:50%;height:50%;z-index:15}
-#joystick-base{position:absolute;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.3);display:none}
-#joystick-thumb{position:absolute;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.4);top:50%;left:50%;transform:translate(-50%,-50%)}
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      user-select: none;
+    }
 
-/* 按钮 */
-#btn-fire{position:fixed;bottom:30px;right:30px;width:70px;height:70px;border-radius:50%;background:rgba(255,60,60,0.6);border:2px solid rgba(255,100,100,0.8);color:#fff;font-size:12px;font-weight:bold;z-index:15;display:flex;align-items:center;justify-content:center}
-#btn-swap{position:fixed;bottom:110px;right:30px;width:50px;height:50px;border-radius:50%;background:rgba(60,60,255,0.5);border:2px solid rgba(100,100,255,0.7);color:#fff;font-size:10px;z-index:15;display:flex;align-items:center;justify-content:center}
-#btn-action{position:fixed;bottom:30px;right:120px;width:50px;height:50px;border-radius:50%;background:rgba(60,255,60,0.5);border:2px solid rgba(100,255,100,0.7);color:#fff;font-size:10px;z-index:15;display:flex;align-items:center;justify-content:center}
+    .panel {
+      background: rgba(13, 15, 13, .70);
+      border: 1px solid rgba(232, 218, 180, .18);
+      border-radius: 16px;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, .36);
+      backdrop-filter: blur(10px);
+    }
 
-/* 加载 */
-#loading{position:fixed;top:0;left:0;width:100%;height:100%;background:#111;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:100}
-#loading h2{color:#4a7a3a;margin-bottom:20px}
-#loading-bar-bg{width:300px;height:20px;background:#333;border-radius:10px;overflow:hidden}
-#loading-bar{width:0%;height:100%;background:linear-gradient(90deg,#4a7a3a,#6a9a5a);transition:width 0.3s}
-#loading-text{color:#888;margin-top:10px;font-size:12px}
+    #stats {
+      position: absolute;
+      left: 12px;
+      top: 10px;
+      width: min(280px, 42vw);
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
 
-/* 玩家名字标签 */
-.name-tag{position:absolute;color:#fff;font-size:10px;text-shadow:1px 1px 2px #000;pointer-events:none;transform:translate(-50%,-100%);white-space:nowrap}
+    .stat {
+      display: grid;
+      grid-template-columns: 56px 1fr 38px;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
 
-/* 交互提示 */
-#interact-hint{position:fixed;bottom:50%;left:50%;transform:translate(-50%,50%);color:#ffdd44;font-size:14px;text-shadow:1px 1px 3px #000;display:none;text-align:center;z-index:15}
+    .bar {
+      height: 8px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, .12);
+    }
 
-/* 小地图 */
-#minimap{position:fixed;top:10px;right:10px;width:150px;height:150px;background:rgba(0,0,0,0.7);border:2px solid rgba(255,255,255,0.3);border-radius:5px;z-index:15;overflow:hidden}
-#minimap-canvas{width:100%;height:100%}
-</style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
-  }
-}
-</script>
+    .fill {
+      height: 100%;
+      width: 100%;
+      border-radius: 99px;
+      transform-origin: left center;
+      transition: transform .12s linear;
+    }
+
+    #hpFill { background: linear-gradient(90deg, #3ed47b, #d7c14a, #d94c3d); }
+    #foodFill { background: linear-gradient(90deg, #d98d3d, #e5c063); }
+    #waterFill { background: linear-gradient(90deg, #35a6e8, #73dbff); }
+    #staminaFill { background: linear-gradient(90deg, #c9c9c9, #ffffff); }
+
+    #inventory {
+      position: absolute;
+      left: 12px;
+      bottom: 160px;
+      padding: 10px 12px;
+      min-width: 260px;
+      font-size: 12px;
+    }
+
+    .inv-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      color: rgba(255, 255, 255, .82);
+      line-height: 1.55;
+    }
+
+    .inv-row b { color: #fff0b5; font-size: 13px; }
+
+    #mission {
+      position: absolute;
+      right: 12px;
+      top: 10px;
+      width: min(340px, 45vw);
+      padding: 12px 14px;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, .78);
+      font-size: 12px;
+    }
+
+    #mission h3 {
+      margin: 0 0 5px;
+      color: #fff4bf;
+      font-size: 14px;
+      letter-spacing: .04em;
+    }
+
+    #message {
+      position: absolute;
+      left: 50%;
+      top: 14px;
+      transform: translateX(-50%);
+      padding: 10px 16px;
+      max-width: min(560px, calc(100vw - 28px));
+      text-align: center;
+      font-weight: 800;
+      color: #fff7d7;
+      font-size: 13px;
+    }
+
+    #interaction {
+      position: absolute;
+      left: 50%;
+      bottom: 200px;
+      transform: translateX(-50%);
+      padding: 10px 16px;
+      display: none;
+      color: #fff;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    #crosshair {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 20px;
+      height: 20px;
+      transform: translate(-50%, -50%);
+      opacity: .75;
+    }
+
+    #crosshair::before, #crosshair::after {
+      content: "";
+      position: absolute;
+      background: rgba(255, 245, 210, .9);
+      border-radius: 999px;
+    }
+
+    #crosshair::before { width: 2px; height: 20px; left: 9px; top: 0; }
+    #crosshair::after { width: 20px; height: 2px; left: 0; top: 9px; }
+
+    #miniMap {
+      position: absolute;
+      right: 12px;
+      bottom: 160px;
+      width: 140px;
+      height: 140px;
+      border-radius: 14px;
+      background:
+        linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px),
+        rgba(10, 13, 10, .68);
+      background-size: 24px 24px;
+      border: 1px solid rgba(232, 218, 180, .18);
+      overflow: hidden;
+    }
+
+    #playerDot, .map-dot {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    #playerDot { left: 50%; top: 50%; background: #69d3ff; box-shadow: 0 0 12px #69d3ff; }
+    .map-dot { background: #ffe08a; opacity: .7; }
+
+    .note {
+      position: absolute;
+      right: 12px;
+      bottom: 306px;
+      width: 140px;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, .6);
+      line-height: 1.4;
+    }
+
+    .danger { color: #ff6d58 !important; }
+
+    /* 虚拟摇杆 */
+    .joystick-zone {
+      position: absolute;
+      bottom: 20px;
+      width: 140px;
+      height: 140px;
+      pointer-events: auto;
+      touch-action: none;
+    }
+
+    #joystickLeft { left: 16px; }
+    #joystickRight { right: 16px; }
+
+    .joystick-base {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 120px;
+      height: 120px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .08);
+      border: 2px solid rgba(255, 255, 255, .18);
+    }
+
+    .joystick-stick {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 48px;
+      height: 48px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .22);
+      border: 2px solid rgba(255, 255, 255, .35);
+    }
+
+    .joystick-label {
+      position: absolute;
+      bottom: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: rgba(255, 255, 255, .5);
+      white-space: nowrap;
+    }
+
+    /* 操作按钮 */
+    .action-btn {
+      position: absolute;
+      pointer-events: auto;
+      touch-action: none;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .12);
+      border: 2px solid rgba(255, 255, 255, .22);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .action-btn:active { background: rgba(255, 255, 255, .28); }
+
+    #btnShoot { right: 20px; bottom: 180px; width: 72px; height: 72px; background: rgba(217, 76, 61, .22); border-color: rgba(217, 76, 61, .45); }
+    #btnLoot { left: 50%; bottom: 20px; transform: translateX(-50%); }
+    #btnFlashlight { right: 100px; bottom: 20px; }
+    #btnRun { left: 180px; bottom: 20px; }
+
+    #start, #dead {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 24% 20%, rgba(154, 91, 38, .28), transparent 30%),
+        radial-gradient(circle at 78% 70%, rgba(69, 91, 71, .24), transparent 34%),
+        rgba(3, 5, 4, .88);
+    }
+
+    #dead { display: none; background: rgba(0, 0, 0, .72); }
+
+    .card {
+      width: min(720px, calc(100vw - 28px));
+      box-sizing: border-box;
+      padding: 24px;
+      border-radius: 24px;
+      text-align: center;
+    }
+
+    .card h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 6vw, 56px);
+      letter-spacing: .06em;
+      color: #fff0b5;
+      text-shadow: 0 4px 24px rgba(0, 0, 0, .55);
+    }
+
+    .card p {
+      margin: 8px auto;
+      max-width: 600px;
+      color: rgba(255, 255, 255, .76);
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    button {
+      pointer-events: auto;
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 36px;
+      color: #1e1409;
+      background: linear-gradient(135deg, #fff0a8, #d78d3f);
+      font-weight: 900;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: 0 16px 38px rgba(207, 123, 42, .34);
+    }
+
+    @media (max-width: 480px) {
+      #stats { width: 46vw; left: 8px; top: 8px; padding: 8px; gap: 6px; }
+      .stat { grid-template-columns: 44px 1fr 32px; gap: 6px; font-size: 11px; }
+      .bar { height: 6px; }
+      #inventory { left: 8px; bottom: 170px; min-width: 180px; padding: 8px 10px; font-size: 11px; }
+      #mission { right: 8px; top: 8px; width: 42vw; padding: 10px 12px; font-size: 11px; }
+      #mission h3 { font-size: 13px; }
+      #miniMap { width: 110px; height: 110px; right: 8px; bottom: 170px; }
+      .note { right: 8px; bottom: 286px; width: 110px; font-size: 10px; }
+      .joystick-zone { width: 120px; height: 120px; }
+      .joystick-base { width: 100px; height: 100px; }
+      .joystick-stick { width: 40px; height: 40px; }
+      #joystickLeft { left: 10px; bottom: 16px; }
+      #joystickRight { right: 10px; bottom: 16px; }
+      .action-btn { width: 54px; height: 54px; font-size: 12px; }
+      #btnShoot { right: 14px; bottom: 150px; width: 60px; height: 60px; }
+      #btnLoot { bottom: 16px; }
+      #btnFlashlight { right: 80px; bottom: 16px; }
+      #btnRun { left: 140px; bottom: 16px; }
+    }
+  </style>
 </head>
 <body>
+  <canvas id="application-canvas"></canvas>
 
-<!-- 加载界面 -->
-<div id="loading">
-  <h2>生存小镇 3D</h2>
-  <div id="loading-bar-bg"><div id="loading-bar"></div></div>
-  <div id="loading-text">加载中... 0%</div>
-</div>
-
-<!-- HUD -->
-<div id="ui-overlay">
-  <div id="hud-top">
-    <div style="position:relative">
-      <div id="hp-bar-container"><div id="hp-bar"></div></div>
-      <div id="hp-text">100/100</div>
+  <div id="hud">
+    <div id="stats" class="panel">
+      <div class="stat"><span>生命</span><div class="bar"><div id="hpFill" class="fill"></div></div><b id="hpText">100</b></div>
+      <div class="stat"><span>饥饿</span><div class="bar"><div id="foodFill" class="fill"></div></div><b id="foodText">100</b></div>
+      <div class="stat"><span>口渴</span><div class="bar"><div id="waterFill" class="fill"></div></div><b id="waterText">100</b></div>
+      <div class="stat"><span>体力</span><div class="bar"><div id="staminaFill" class="fill"></div></div><b id="staminaText">100</b></div>
     </div>
-    <div id="ammo-display">
-      <div id="gun-name">手枪</div>
-      <div id="ammo-count">∞</div>
+
+    <div id="inventory" class="panel">
+      <div class="inv-row"><span>武器</span><b id="weaponText">旧手枪</b></div>
+      <div class="inv-row"><span>弹药</span><b id="ammoText">24</b></div>
+      <div class="inv-row"><span>食物/水</span><b id="suppliesText">0/0</b></div>
+      <div class="inv-row"><span>木材/废铁</span><b id="materialsText">0/0</b></div>
+      <div class="inv-row"><span>探索</span><b id="distanceText">0m</b></div>
+    </div>
+
+    <div id="mission" class="panel">
+      <h3>目标：活过第一天</h3>
+      末日爆发，无异能。已换成完整角色、僵尸、枪械和街道废墟模型。触屏左侧移动，右侧转视角，按钮射击/搜刮。
+    </div>
+
+    <div id="message" class="panel">素材加载中...</div>
+    <div id="interaction" class="panel">点击搜刮</div>
+    <div id="crosshair"></div>
+    <div id="miniMap" class="panel"><div id="playerDot"></div></div>
+    <div class="note panel">触屏操作：左侧摇杆移动，右侧摇杆视角，按钮射击/搜刮/手电</div>
+
+    <!-- 虚拟摇杆 -->
+    <div id="joystickLeft" class="joystick-zone">
+      <div class="joystick-base"></div>
+      <div class="joystick-stick" id="stickLeft"></div>
+      <div class="joystick-label">移动</div>
+    </div>
+    <div id="joystickRight" class="joystick-zone">
+      <div class="joystick-base"></div>
+      <div class="joystick-stick" id="stickRight"></div>
+      <div class="joystick-label">视角</div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div id="btnShoot" class="action-btn">射击</div>
+    <div id="btnLoot" class="action-btn">搜刮</div>
+    <div id="btnFlashlight" class="action-btn">手电</div>
+    <div id="btnRun" class="action-btn">奔跑</div>
+  </div>
+
+  <div id="start">
+    <div class="card panel">
+      <h1>末日荒原</h1>
+      <p>末日爆发后，没有异能，没有救世主。你从废弃公路边醒来，只能靠搜刮、观察和子弹活下去。</p>
+      <p>美术升级手游版：完整幸存者角色、真实僵尸模型、街道废墟、路灯、集装箱、武器和场景道具。</p>
+      <button id="startButton" disabled>加载素材中...</button>
     </div>
   </div>
-</div>
 
-<!-- 阵亡覆盖 -->
-<div id="dead-overlay">
-  <div id="dead-text">你阵亡了</div>
-  <div id="respawn-text">复活倒计时: 5s</div>
-</div>
-
-<!-- 虚拟摇杆 -->
-<div id="joystick-zone">
-  <div id="joystick-base">
-    <div id="joystick-thumb"></div>
+  <div id="dead">
+    <div class="card panel">
+      <h1 class="danger">你没能活下去</h1>
+      <p id="deadText">探索距离：0m</p>
+      <button id="restartButton">重新开始</button>
+    </div>
   </div>
-</div>
 
-<!-- 按钮 -->
-<div id="btn-fire">射击</div>
-<div id="btn-swap">换枪</div>
-<div id="btn-action">互动</div>
+  <script>
+    window.addEventListener('error', event => {
+      const message = document.getElementById('message');
+      const button = document.getElementById('startButton');
+      if (message) message.textContent = '脚本错误：' + event.message;
+      if (button) { button.textContent = '加载失败，请刷新'; button.disabled = false; }
+      console.error('页面脚本错误', event.message, event.filename, event.lineno, event.colno, event.error);
+    });
 
-<!-- 交互提示 -->
-<div id="interact-hint"></div>
+    try {
+    const canvas = document.getElementById('application-canvas');
+    const inputDevices = {
+      mouse: new pc.Mouse(canvas),
+      keyboard: new pc.Keyboard(window)
+    };
+    if ('ontouchstart' in window && pc.TouchDevice) {
+      try {
+        inputDevices.touch = new pc.TouchDevice(canvas);
+      } catch (touchError) {
+        console.warn('触屏输入设备初始化失败，已改用DOM触控按钮。', touchError);
+      }
+    }
+    const app = new pc.Application(canvas, inputDevices);
 
-<!-- 小地图 -->
-<div id="minimap"><canvas id="minimap-canvas" width="150" height="150"></canvas></div>
+    app.start();
+    app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+    app.setCanvasResolution(pc.RESOLUTION_AUTO);
+    app.scene.gammaCorrection = pc.GAMMA_SRGB;
+    app.scene.toneMapping = pc.TONEMAP_ACES;
+    app.scene.exposure = 0.95;
+    app.scene.ambientLight = new pc.Color(0.22, 0.23, 0.20);
+    app.scene.fog = pc.FOG_LINEAR;
+    app.scene.fogColor = new pc.Color(0.30, 0.29, 0.24);
+    app.scene.fogStart = 45;
+    app.scene.fogEnd = 310;
 
-<script type="module" src="main.js"></script>
+    const ui = {
+      start: document.getElementById('start'),
+      startButton: document.getElementById('startButton'),
+      dead: document.getElementById('dead'),
+      restartButton: document.getElementById('restartButton'),
+      message: document.getElementById('message'),
+      interaction: document.getElementById('interaction'),
+      deadText: document.getElementById('deadText'),
+      hpFill: document.getElementById('hpFill'),
+      foodFill: document.getElementById('foodFill'),
+      waterFill: document.getElementById('waterFill'),
+      staminaFill: document.getElementById('staminaFill'),
+      hpText: document.getElementById('hpText'),
+      foodText: document.getElementById('foodText'),
+      waterText: document.getElementById('waterText'),
+      staminaText: document.getElementById('staminaText'),
+      weaponText: document.getElementById('weaponText'),
+      ammoText: document.getElementById('ammoText'),
+      suppliesText: document.getElementById('suppliesText'),
+      materialsText: document.getElementById('materialsText'),
+      distanceText: document.getElementById('distanceText'),
+      miniMap: document.getElementById('miniMap'),
+      btnShoot: document.getElementById('btnShoot'),
+      btnLoot: document.getElementById('btnLoot'),
+      btnFlashlight: document.getElementById('btnFlashlight'),
+      btnRun: document.getElementById('btnRun'),
+      stickLeft: document.getElementById('stickLeft'),
+      stickRight: document.getElementById('stickRight')
+    };
+
+    function material(name, color, gloss, metalness) {
+      const m = new pc.StandardMaterial();
+      m.name = name;
+      m.diffuse = color;
+      m.gloss = gloss || 0.3;
+      m.metalness = metalness || 0;
+      m.update();
+      return m;
+    }
+
+    const mat = {
+      dirt: material('干裂泥土', new pc.Color(0.38, 0.31, 0.22), 0.16),
+      road: material('破损公路', new pc.Color(0.075, 0.078, 0.075), 0.2),
+      roadLine: material('褪色路线', new pc.Color(0.83, 0.72, 0.42), 0.22),
+      rust: material('锈蚀金属', new pc.Color(0.46, 0.20, 0.11), 0.22, 0.2),
+      darkMetal: material('深色金属', new pc.Color(0.10, 0.11, 0.10), 0.44, 0.4),
+      glass: material('脏玻璃', new pc.Color(0.24, 0.39, 0.42), 0.65),
+      human: material('幸存者外套', new pc.Color(0.21, 0.35, 0.32), 0.35),
+      skin: material('皮肤', new pc.Color(0.73, 0.55, 0.39), 0.3),
+      infected: material('感染者衣物', new pc.Color(0.28, 0.20, 0.18), 0.22),
+      infectedSkin: material('灰败皮肤', new pc.Color(0.54, 0.57, 0.45), 0.2),
+      bullet: material('枪口火光', new pc.Color(1.0, 0.78, 0.22), 0.8),
+      loot: material('可搜刮提示', new pc.Color(0.95, 0.77, 0.22), 0.6),
+      safe: material('安全屋标记', new pc.Color(0.16, 0.55, 0.92), 0.55)
+    };
+
+    const assets = {};
+    const postAssets = {};
+    const assetNames = [
+      'barrel','bottle','box-large','box','bucket','chest','fence-fortified','fence',
+      'floor-old','metal-panel-screws','metal-panel','resource-planks','resource-stone',
+      'resource-wood','rock-a','rock-b','rock-c','signpost','structure-metal-doorway',
+      'structure-metal-roof','structure-metal-wall','structure-metal','tent-canvas','tent',
+      'tool-axe','tool-pickaxe','tree-autumn-tall','tree-autumn','tree-log','tree-tall',
+      'tree','workbench'
+    ];
+    const postAssetNames = [
+      'Characters_Sam','Characters_Matt','Characters_Shaun','Lis','Zombie','Zombie_VlXjG0N8Eg','Zombie_half',
+      'Pistol','Rifle','Shotgun','Smg','Axe','Knife','Container_Green','Container_Red','Traffic_Barrier',
+      'Traffic_Cone','Traffic_Light','Street_Light','Water_Tower','Trash_Bag','Trash_Bags','Pallet','Pallet_Broken',
+      'Damaged_Couch','Fire_Hydrant','Town_Sign','Wheels_Stack','Pipes','Blood','Blood_Splat','Plastic_Barrier'
+    ];
+
+    const state = {
+      loaded: false, started: false, alive: true,
+      yaw: 0, pitch: -0.06,
+      hp: 100, food: 100, water: 100, stamina: 100,
+      ammo: 24, foodItems: 0, waterItems: 0, wood: 0, scrap: 0,
+      weapon: '旧手枪', weaponDamage: 42, weaponCooldown: 0.35,
+      fireTimer: 0, flashlight: false,
+      time: 0, distance: 0,
+      nearestLoot: null,
+      props: [], lootables: [], enemies: [], mapDots: [],
+      // 虚拟摇杆状态
+      joyLeft: { active: false, dx: 0, dy: 0 },
+      joyRight: { active: false, dx: 0, dy: 0 },
+      running: false
+    };
+
+    const tmpA = new pc.Vec3();
+    const tmpB = new pc.Vec3();
+    const tmpC = new pc.Vec3();
+    const worldSize = 980;
+
+    function createBox(name, position, scale, m) {
+      const e = new pc.Entity(name);
+      e.addComponent('render', { type: 'box' });
+      e.setPosition(position);
+      e.setLocalScale(scale);
+      e.render.material = m;
+      app.root.addChild(e);
+      return e;
+    }
+
+    function createCylinder(name, position, scale, m) {
+      const e = new pc.Entity(name);
+      e.addComponent('render', { type: 'cylinder' });
+      e.setPosition(position);
+      e.setLocalScale(scale);
+      e.render.material = m;
+      app.root.addChild(e);
+      return e;
+    }
+
+    function createSphere(name, position, scale, m) {
+      const e = new pc.Entity(name);
+      e.addComponent('render', { type: 'sphere' });
+      e.setPosition(position);
+      e.setLocalScale(scale);
+      e.render.material = m;
+      app.root.addChild(e);
+      return e;
+    }
+
+    function seededRandom(seed) {
+      const x = Math.sin(seed * 127.1) * 43758.5453;
+      return x - Math.floor(x);
+    }
+
+    function setMessage(text, seconds) {
+      seconds = seconds || 2.2;
+      ui.message.textContent = text;
+      ui.message.style.opacity = '1';
+      clearTimeout(setMessage.timer);
+      setMessage.timer = setTimeout(function() {
+        if (state.started && state.alive) ui.message.style.opacity = '.66';
+      }, seconds * 1000);
+    }
+
+    function loadAssets() {
+      let done = 0;
+      let failed = 0;
+      const total = assetNames.length + postAssetNames.length;
+      function markDone() {
+        done += 1;
+        ui.message.textContent = '高质量素材加载中：' + done + ' / ' + total;
+        if (done === total) {
+          state.loaded = true;
+          applyBetterPlayerModel();
+          ui.startButton.disabled = false;
+          ui.startButton.textContent = '进入荒原';
+          if (failed > 0) {
+            setMessage('素材加载完成，但有 ' + failed + ' 个模型失败。建议用本地服务器或部署到网页后打开。', 5);
+          } else {
+            setMessage('美术升级素材加载完成：角色、僵尸、枪械、街道废墟已接入。');
+          }
+        }
+      }
+      assetNames.forEach(function(name) {
+        app.assets.loadFromUrl('assets/kenney_survival/' + name + '.glb', 'container', function(err, asset) {
+          if (!err && asset && asset.resource) assets[name] = asset;
+          else { failed += 1; console.warn('素材加载失败', name, err); }
+          markDone();
+        });
+      });
+      postAssetNames.forEach(function(name) {
+        app.assets.loadFromUrl('assets/quaternius_postapoc/' + name + '.glb', 'container', function(err, asset) {
+          if (!err && asset && asset.resource) postAssets[name] = asset;
+          else { failed += 1; console.warn('末日模型加载失败', name, err); }
+          markDone();
+        });
+      });
+    }
+
+    function instantiateAsset(name, position, scale, yaw) {
+      scale = scale || 1;
+      yaw = yaw || 0;
+      const asset = assets[name];
+      if (!asset || !asset.resource) {
+        return createBox(name + '-fallback', position, new pc.Vec3(scale, scale, scale), mat.rust);
+      }
+      const e = asset.resource.instantiateRenderEntity();
+      e.name = name;
+      e.setPosition(position);
+      e.setLocalScale(scale, scale, scale);
+      e.setEulerAngles(0, yaw, 0);
+      app.root.addChild(e);
+      return e;
+    }
+
+    function instantiatePostAsset(name, position, scale, yaw, parent) {
+      scale = scale || 1;
+      yaw = yaw || 0;
+      const asset = postAssets[name];
+      if (!asset || !asset.resource) {
+        return createBox(name + '-fallback', position, new pc.Vec3(scale, scale, scale), mat.rust);
+      }
+      const e = asset.resource.instantiateRenderEntity();
+      e.name = name;
+      e.setLocalScale(scale, scale, scale);
+      if (parent) {
+        parent.addChild(e);
+        e.setLocalPosition(position);
+        e.setLocalEulerAngles(0, yaw, 0);
+      } else {
+        app.root.addChild(e);
+        e.setPosition(position);
+        e.setEulerAngles(0, yaw, 0);
+      }
+      return e;
+    }
+
+    const sun = new pc.Entity('低角度太阳');
+    sun.addComponent('light', {
+      type: 'directional',
+      color: new pc.Color(1.0, 0.74, 0.46),
+      intensity: 1.35,
+      castShadows: true,
+      shadowResolution: 1024,
+      shadowDistance: 120
+    });
+    sun.setEulerAngles(38, 42, 0);
+    app.root.addChild(sun);
+
+    const player = new pc.Entity('幸存者');
+    app.root.addChild(player);
+
+    function buildPlayerBody() {
+      const body = createCylinder('玩家身体', new pc.Vec3(0, 0, 0), new pc.Vec3(.58, 1.22, .58), mat.human);
+      body.setLocalPosition(0, .85, 0);
+      const head = createSphere('玩家头部', new pc.Vec3(0, 0, 0), new pc.Vec3(.34, .34, .34), mat.skin);
+      head.setLocalPosition(0, 1.62, 0);
+      const pack = createBox('背包', new pc.Vec3(0, 0, 0), new pc.Vec3(.52, .72, .20), mat.darkMetal);
+      pack.setLocalPosition(0, .96, -.42);
+      player.addChild(body);
+      player.addChild(head);
+      player.addChild(pack);
+    }
+
+    buildPlayerBody();
+
+    function applyBetterPlayerModel() {
+      if (!postAssets['Characters_Sam']) return;
+      const children = player.children.slice();
+      children.forEach(function(child) { child.destroy(); });
+      const model = instantiatePostAsset('Characters_Sam', new pc.Vec3(0, 0, 0), 1.45, 180, player);
+      model.setLocalPosition(0, 0, 0);
+      model.setLocalEulerAngles(0, 180, 0);
+      const gun = instantiatePostAsset('Rifle', new pc.Vec3(0, 0, 0), .8, 90, player);
+      gun.setLocalPosition(.42, 1.15, .38);
+      gun.setLocalEulerAngles(0, 90, 8);
+    }
+
+    const camera = new pc.Entity('摄像机');
+    camera.addComponent('camera', {
+      clearColor: new pc.Color(0.34, 0.36, 0.32),
+      fov: 72,
+      nearClip: 0.08,
+      farClip: 600
+    });
+    app.root.addChild(camera);
+
+    const flashlight = new pc.Entity('手电光');
+    flashlight.addComponent('light', {
+      type: 'spot',
+      color: new pc.Color(1, .88, .66),
+      intensity: 0,
+      range: 55,
+      innerConeAngle: 18,
+      outerConeAngle: 34,
+      castShadows: false
+    });
+    camera.addChild(flashlight);
+    flashlight.setLocalPosition(0, 0, 0);
+    flashlight.setLocalEulerAngles(0, 0, 0);
+
+    function buildTerrain() {
+      createBox('荒原地面', new pc.Vec3(0, -0.55, 0), new pc.Vec3(worldSize, 1, worldSize), mat.dirt);
+      createBox('南北破损公路', new pc.Vec3(0, -0.47, 0), new pc.Vec3(15, .09, worldSize), mat.road);
+      createBox('东西破损公路', new pc.Vec3(0, -0.46, 0), new pc.Vec3(worldSize, .08, 12), mat.road);
+      for (let z = -460; z < 470; z += 34) createBox('公路中线', new pc.Vec3(0, -0.40, z), new pc.Vec3(1.1, .03, 13), mat.roadLine);
+      for (let x = -460; x < 470; x += 34) createBox('横向中线', new pc.Vec3(x, -0.39, 0), new pc.Vec3(13, .03, 1.1), mat.roadLine);
+    }
+
+    function addLootMarker(entity) {
+      const p = entity.getPosition();
+      const marker = createSphere('搜刮光点', new pc.Vec3(p.x, p.y + 1.8, p.z), new pc.Vec3(.18, .18, .18), mat.loot);
+      const light = new pc.Entity('搜刮微光');
+      light.setPosition(p.x, p.y + 1.3, p.z);
+      light.addComponent('light', { type: 'point', color: new pc.Color(1, .74, .22), intensity: .55, range: 8 });
+      app.root.addChild(light);
+      return { marker: marker, light: light };
+    }
+
+    function addLootable(entity, type, amount, label) {
+      const glow = addLootMarker(entity);
+      state.lootables.push({ entity: entity, type: type, amount: amount, label: label, looted: false, glow: glow });
+    }
+
+    function createMapDot(x, z, type) {
+      type = type || 'loot';
+      const dot = document.createElement('div');
+      dot.className = 'map-dot';
+      dot.style.background = type === 'danger' ? '#ff695c' : type === 'safe' ? '#63d4ff' : '#ffe08a';
+      ui.miniMap.appendChild(dot);
+      state.mapDots.push({ dot: dot, x: x, z: z });
+    }
+
+    function placeCamp(cx, cz, seed) {
+      instantiateAsset('tent-canvas', new pc.Vec3(cx, 0, cz), 2.2, seededRandom(seed) * 360);
+      instantiateAsset('workbench', new pc.Vec3(cx + 4.5, 0, cz - 1.2), 1.8, 70);
+      const chest = instantiateAsset('chest', new pc.Vec3(cx - 3.4, 0, cz + 2.6), 1.7, 20);
+      const box = instantiateAsset('box-large', new pc.Vec3(cx + 2.2, 0, cz + 4.0), 1.5, 135);
+      instantiateAsset('barrel', new pc.Vec3(cx + 6.5, 0, cz + 2.2), 1.5, 0);
+      instantiateAsset('bucket', new pc.Vec3(cx - 5.2, 0, cz - 2.1), 1.4, 0);
+      instantiateAsset('fence-fortified', new pc.Vec3(cx - 6.8, 0, cz + 5.4), 2.0, 90);
+      instantiateAsset('fence-fortified', new pc.Vec3(cx + 6.8, 0, cz + 5.4), 2.0, 90);
+      addLootable(chest, 'mixed', 1, '废弃箱子');
+      addLootable(box, 'materials', 1, '物资箱');
+      instantiatePostAsset('Pallet_Broken', new pc.Vec3(cx + 8.0, 0, cz - 3.8), 1.1, 35);
+      instantiatePostAsset('Traffic_Cone', new pc.Vec3(cx - 7.4, 0, cz + 1.2), 1.0, 0);
+      instantiatePostAsset('Blood_Splat', new pc.Vec3(cx - 1.8, .03, cz + 6.1), 1.2, seededRandom(seed + 44) * 360);
+      createMapDot(cx, cz, 'loot');
+    }
+
+    function placeScrapYard(cx, cz, seed) {
+      for (let i = 0; i < 8; i++) {
+        const x = cx + (seededRandom(seed + i) - .5) * 18;
+        const z = cz + (seededRandom(seed + i * 3) - .5) * 16;
+        const panel = instantiateAsset(i % 2 ? 'metal-panel-screws' : 'metal-panel', new pc.Vec3(x, 0, z), 1.8 + seededRandom(seed + i * 7) * .8, seededRandom(seed + i * 11) * 360);
+        if (i < 3) addLootable(panel, 'scrap', 1, '废铁堆');
+      }
+      const barrel = instantiateAsset('barrel', new pc.Vec3(cx + 2, 0, cz + 3), 1.8, 0);
+      addLootable(barrel, 'water', 1, '旧水桶');
+      createMapDot(cx, cz, 'loot');
+    }
+
+    function placeShelter(cx, cz) {
+      instantiateAsset('structure-metal', new pc.Vec3(cx, 0, cz), 2.6, 0);
+      instantiateAsset('structure-metal-wall', new pc.Vec3(cx + 5.2, 0, cz), 2.5, 90);
+      instantiateAsset('structure-metal-doorway', new pc.Vec3(cx - 5.2, 0, cz), 2.5, 90);
+      instantiateAsset('structure-metal-roof', new pc.Vec3(cx, 3.0, cz), 2.55, 0);
+      const sign = instantiateAsset('signpost', new pc.Vec3(cx, 0, cz + 8), 2.0, 180);
+      const safeLight = new pc.Entity('安全屋蓝光');
+      safeLight.setPosition(cx, 3.2, cz);
+      safeLight.addComponent('light', { type: 'point', color: new pc.Color(.2, .75, 1), intensity: 1.1, range: 24 });
+      app.root.addChild(safeLight);
+      addLootable(sign, 'safe', 1, '安全屋标记');
+      createMapDot(cx, cz, 'safe');
+    }
+
+    function placeNature() {
+      for (let i = 0; i < 200; i++) {
+        const x = (seededRandom(i + 20) - .5) * worldSize * .92;
+        const z = (seededRandom(i + 2000) - .5) * worldSize * .92;
+        if (Math.abs(x) < 22 || Math.abs(z) < 20) continue;
+        const roll = seededRandom(i + 99);
+        if (roll < .38) instantiateAsset(i % 2 ? 'tree' : 'tree-tall', new pc.Vec3(x, 0, z), 1.7 + seededRandom(i + 8) * 1.9, seededRandom(i) * 360);
+        else if (roll < .58) instantiateAsset(i % 2 ? 'tree-autumn' : 'tree-autumn-tall', new pc.Vec3(x, 0, z), 1.6 + seededRandom(i + 18) * 1.7, seededRandom(i) * 360);
+        else if (roll < .82) instantiateAsset(['rock-a','rock-b','rock-c'][i % 3], new pc.Vec3(x, 0, z), 1.6 + seededRandom(i + 2) * 2.2, seededRandom(i) * 360);
+        else instantiateAsset('tree-log', new pc.Vec3(x, 0, z), 1.5 + seededRandom(i + 2) * 1.8, seededRandom(i) * 360);
+      }
+    }
+
+    function placeWreckedVehicle(x, z, yaw) {
+      const cluster = new pc.Entity('废弃街区杂物');
+      app.root.addChild(cluster);
+      cluster.setPosition(x, 0, z);
+      cluster.setEulerAngles(0, yaw, 0);
+      const container = instantiatePostAsset(Math.random() < .5 ? 'Container_Red' : 'Container_Green', new pc.Vec3(0, 0, 0), 1.35, yaw);
+      const barrierA = instantiatePostAsset('Traffic_Barrier', new pc.Vec3(x + 4.2, 0, z + 1.8), 1.2, yaw + 30);
+      const barrierB = instantiatePostAsset('Plastic_Barrier', new pc.Vec3(x - 4.5, 0, z - 1.5), 1.2, yaw - 20);
+      const trash = instantiatePostAsset('Trash_Bags', new pc.Vec3(x + 1.8, 0, z - 3.6), 1.1, yaw + 80);
+      const couch = instantiatePostAsset('Damaged_Couch', new pc.Vec3(x - 2.5, 0, z + 3.0), 1.1, yaw + 160);
+      container.setPosition(x, 0, z);
+      addLootable(container, 'scrap', 1, '废弃集装箱');
+      addLootable(trash, 'mixed', 1, '垃圾堆');
+    }
+
+    function buildWorld() {
+      buildTerrain();
+      for (let i = -4; i <= 4; i++) {
+        instantiatePostAsset('Street_Light', new pc.Vec3(9, 0, i * 55), 1.35, 0);
+        instantiatePostAsset('Traffic_Cone', new pc.Vec3(-8, 0, i * 48 + 18), 1.0, 0);
+        instantiatePostAsset(i % 2 === 0 ? 'Traffic_Light' : 'Fire_Hydrant', new pc.Vec3(i * 60, 0, 9), 1.1, 90);
+      }
+      instantiatePostAsset('Water_Tower', new pc.Vec3(-82, 0, 118), 2.0, 35);
+      instantiatePostAsset('Town_Sign', new pc.Vec3(34, 0, -92), 1.6, 12);
+      placeNature();
+      placeCamp(46, -58, 1);
+      placeCamp(-96, 72, 2);
+      placeCamp(168, 136, 3);
+      placeCamp(-218, -166, 4);
+      placeScrapYard(86, 126, 20);
+      placeScrapYard(-142, -88, 30);
+      placeScrapYard(244, -206, 40);
+      placeShelter(330, 260);
+      placeWreckedVehicle(20, -32, 25);
+      placeWreckedVehicle(-48, 18, -18);
+      placeWreckedVehicle(130, 4, 80);
+      placeWreckedVehicle(-210, 12, 100);
+      for (let i = 0; i < 36; i++) {
+        const x = (seededRandom(i + 500) - .5) * worldSize * .72;
+        const z = (seededRandom(i + 900) - .5) * worldSize * .72;
+        if (Math.abs(x) < 18 && Math.abs(z) < 30) continue;
+        const box = instantiateAsset(i % 2 ? 'box' : 'barrel', new pc.Vec3(x, 0, z), 1.25 + seededRandom(i) * .8, seededRandom(i + 11) * 360);
+        addLootable(box, ['food','water','ammo','materials'][i % 4], 1, '散落物资');
+      }
+      for (let i = 0; i < 16; i++) spawnInfected(true, i);
+    }
+
+    function makeInfected(x, z) {
+      const type = Math.random() < .55 ? 'Zombie_VlXjG0N8Eg' : 'Zombie';
+      const e = instantiatePostAsset(type, new pc.Vec3(x, 0, z), type === 'Zombie_VlXjG0N8Eg' ? 1.15 : 1.25, Math.random() * 360);
+      return e;
+    }
+
+    function spawnInfected(initial, seed) {
+      initial = initial || false;
+      seed = seed || Math.random() * 10000;
+      const p = player.getPosition();
+      const angle = seededRandom(seed + state.time) * Math.PI * 2;
+      const dist = initial ? 80 + seededRandom(seed + 1) * 380 : 65 + Math.random() * 130;
+      const x = pc.math.clamp(p.x + Math.cos(angle) * dist, -worldSize / 2 + 30, worldSize / 2 - 30);
+      const z = pc.math.clamp(p.z + Math.sin(angle) * dist, -worldSize / 2 + 30, worldSize / 2 - 30);
+      const entity = makeInfected(x, z);
+      const enemy = {
+        entity: entity,
+        hp: 80 + Math.random() * 40,
+        speed: 1.55 + Math.random() * .55,
+        attackTimer: 0,
+        hearTimer: 0,
+        wander: new pc.Vec3(Math.random() - .5, 0, Math.random() - .5).normalize()
+      };
+      state.enemies.push(enemy);
+      if (initial) createMapDot(x, z, 'danger');
+    }
+
+    function resetGame() {
+      state.started = true;
+      state.alive = true;
+      state.hp = 100;
+      state.food = 100;
+      state.water = 100;
+      state.stamina = 100;
+      state.ammo = 24;
+      state.foodItems = 0;
+      state.waterItems = 0;
+      state.wood = 0;
+      state.scrap = 0;
+      state.fireTimer = 0;
+      state.yaw = 0;
+      state.pitch = -0.06;
+      state.time = 0;
+      state.distance = 0;
+      player.setPosition(0, 0, 0);
+      ui.start.style.display = 'none';
+      ui.dead.style.display = 'none';
+      updateUi();
+      setMessage('你从废弃公路醒来。先搜刮附近车辆和箱子。', 4);
+    }
+
+    function endGame(reason) {
+      state.alive = false;
+      ui.deadText.textContent = reason + '。探索距离：' + Math.round(state.distance) + ' m';
+      ui.dead.style.display = 'grid';
+      setMessage('你没能活下去。', 5);
+    }
+
+    function updateUi() {
+      const clamp = function(v) { return Math.max(0, Math.min(100, v)); };
+      ui.hpFill.style.transform = 'scaleX(' + (clamp(state.hp) / 100) + ')';
+      ui.foodFill.style.transform = 'scaleX(' + (clamp(state.food) / 100) + ')';
+      ui.waterFill.style.transform = 'scaleX(' + (clamp(state.water) / 100) + ')';
+      ui.staminaFill.style.transform = 'scaleX(' + (clamp(state.stamina) / 100) + ')';
+      ui.hpText.textContent = Math.round(clamp(state.hp));
+      ui.foodText.textContent = Math.round(clamp(state.food));
+      ui.waterText.textContent = Math.round(clamp(state.water));
+      ui.staminaText.textContent = Math.round(clamp(state.stamina));
+      ui.weaponText.textContent = state.weapon;
+      ui.ammoText.textContent = state.ammo;
+      ui.suppliesText.textContent = state.foodItems + ' / ' + state.waterItems;
+      ui.materialsText.textContent = state.wood + ' / ' + state.scrap;
+      ui.distanceText.textContent = Math.round(state.distance) + 'm';
+    }
+
+    function updateMiniMap() {
+      const p = player.getPosition();
+      state.mapDots.forEach(function(item) {
+        const dx = item.x - p.x;
+        const dz = item.z - p.z;
+        const scale = 0.18;
+        item.dot.style.left = (90 + pc.math.clamp(dx * scale, -84, 84)) + 'px';
+        item.dot.style.top = (90 + pc.math.clamp(dz * scale, -84, 84)) + 'px';
+      });
+    }
+
+    function movePlayer(dt) {
+      const fwd = new pc.Vec3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
+      const right = new pc.Vec3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
+      const move = new pc.Vec3();
+
+      // 键盘输入
+      const keyboard = app.keyboard;
+      if (keyboard.isPressed(pc.KEY_W)) move.add(fwd);
+      if (keyboard.isPressed(pc.KEY_S)) move.sub(fwd);
+      if (keyboard.isPressed(pc.KEY_A)) move.sub(right);
+      if (keyboard.isPressed(pc.KEY_D)) move.add(right);
+
+      // 虚拟摇杆输入
+      if (state.joyLeft.active) {
+        const jx = state.joyLeft.dx;
+        const jy = state.joyLeft.dy;
+        move.add(fwd.clone().mulScalar(jy));
+        move.add(right.clone().mulScalar(jx));
+      }
+
+      const running = (keyboard.isPressed(pc.KEY_SHIFT) || state.running) && state.stamina > 4 && move.lengthSq() > 0;
+      if (move.lengthSq() > 0) {
+        move.normalize();
+        const speed = running ? 8.8 : 5.0;
+        const delta = move.mulScalar(speed * dt);
+        const pos = player.getPosition().clone().add(delta);
+        pos.x = pc.math.clamp(pos.x, -worldSize / 2 + 8, worldSize / 2 - 8);
+        pos.z = pc.math.clamp(pos.z, -worldSize / 2 + 8, worldSize / 2 - 8);
+        player.setPosition(pos.x, 0, pos.z);
+        state.distance += delta.length();
+        if (running) state.stamina -= 18 * dt;
+      } else {
+        state.stamina += 13 * dt;
+      }
+      state.stamina = pc.math.clamp(state.stamina, 0, 100);
+      player.setEulerAngles(0, state.yaw * pc.math.RAD_TO_DEG, 0);
+
+      // 视角控制（虚拟摇杆）
+      if (state.joyRight.active) {
+        state.yaw -= state.joyRight.dx * 2.5 * dt;
+        state.pitch -= state.joyRight.dy * 2.0 * dt;
+        state.pitch = pc.math.clamp(state.pitch, -1.20, .74);
+      }
+
+      const p = player.getPosition();
+      camera.setPosition(p.x, 1.68, p.z);
+      camera.setEulerAngles(state.pitch * pc.math.RAD_TO_DEG, state.yaw * pc.math.RAD_TO_DEG, 0);
+    }
+
+    function updateNeeds(dt) {
+      state.food -= 0.55 * dt;
+      state.water -= 0.85 * dt;
+      if (state.food <= 0 || state.water <= 0) state.hp -= 3.5 * dt;
+      if (state.hp <= 0) endGame(state.food <= 0 ? '你饿到失去意识' : '你因缺水倒下');
+    }
+
+    function findNearestLoot() {
+      const p = player.getPosition();
+      let best = null;
+      let bestD = 4.2;
+      for (let i = 0; i < state.lootables.length; i++) {
+        const loot = state.lootables[i];
+        if (loot.looted) continue;
+        const d = loot.entity.getPosition().distance(p);
+        if (d < bestD) {
+          best = loot;
+          bestD = d;
+        }
+      }
+      state.nearestLoot = best;
+      if (best) {
+        ui.interaction.style.display = 'block';
+        ui.interaction.textContent = '点击搜刮：' + best.label;
+      } else {
+        ui.interaction.style.display = 'none';
+      }
+    }
+
+    function lootNearest() {
+      const loot = state.nearestLoot;
+      if (!loot || loot.looted) return;
+      loot.looted = true;
+      if (loot.glow) {
+        loot.glow.marker.destroy();
+        loot.glow.light.destroy();
+      }
+      if (loot.type === 'food') {
+        state.foodItems += 1;
+        state.food = Math.min(100, state.food + 18);
+        setMessage('找到罐头，饥饿值恢复。');
+      } else if (loot.type === 'water') {
+        state.waterItems += 1;
+        state.water = Math.min(100, state.water + 22);
+        setMessage('找到瓶装水，口渴值恢复。');
+      } else if (loot.type === 'ammo') {
+        state.ammo += 8 + Math.floor(Math.random() * 8);
+        setMessage('找到一小盒子弹。');
+      } else if (loot.type === 'scrap') {
+        state.scrap += 2;
+        setMessage('拆到一些废铁。');
+      } else if (loot.type === 'materials') {
+        state.wood += 2;
+        state.scrap += 1;
+        setMessage('获得木材和废铁。');
+      } else if (loot.type === 'safe') {
+        state.hp = Math.min(100, state.hp + 30);
+        state.food = Math.min(100, state.food + 20);
+        state.water = Math.min(100, state.water + 20);
+        setMessage('你抵达了安全屋，暂时恢复状态。');
+      } else {
+        const roll = Math.random();
+        if (roll < .34) state.foodItems += 1;
+        else if (roll < .68) state.waterItems += 1;
+        else state.ammo += 10;
+        setMessage('搜到一些有用补给。');
+      }
+      updateUi();
+    }
+
+    function fireWeapon() {
+      if (state.fireTimer > 0 || state.ammo <= 0) {
+        if (state.ammo <= 0) setMessage('没子弹了，去搜刮车辆和箱子。', 1.2);
+        return;
+      }
+      state.fireTimer = state.weaponCooldown;
+      state.ammo -= 1;
+      const origin = camera.getPosition().clone();
+      const dir = new pc.Vec3(
+        Math.sin(state.yaw) * Math.cos(state.pitch),
+        Math.sin(state.pitch),
+        Math.cos(state.yaw) * Math.cos(state.pitch)
+      ).normalize();
+
+      let nearest = null;
+      let nearestD = 70;
+      for (let i = 0; i < state.enemies.length; i++) {
+        const enemy = state.enemies[i];
+        const ep = enemy.entity.getPosition().clone().add(new pc.Vec3(0, 1.0, 0));
+        tmpA.copy(ep).sub(origin);
+        const projected = tmpA.dot(dir);
+        if (projected < 0 || projected > 70) continue;
+        tmpB.copy(origin).add(dir.clone().mulScalar(projected));
+        const off = tmpB.distance(ep);
+        if (off < .92 && projected < nearestD) {
+          nearest = enemy;
+          nearestD = projected;
+        }
+      }
+
+      const tracer = createBox('弹道火光', origin.clone().add(dir.clone().mulScalar((nearestD || 55) * .5)), new pc.Vec3(.045, .045, nearest ? nearestD : 55), mat.bullet);
+      tracer.lookAt(origin.clone().add(dir));
+      setTimeout(function() { tracer.destroy(); }, 55);
+
+      if (nearest) {
+        nearest.hp -= state.weaponDamage;
+        nearest.hearTimer = 4;
+        if (nearest.hp <= 0) {
+          nearest.entity.destroy();
+          state.enemies.splice(state.enemies.indexOf(nearest), 1);
+          setMessage('感染者倒下了。枪声可能引来更多东西。', 1.6);
+        }
+      }
+
+      for (let i = 0; i < state.enemies.length; i++) {
+        if (state.enemies[i].entity.getPosition().distance(player.getPosition()) < 95) state.enemies[i].hearTimer = 5;
+      }
+      if (Math.random() < .45 && state.enemies.length < 34) spawnInfected(false);
+      updateUi();
+    }
+
+    function updateEnemies(dt) {
+      const p = player.getPosition();
+      for (let i = state.enemies.length - 1; i >= 0; i--) {
+        const enemy = state.enemies[i];
+        const ep = enemy.entity.getPosition();
+        const d = ep.distance(p);
+        let targetDir = tmpC.copy(p).sub(ep);
+        targetDir.y = 0;
+        const canSee = d < 38 || enemy.hearTimer > 0;
+        if (canSee && targetDir.lengthSq() > .01) {
+          targetDir.normalize();
+          ep.add(targetDir.mulScalar(enemy.speed * (d < 12 ? 1.35 : 1.0) * dt));
+          enemy.entity.lookAt(p.x, 0, p.z);
+        } else {
+          ep.add(enemy.wander.clone().mulScalar(enemy.speed * .32 * dt));
+          if (Math.random() < .008) enemy.wander.set(Math.random() - .5, 0, Math.random() - .5).normalize();
+        }
+        ep.x = pc.math.clamp(ep.x, -worldSize / 2 + 10, worldSize / 2 - 10);
+        ep.z = pc.math.clamp(ep.z, -worldSize / 2 + 10, worldSize / 2 - 10);
+        enemy.entity.setPosition(ep.x, 0, ep.z);
+        enemy.attackTimer -= dt;
+        enemy.hearTimer = Math.max(0, enemy.hearTimer - dt);
+        if (d < 1.65 && enemy.attackTimer <= 0) {
+          enemy.attackTimer = 1.1;
+          state.hp -= 13;
+          setMessage('被感染者抓伤了！', 1);
+          if (state.hp <= 0) {
+            state.hp = 0;
+            updateUi();
+            endGame('你被感染者包围');
+            return;
+          }
+        }
+      }
+      if (state.enemies.length < 12 && Math.random() < .01) spawnInfected(false);
+    }
+
+    function updateDayNight() {
+      const t = (Math.sin(state.time * .025) + 1) * .5;
+      sun.light.intensity = .35 + t * 1.15;
+      app.scene.exposure = .62 + t * .55;
+      app.scene.fogStart = 35 + t * 30;
+      app.scene.fogEnd = 210 + t * 130;
+      flashlight.light.intensity = state.flashlight ? 2.2 : 0;
+    }
+
+    app.on('update', function(dt) {
+      if (!state.started || !state.alive) return;
+      dt = Math.min(dt, .05);
+      state.time += dt;
+      state.fireTimer = Math.max(0, state.fireTimer - dt);
+      movePlayer(dt);
+      updateNeeds(dt);
+      updateEnemies(dt);
+      updateDayNight();
+      findNearestLoot();
+      updateMiniMap();
+      updateUi();
+    });
+
+    window.addEventListener('resize', function() { app.resizeCanvas(); });
+
+    // 键盘备用
+    window.addEventListener('keydown', function(e) {
+      if (!state.started || !state.alive) return;
+      if (e.code === 'KeyE') lootNearest();
+      if (e.code === 'KeyF') {
+        state.flashlight = !state.flashlight;
+        setMessage(state.flashlight ? '手电打开。' : '手电关闭。');
+      }
+      if (e.code === 'KeyR') resetGame();
+    });
+
+    window.addEventListener('mousedown', function(e) {
+      if (e.button !== 0 || !state.started || !state.alive) return;
+      fireWeapon();
+    });
+
+    window.addEventListener('mousemove', function(e) {
+      if (!state.started || !state.alive) return;
+      state.yaw -= e.movementX * .0022;
+      state.pitch -= e.movementY * .0022;
+      state.pitch = pc.math.clamp(state.pitch, -1.20, .74);
+    });
+
+    // ========== 虚拟摇杆 ==========
+    function setupJoystick(zoneId, stickId, stateKey) {
+      const zone = document.getElementById(zoneId);
+      const stick = document.getElementById(stickId);
+      let startX = 0, startY = 0, activeId = null;
+      const maxDist = 40;
+
+      function start(e) {
+        e.preventDefault();
+        const touch = e.touches ? e.touches[0] : e;
+        const rect = zone.getBoundingClientRect();
+        startX = rect.left + rect.width / 2;
+        startY = rect.top + rect.height / 2;
+        activeId = touch.identifier || 0;
+        state[stateKey].active = true;
+        move(e);
+      }
+
+      function move(e) {
+        e.preventDefault();
+        if (!state[stateKey].active) return;
+        const touch = e.touches ? findTouch(e.touches, activeId) : e;
+        if (!touch) return;
+        let dx = touch.clientX - startX;
+        let dy = touch.clientY - startY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxDist) {
+          dx = dx / dist * maxDist;
+          dy = dy / dist * maxDist;
+        }
+        stick.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+        state[stateKey].dx = dx / maxDist;
+        state[stateKey].dy = -dy / maxDist;
+      }
+
+      function end(e) {
+        e.preventDefault();
+        if (e.changedTouches && !findTouch(e.changedTouches, activeId)) return;
+        state[stateKey].active = false;
+        state[stateKey].dx = 0;
+        state[stateKey].dy = 0;
+        stick.style.transform = 'translate(-50%, -50%)';
+        activeId = null;
+      }
+
+      function findTouch(touches, id) {
+        for (let i = 0; i < touches.length; i++) {
+          if (touches[i].identifier === id) return touches[i];
+        }
+        return null;
+      }
+
+      zone.addEventListener('touchstart', start, { passive: false });
+      zone.addEventListener('touchmove', move, { passive: false });
+      zone.addEventListener('touchend', end, { passive: false });
+      zone.addEventListener('touchcancel', end, { passive: false });
+    }
+
+    setupJoystick('joystickLeft', 'stickLeft', 'joyLeft');
+    setupJoystick('joystickRight', 'stickRight', 'joyRight');
+
+    // ========== 操作按钮 ==========
+    ui.btnShoot.addEventListener('touchstart', function(e) { e.preventDefault(); fireWeapon(); }, { passive: false });
+    ui.btnShoot.addEventListener('mousedown', function(e) { e.preventDefault(); fireWeapon(); });
+
+    ui.btnLoot.addEventListener('touchstart', function(e) { e.preventDefault(); lootNearest(); }, { passive: false });
+    ui.btnLoot.addEventListener('mousedown', function(e) { e.preventDefault(); lootNearest(); });
+
+    ui.btnFlashlight.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      state.flashlight = !state.flashlight;
+      setMessage(state.flashlight ? '手电打开。' : '手电关闭。');
+    }, { passive: false });
+    ui.btnFlashlight.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      state.flashlight = !state.flashlight;
+      setMessage(state.flashlight ? '手电打开。' : '手电关闭。');
+    });
+
+    ui.btnRun.addEventListener('touchstart', function(e) { e.preventDefault(); state.running = true; }, { passive: false });
+    ui.btnRun.addEventListener('touchend', function(e) { e.preventDefault(); state.running = false; }, { passive: false });
+    ui.btnRun.addEventListener('touchcancel', function(e) { e.preventDefault(); state.running = false; }, { passive: false });
+    ui.btnRun.addEventListener('mousedown', function(e) { e.preventDefault(); state.running = true; });
+    ui.btnRun.addEventListener('mouseup', function(e) { e.preventDefault(); state.running = false; });
+    ui.btnRun.addEventListener('mouseleave', function(e) { e.preventDefault(); state.running = false; });
+
+    ui.startButton.addEventListener('click', function() {
+      if (!state.loaded) return;
+      if (!buildWorld.done) {
+        buildWorld.done = true;
+        buildWorld();
+      }
+      resetGame();
+    });
+
+    ui.restartButton.addEventListener('click', resetGame);
+
+    loadAssets();
+    } catch (error) {
+      const message = document.getElementById('message');
+      const button = document.getElementById('startButton');
+      if (message) message.textContent = '初始化错误：' + (error && error.message ? error.message : error);
+      if (button) { button.textContent = '加载失败，请刷新'; button.disabled = false; }
+      console.error('初始化错误', error);
+    }
+  </script>
 </body>
 </html>
