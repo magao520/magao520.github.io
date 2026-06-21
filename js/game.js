@@ -2069,6 +2069,16 @@ const Lobby={
   bindInput(){
     const c=this.canvas;this._onResize=()=>this.resize();window.addEventListener('resize',this._onResize);
     
+    // WASD键盘移动（PC测试用）
+    this._onKeyDown=e=>{
+      const k=e.key.toLowerCase();
+      if(k==='w'||k==='a'||k==='s'||k==='d'||k==='arrowup'||k==='arrowdown'||k==='arrowleft'||k==='arrowright'){
+        this.keys[k]=true;e.preventDefault();
+      }
+    };
+    this._onKeyUp=e=>{this.keys[e.key.toLowerCase()]=false};
+    window.addEventListener('keydown',this._onKeyDown);window.addEventListener('keyup',this._onKeyUp);
+    
     // 触摸事件 - 摇杆区域
     this._onTouchStart=e=>{
       for(let i=0;i<e.changedTouches.length;i++){
@@ -2076,8 +2086,8 @@ const Lobby={
         const rect=c.getBoundingClientRect();
         const tx=t.clientX-rect.left;
         const ty=t.clientY-rect.top;
-        // 摇杆区域：左下45%宽度，下半屏
-        if(tx<rect.width*0.45&&ty>rect.height*0.5){
+        // 摇杆区域：左下半屏
+        if(tx<rect.width*0.5&&ty>rect.height*0.5){
           e.preventDefault();
           if(this.joystick.active)continue;
           this._ignoreNextClick=true;
@@ -2126,26 +2136,16 @@ const Lobby={
     c.addEventListener('touchend',this._onTouchEnd);
     c.addEventListener('touchcancel',this._onTouchEnd);
     
-    // 鼠标事件（用于PC测试）- 左键射击，右键交互
+    // 鼠标事件 - 左键射击
     c.addEventListener('mousedown',(e)=>{
-      if(e.button===0){
-        this._mouseDown=true;
-        // 同时更新faceDir朝向鼠标
-        const rect=c.getBoundingClientRect();
-        const mx=e.clientX-rect.left;
-        const my=e.clientY-rect.top;
-        const worldX=mx+this.camera.x;
-        const worldY=my+this.camera.y;
-        this.me.faceDir=worldX>this.me.x?1:-1;
-      }
+      if(e.button===0)this._mouseDown=true;
     });
     c.addEventListener('mouseup',(e)=>{if(e.button===0)this._mouseDown=false});
+    // 鼠标移动更新朝向
     c.addEventListener('mousemove',(e)=>{
       const rect=c.getBoundingClientRect();
       const mx=e.clientX-rect.left;
-      const my=e.clientY-rect.top;
       const worldX=mx+this.camera.x;
-      const worldY=my+this.camera.y;
       this.me.faceDir=worldX>this.me.x?1:-1;
     });
   },
@@ -2158,7 +2158,12 @@ const Lobby={
     else if(hour>=18&&hour<20){this.dayNightAlpha=(hour-18)/2*0.4}
     else if(hour>=20||hour<6){this.dayNightAlpha=0.6}
     const baseSpeed=280;const sprintSpeed=480;let dx=0,dy=0;
-    let isSprinting=false;
+    // 键盘输入(PC)
+    if(this.keys['w']||this.keys['arrowup'])dy=-1;
+    if(this.keys['s']||this.keys['arrowdown'])dy=1;
+    if(this.keys['a']||this.keys['arrowleft'])dx=-1;
+    if(this.keys['d']||this.keys['arrowright'])dx=1;
+    let isSprinting=this.keys['shift']||false;
     if(this.joystick.active){const jLen=Math.sqrt(this.joystick.dx*this.joystick.dx+this.joystick.dy*this.joystick.dy);if(jLen>0.9)isSprinting=true}
     let speed=isSprinting?sprintSpeed:baseSpeed;
     speed*=1+G.stats.agility/200;
