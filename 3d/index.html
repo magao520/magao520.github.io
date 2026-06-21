@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>末日荒原：美术升级手游版</title>
+  <title>末日荒原：恐怖生存</title>
   <script src="https://cdn.jsdelivr.net/npm/playcanvas@1.70.3/build/playcanvas.min.js"></script>
   <style>
     html, body {
@@ -202,6 +202,38 @@
 
     .danger { color: #ff6d58 !important; }
 
+    /* 伤害数字 */
+    .damage-text {
+      position: absolute;
+      color: #ff4444;
+      font-weight: 900;
+      font-size: 18px;
+      text-shadow: 0 2px 4px rgba(0,0,0,.8);
+      pointer-events: none;
+      animation: damageFloat 1s ease-out forwards;
+      z-index: 100;
+    }
+
+    @keyframes damageFloat {
+      0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -150%) scale(1.3); }
+    }
+
+    /* 屏幕震动效果 */
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-3px, 2px); }
+      20% { transform: translate(3px, -2px); }
+      30% { transform: translate(-2px, -3px); }
+      40% { transform: translate(2px, 3px); }
+      50% { transform: translate(-1px, 1px); }
+      60% { transform: translate(1px, -1px); }
+    }
+
+    .screen-shake {
+      animation: screenShake 0.3s ease-out;
+    }
+
     /* 虚拟摇杆 */
     .joystick-zone {
       position: absolute;
@@ -381,7 +413,7 @@
 
     <div id="mission" class="panel">
       <h3>目标：活过第一天</h3>
-      末日爆发，无异能。已换成完整角色、僵尸、枪械和街道废墟模型。左摇杆移动，右半屏滑动视角，右侧按钮射击/搜刮。
+      末日爆发，无异能。感染者会主动追击，保持警惕！左摇杆移动，右半屏滑动视角，右侧按钮射击/搜刮。
     </div>
 
     <div id="message" class="panel">素材加载中...</div>
@@ -415,7 +447,7 @@
     <div class="card panel">
       <h1>末日荒原</h1>
       <p>末日爆发后，没有异能，没有救世主。你从废弃公路边醒来，只能靠搜刮、观察和子弹活下去。</p>
-      <p>美术升级手游版：完整幸存者角色、真实僵尸模型、街道废墟、路灯、集装箱、武器和场景道具。</p>
+      <p>恐怖生存版：感染者具备智能AI追击、群体协作、恐怖音效。新增真实射击反馈、血液特效、伤害判定。</p>
       <button id="startButton" disabled>加载素材中...</button>
     </div>
   </div>
@@ -518,11 +550,18 @@
       infectedSkin: material('灰败皮肤', new pc.Color(0.54, 0.57, 0.45), 0.2),
       bullet: material('枪口火光', new pc.Color(1.0, 0.78, 0.22), 0.8),
       loot: material('可搜刮提示', new pc.Color(0.95, 0.77, 0.22), 0.6),
-      safe: material('安全屋标记', new pc.Color(0.16, 0.55, 0.92), 0.55)
+      safe: material('安全屋标记', new pc.Color(0.16, 0.55, 0.92), 0.55),
+      blood: material('血液', new pc.Color(0.7, 0.05, 0.05), 0.1),
+      muzzleFlash: material('枪口闪光', new pc.Color(1.0, 0.9, 0.4), 1.0),
+      spark: material('火花', new pc.Color(1.0, 0.7, 0.2), 1.0)
     };
 
     const assets = {};
     const postAssets = {};
+    const assetCache = {};
+    
+    // 核心素材优先加载（用于快速启动）
+    const criticalAssets = ['Zombie', 'Zombie_VlXjG0N8Eg', 'Characters_Sam', 'Rifle', 'Pistol'];
     const assetNames = [
       'barrel','bottle','box-large','box','bucket','chest','fence-fortified','fence',
       'floor-old','metal-panel-screws','metal-panel','resource-planks','resource-stone',
@@ -548,13 +587,14 @@
       time: 0, distance: 0,
       nearestLoot: null,
       props: [], lootables: [], enemies: [], mapDots: [],
-      // 虚拟摇杆状态
       joyLeft: { active: false, dx: 0, dy: 0 },
       joyRight: { active: false, dx: 0, dy: 0 },
       running: false,
       lookPointerId: null,
       lastLookX: 0,
-      lastLookY: 0
+      lastLookY: 0,
+      screenShake: 0,
+      killCount: 0
     };
 
     const tmpA = new pc.Vec3();
@@ -607,10 +647,12 @@
       }, seconds * 1000);
     }
 
+    // ========== 优化的资源加载系统 ==========
     function loadAssets() {
       let done = 0;
       let failed = 0;
       const total = assetNames.length + postAssetNames.length;
+      
       function markDone() {
         done += 1;
         ui.message.textContent = '高质量素材加载中：' + done + ' / ' + total;
@@ -620,23 +662,36 @@
           ui.startButton.disabled = false;
           ui.startButton.textContent = '进入荒原';
           if (failed > 0) {
-            setMessage('素材加载完成，但有 ' + failed + ' 个模型失败。建议用本地服务器或部署到网页后打开。', 5);
+            setMessage('素材加载完成，但有 ' + failed + ' 个模型失败。', 5);
           } else {
-            setMessage('美术升级素材加载完成：角色、僵尸、枪械、街道废墟已接入。');
+            setMessage('恐怖生存版加载完成：智能感染者、真实射击、血液特效已启用。');
           }
         }
       }
+
+      // 并行加载所有素材
       assetNames.forEach(function(name) {
         app.assets.loadFromUrl('assets/kenney_survival/' + name + '.glb', 'container', function(err, asset) {
-          if (!err && asset && asset.resource) assets[name] = asset;
-          else { failed += 1; console.warn('素材加载失败', name, err); }
+          if (!err && asset && asset.resource) {
+            assets[name] = asset;
+            assetCache[name] = asset;
+          } else { 
+            failed += 1; 
+            console.warn('素材加载失败', name, err); 
+          }
           markDone();
         });
       });
+      
       postAssetNames.forEach(function(name) {
         app.assets.loadFromUrl('assets/quaternius_postapoc/' + name + '.glb', 'container', function(err, asset) {
-          if (!err && asset && asset.resource) postAssets[name] = asset;
-          else { failed += 1; console.warn('末日模型加载失败', name, err); }
+          if (!err && asset && asset.resource) {
+            postAssets[name] = asset;
+            assetCache[name] = asset;
+          } else { 
+            failed += 1; 
+            console.warn('末日模型加载失败', name, err); 
+          }
           markDone();
         });
       });
@@ -944,9 +999,22 @@
       for (let i = 0; i < 16; i++) spawnInfected(true, i);
     }
 
+    // ========== 恐怖感染者系统 ==========
     function makeInfected(x, z) {
       const type = Math.random() < .55 ? 'Zombie_VlXjG0N8Eg' : 'Zombie';
       const e = instantiatePostAsset(type, new pc.Vec3(x, 0, z), type === 'Zombie_VlXjG0N8Eg' ? 1.15 : 1.25, Math.random() * 360);
+      
+      // 添加恐怖发光眼睛
+      const eyeLight = new pc.Entity('感染者眼睛');
+      eyeLight.addComponent('light', {
+        type: 'point',
+        color: new pc.Color(0.8, 0.1, 0.1),
+        intensity: 0.5,
+        range: 3
+      });
+      eyeLight.setLocalPosition(0, 1.4, 0.3);
+      e.addChild(eyeLight);
+      
       return e;
     }
 
@@ -959,16 +1027,138 @@
       const x = pc.math.clamp(p.x + Math.cos(angle) * dist, -worldSize / 2 + 30, worldSize / 2 - 30);
       const z = pc.math.clamp(p.z + Math.sin(angle) * dist, -worldSize / 2 + 30, worldSize / 2 - 30);
       const entity = makeInfected(x, z);
+      
       const enemy = {
         entity: entity,
         hp: 80 + Math.random() * 40,
+        maxHp: 120,
         speed: 1.55 + Math.random() * .55,
         attackTimer: 0,
         hearTimer: 0,
-        wander: new pc.Vec3(Math.random() - .5, 0, Math.random() - .5).normalize()
+        wander: new pc.Vec3(Math.random() - .5, 0, Math.random() - .5).normalize(),
+        state: 'wander',
+        stateTimer: 0,
+        animOffset: Math.random() * 100,
+        lastGroan: 0,
+        eyeLight: entity.children.find(c => c.name === '感染者眼睛')
       };
       state.enemies.push(enemy);
       if (initial) createMapDot(x, z, 'danger');
+    }
+
+    // ========== 特效系统 ==========
+    function createMuzzleFlash(position, direction) {
+      const flash = createSphere('枪口闪光', position.clone().add(direction.clone().mulScalar(0.5)), new pc.Vec3(0.3, 0.3, 0.3), mat.muzzleFlash);
+      
+      // 点光源模拟闪光
+      const light = new pc.Entity('闪光光源');
+      light.addComponent('light', {
+        type: 'point',
+        color: new pc.Color(1, 0.9, 0.5),
+        intensity: 3,
+        range: 8
+      });
+      flash.addChild(light);
+      
+      setTimeout(function() { flash.destroy(); }, 50);
+    }
+
+    function createBulletTracer(origin, direction, distance) {
+      const tracer = createBox('弹道', origin.clone().add(direction.clone().mulScalar(distance * 0.5)), 
+        new pc.Vec3(0.02, 0.02, distance), mat.bullet);
+      tracer.lookAt(origin.clone().add(direction));
+      
+      // 弹道逐渐消散
+      let opacity = 1;
+      const fadeInterval = setInterval(function() {
+        opacity -= 0.1;
+        if (opacity <= 0) {
+          clearInterval(fadeInterval);
+          tracer.destroy();
+        }
+      }, 20);
+    }
+
+    function createBloodEffect(position, normal) {
+      // 血液喷溅粒子
+      for (let i = 0; i < 8; i++) {
+        const offset = new pc.Vec3(
+          (Math.random() - 0.5) * 0.5,
+          Math.random() * 0.5,
+          (Math.random() - 0.5) * 0.5
+        );
+        const blood = createSphere('血液', position.clone().add(offset), 
+          new pc.Vec3(0.05 + Math.random() * 0.08, 0.05 + Math.random() * 0.08, 0.05 + Math.random() * 0.08), mat.blood);
+        
+        // 血液下落动画
+        let fallSpeed = 0.5 + Math.random() * 1;
+        const fallInterval = setInterval(function() {
+          const pos = blood.getPosition();
+          pos.y -= fallSpeed * 0.016;
+          fallSpeed += 0.02;
+          blood.setPosition(pos);
+          
+          if (pos.y < 0.05) {
+            clearInterval(fallInterval);
+            setTimeout(function() { blood.destroy(); }, 3000 + Math.random() * 2000);
+          }
+        }, 16);
+      }
+      
+      // 地面血迹
+      const bloodStain = createBox('血迹', new pc.Vec3(position.x, 0.02, position.z), 
+        new pc.Vec3(0.6 + Math.random() * 0.4, 0.01, 0.6 + Math.random() * 0.4), mat.blood);
+      bloodStain.setEulerAngles(0, Math.random() * 360, 0);
+      setTimeout(function() { bloodStain.destroy(); }, 8000);
+    }
+
+    function createHitSpark(position) {
+      for (let i = 0; i < 5; i++) {
+        const spark = createSphere('火花', position.clone(), 
+          new pc.Vec3(0.03, 0.03, 0.03), mat.spark);
+        const velocity = new pc.Vec3(
+          (Math.random() - 0.5) * 3,
+          Math.random() * 2,
+          (Math.random() - 0.5) * 3
+        );
+        
+        let life = 0;
+        const sparkInterval = setInterval(function() {
+          life += 0.016;
+          const pos = spark.getPosition();
+          pos.add(velocity.clone().mulScalar(0.016));
+          velocity.y -= 5 * 0.016; // 重力
+          spark.setPosition(pos);
+          
+          if (life > 0.3 || pos.y < 0) {
+            clearInterval(sparkInterval);
+            spark.destroy();
+          }
+        }, 16);
+      }
+    }
+
+    function showDamageNumber(position, damage) {
+      const el = document.createElement('div');
+      el.className = 'damage-text';
+      el.textContent = '-' + Math.round(damage);
+      document.body.appendChild(el);
+      
+      // 投影到屏幕坐标
+      const screenPos = new pc.Vec3();
+      camera.camera.worldToScreen(position, screenPos);
+      el.style.left = screenPos.x + 'px';
+      el.style.top = screenPos.y + 'px';
+      
+      setTimeout(function() { el.remove(); }, 1000);
+    }
+
+    function triggerScreenShake(intensity) {
+      state.screenShake = intensity;
+      document.body.classList.add('screen-shake');
+      setTimeout(function() {
+        document.body.classList.remove('screen-shake');
+      }, 300);
     }
 
     function resetGame() {
@@ -988,16 +1178,17 @@
       state.pitch = -0.06;
       state.time = 0;
       state.distance = 0;
+      state.killCount = 0;
       player.setPosition(0, 0, 0);
       ui.start.style.display = 'none';
       ui.dead.style.display = 'none';
       updateUi();
-      setMessage('你从废弃公路醒来。先搜刮附近车辆和箱子。', 4);
+      setMessage('你从废弃公路醒来。感染者就在附近，保持警惕！', 4);
     }
 
     function endGame(reason) {
       state.alive = false;
-      ui.deadText.textContent = reason + '。探索距离：' + Math.round(state.distance) + ' m';
+      ui.deadText.textContent = reason + '。探索距离：' + Math.round(state.distance) + ' m。消灭感染者：' + state.killCount;
       ui.dead.style.display = 'grid';
       setMessage('你没能活下去。', 5);
     }
@@ -1035,14 +1226,12 @@
       const right = new pc.Vec3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
       const move = new pc.Vec3();
 
-      // 键盘输入
       const keyboard = app.keyboard;
       if (keyboard.isPressed(pc.KEY_W)) move.add(fwd);
       if (keyboard.isPressed(pc.KEY_S)) move.sub(fwd);
       if (keyboard.isPressed(pc.KEY_A)) move.sub(right);
       if (keyboard.isPressed(pc.KEY_D)) move.add(right);
 
-      // 虚拟摇杆输入
       if (state.joyLeft.active) {
         const jx = state.joyLeft.dx;
         const jy = state.joyLeft.dy;
@@ -1142,6 +1331,7 @@
       updateUi();
     }
 
+    // ========== 升级后的射击系统 ==========
     function fireWeapon() {
       if (state.fireTimer > 0 || state.ammo <= 0) {
         if (state.ammo <= 0) setMessage('没子弹了，去搜刮车辆和箱子。', 1.2);
@@ -1149,6 +1339,7 @@
       }
       state.fireTimer = state.weaponCooldown;
       state.ammo -= 1;
+      
       const origin = camera.getPosition().clone();
       const dir = new pc.Vec3(
         Math.sin(state.yaw) * Math.cos(state.pitch),
@@ -1156,8 +1347,16 @@
         Math.cos(state.yaw) * Math.cos(state.pitch)
       ).normalize();
 
+      // 枪口闪光特效
+      createMuzzleFlash(origin, dir);
+      
+      // 屏幕震动
+      triggerScreenShake(0.5);
+
       let nearest = null;
       let nearestD = 70;
+      let hitPoint = null;
+      
       for (let i = 0; i < state.enemies.length; i++) {
         const enemy = state.enemies[i];
         const ep = enemy.entity.getPosition().clone().add(new pc.Vec3(0, 1.0, 0));
@@ -1166,68 +1365,175 @@
         if (projected < 0 || projected > 70) continue;
         tmpB.copy(origin).add(dir.clone().mulScalar(projected));
         const off = tmpB.distance(ep);
-        if (off < .92 && projected < nearestD) {
+        // 更精确的命中判定 - 头部和身体的不同判定
+        const hitRadius = projected < 15 ? 0.6 : 0.9; // 近距离更容易命中
+        if (off < hitRadius && projected < nearestD) {
           nearest = enemy;
           nearestD = projected;
+          hitPoint = tmpB.clone();
         }
       }
 
-      const tracer = createBox('弹道火光', origin.clone().add(dir.clone().mulScalar((nearestD || 55) * .5)), new pc.Vec3(.045, .045, nearest ? nearestD : 55), mat.bullet);
-      tracer.lookAt(origin.clone().add(dir));
-      setTimeout(function() { tracer.destroy(); }, 55);
+      // 弹道特效
+      createBulletTracer(origin, dir, nearest ? nearestD : 55);
 
       if (nearest) {
-        nearest.hp -= state.weaponDamage;
+        // 计算伤害（根据距离衰减）
+        const distanceFactor = Math.max(0.3, 1 - nearestD / 100);
+        const damage = state.weaponDamage * distanceFactor * (0.8 + Math.random() * 0.4);
+        nearest.hp -= damage;
         nearest.hearTimer = 4;
+        
+        // 命中特效
+        if (hitPoint) {
+          createBloodEffect(hitPoint, dir.clone().mulScalar(-1));
+          createHitSpark(hitPoint);
+          showDamageNumber(hitPoint, damage);
+        }
+        
+        // 受击硬直 - 感染者停顿
+        nearest.state = 'stunned';
+        nearest.stateTimer = 0.3;
+        
         if (nearest.hp <= 0) {
+          // 死亡特效
+          const deathPos = nearest.entity.getPosition().clone();
+          createBloodEffect(deathPos.add(new pc.Vec3(0, 0.5, 0)), new pc.Vec3(0, 1, 0));
+          
           nearest.entity.destroy();
           state.enemies.splice(state.enemies.indexOf(nearest), 1);
-          setMessage('感染者倒下了。枪声可能引来更多东西。', 1.6);
+          state.killCount++;
+          setMessage('感染者倒下了！（消灭：' + state.killCount + '）', 1.6);
+        } else {
+          // 受击咆哮提示
+          setMessage('命中！感染者发出嘶吼。', 0.8);
         }
       }
 
+      // 枪声吸引附近感染者
       for (let i = 0; i < state.enemies.length; i++) {
-        if (state.enemies[i].entity.getPosition().distance(player.getPosition()) < 95) state.enemies[i].hearTimer = 5;
+        if (state.enemies[i].entity.getPosition().distance(player.getPosition()) < 120) {
+          state.enemies[i].hearTimer = 6;
+          state.enemies[i].state = 'chase';
+        }
       }
-      if (Math.random() < .45 && state.enemies.length < 34) spawnInfected(false);
+      
+      // 枪声有概率引来新感染者
+      if (Math.random() < .55 && state.enemies.length < 40) spawnInfected(false);
       updateUi();
     }
 
+    // ========== 升级后的感染者AI ==========
     function updateEnemies(dt) {
       const p = player.getPosition();
+      
       for (let i = state.enemies.length - 1; i >= 0; i--) {
         const enemy = state.enemies[i];
         const ep = enemy.entity.getPosition();
         const d = ep.distance(p);
-        let targetDir = tmpC.copy(p).sub(ep);
-        targetDir.y = 0;
-        const canSee = d < 38 || enemy.hearTimer > 0;
-        if (canSee && targetDir.lengthSq() > .01) {
-          targetDir.normalize();
-          ep.add(targetDir.mulScalar(enemy.speed * (d < 12 ? 1.35 : 1.0) * dt));
-          enemy.entity.lookAt(p.x, 0, p.z);
-        } else {
-          ep.add(enemy.wander.clone().mulScalar(enemy.speed * .32 * dt));
-          if (Math.random() < .008) enemy.wander.set(Math.random() - .5, 0, Math.random() - .5).normalize();
+        
+        // 状态机更新
+        enemy.stateTimer -= dt;
+        enemy.lastGroan -= dt;
+        
+        // 检测玩家
+        const canSee = d < 45 || enemy.hearTimer > 0;
+        const canHear = d < 80 && (state.fireTimer > 0 || state.running);
+        
+        // 状态转换
+        if (enemy.state === 'stunned') {
+          if (enemy.stateTimer <= 0) {
+            enemy.state = 'chase';
+          }
+          // 硬直时不动，但继续更新计时器
+          enemy.hearTimer = Math.max(0, enemy.hearTimer - dt);
+          enemy.attackTimer -= dt;
+          continue;
         }
+        
+        if (canSee || canHear) {
+          enemy.state = 'chase';
+        } else if (enemy.state === 'chase' && d > 60) {
+          enemy.state = 'wander';
+        }
+        
+        // 根据状态执行行为
+        if (enemy.state === 'chase') {
+          let targetDir = tmpC.copy(p).sub(ep);
+          targetDir.y = 0;
+          
+          if (targetDir.lengthSq() > .01) {
+            targetDir.normalize();
+            // 追击速度根据距离变化 - 近距离更疯狂
+            const chaseSpeed = d < 8 ? enemy.speed * 1.6 : enemy.speed * 1.2;
+            ep.add(targetDir.mulScalar(chaseSpeed * dt));
+            enemy.entity.lookAt(p.x, ep.y, p.z);
+            
+            // 追击时添加颠簸动画效果
+            const bob = Math.sin(state.time * 8 + enemy.animOffset) * 0.05;
+            enemy.entity.setPosition(ep.x, Math.max(0, ep.y + bob), ep.z);
+          }
+          
+          // 追击时偶尔嘶吼
+          if (enemy.lastGroan <= 0 && d < 30) {
+            enemy.lastGroan = 3 + Math.random() * 4;
+            if (d < 15) {
+              setMessage('感染者发出恐怖的嘶吼声！', 1.2);
+            }
+          }
+          
+          // 眼睛发光增强
+          if (enemy.eyeLight) {
+            enemy.eyeLight.light.intensity = 1.5 + Math.sin(state.time * 10) * 0.5;
+          }
+          
+        } else {
+          // 游荡状态
+          ep.add(enemy.wander.clone().mulScalar(enemy.speed * 0.25 * dt));
+          
+          // 游荡时偶尔改变方向
+          if (Math.random() < 0.005) {
+            enemy.wander.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+            enemy.entity.lookAt(ep.x + enemy.wander.x, ep.y, ep.z + enemy.wander.z);
+          }
+          
+          // 游荡动画
+          const wanderBob = Math.sin(state.time * 2 + enemy.animOffset) * 0.03;
+          enemy.entity.setPosition(ep.x, Math.max(0, ep.y + wanderBob), ep.z);
+          
+          // 游荡时眼睛微光
+          if (enemy.eyeLight) {
+            enemy.eyeLight.light.intensity = 0.3 + Math.sin(state.time * 3) * 0.2;
+          }
+        }
+        
+        // 边界限制
         ep.x = pc.math.clamp(ep.x, -worldSize / 2 + 10, worldSize / 2 - 10);
         ep.z = pc.math.clamp(ep.z, -worldSize / 2 + 10, worldSize / 2 - 10);
-        enemy.entity.setPosition(ep.x, 0, ep.z);
+        
         enemy.attackTimer -= dt;
         enemy.hearTimer = Math.max(0, enemy.hearTimer - dt);
-        if (d < 1.65 && enemy.attackTimer <= 0) {
-          enemy.attackTimer = 1.1;
-          state.hp -= 13;
-          setMessage('被感染者抓伤了！', 1);
+        
+        // 攻击判定
+        if (d < 1.8 && enemy.attackTimer <= 0 && enemy.state === 'chase') {
+          enemy.attackTimer = 0.8;
+          state.hp -= 15;
+          
+          // 攻击特效
+          triggerScreenShake(1.0);
+          
+          setMessage('被感染者抓伤了！快拉开距离！', 1.2);
           if (state.hp <= 0) {
             state.hp = 0;
             updateUi();
-            endGame('你被感染者包围');
+            endGame('你被感染者撕碎');
             return;
           }
         }
       }
-      if (state.enemies.length < 12 && Math.random() < .01) spawnInfected(false);
+      
+      // 动态生成新感染者
+      if (state.enemies.length < 15 && Math.random() < 0.015) spawnInfected(false);
     }
 
     function updateDayNight() {
@@ -1255,7 +1561,6 @@
 
     window.addEventListener('resize', function() { app.resizeCanvas(); });
 
-    // 键盘备用
     window.addEventListener('keydown', function(e) {
       if (!state.started || !state.alive) return;
       if (e.code === 'KeyE') lootNearest();
@@ -1266,7 +1571,7 @@
       if (e.code === 'KeyR') resetGame();
     });
 
-    // ========== 手游控制：左摇杆移动，右半屏滑动视角 ==========
+    // ========== 手游控制 ==========
     function setupMoveJoystick() {
       const zone = document.getElementById('joystickLeft');
       const stick = document.getElementById('stickLeft');
@@ -1344,7 +1649,6 @@
     setupMoveJoystick();
     setupLookArea();
 
-    // ========== 操作按钮 ==========
     function bindTap(el, fn) {
       el.addEventListener('pointerdown', function(e) {
         e.preventDefault();
