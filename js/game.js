@@ -1718,12 +1718,13 @@ const Lobby={
     this.sprites={};
     const loadSprite=(name,src)=>{
       const img=new Image();
+      img.crossOrigin='anonymous';
+      img.onload=()=>{this.sprites[name]=img;console.log('Sprite loaded:',name,img.width,'x',img.height)};
+      img.onerror=()=>{console.warn('Sprite failed:',name)};
       img.src=src;
-      img.onload=()=>{this.sprites[name]=img};
     };
-    loadSprite('adventurer','assets/rpg_characters.png');
-    loadSprite('peasant','assets/rpg_peasant.png');
-    loadSprite('base','assets/rpg_base.png');
+    loadSprite('chars32','assets/rpg_chars_32.png');
+    loadSprite('soldier32','assets/rpg_soldier_32.png');
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
     // 移除喷泉粒子（减少光污染）
     this.fountainParticles=[];
@@ -1769,26 +1770,44 @@ const Lobby={
     }
   },
   drawNPCs(ctx){
-    const sprite=Lobby.sprites['peasant'];
+    const sprite=Lobby.sprites['chars32'];
     for(const npc of this.npcs){
-      let alpha=1;if(G.weather.type==='fog'){const ddx=npc.x-this.me.x,ddy=npc.y-this.me.y;const d=Math.sqrt(ddx*ddx+ddy*ddy);if(d>300)alpha=Math.max(0.1,1-(d-300)/400)}
+      let alpha=1;
+      if(G.weather.type==='fog'){
+        const ddx=npc.x-this.me.x,ddy=npc.y-this.me.y;
+        const d=Math.sqrt(ddx*ddx+ddy*ddy);
+        if(d>300)alpha=Math.max(0.1,1-(d-300)/400);
+      }
       ctx.globalAlpha=alpha;
       const px=Math.floor(npc.x),py=Math.floor(npc.y);
-      if(sprite&&sprite.complete){
-        const frame=Math.floor(this.time*4)%4;
-        ctx.drawImage(sprite,frame*40,0,40,40,px-20,py-20,40,40);
+
+      if(sprite&&sprite.complete&&sprite.width>32&&sprite.height>32){
+        // NPC使用不同的行（从第3行开始）
+        const npcRow=2+Math.floor(npc.idx||0);
+        const cols=Math.floor(sprite.width/32);
+        const idleFrame=Math.floor(this.time*2)%2;
+        const sx=idleFrame*32;
+        const sy=npcRow*32;
+        if(sx+32<=sprite.width&&sy+32<=sprite.height){
+          ctx.drawImage(sprite,sx,sy,32,32,px-16,py-16,32,32);
+        }else{
+          _drawNPCFallback(ctx,px,py,npc);
+        }
       }else{
-        // 后备
-        ctx.fillStyle='#8a7060';
-        ctx.fillRect(px-6,py-8,12,16);
+        _drawNPCFallback(ctx,px,py,npc);
       }
+
       // 名字标签
-      ctx.fillStyle='rgba(0,0,0,0.6)';
-      ctx.fillRect(px-22,py-28,44,12);
-      ctx.fillStyle='#b8960f';
+      ctx.fillStyle='rgba(0,0,0,0.7)';
+      const name=npc.name||'NPC';
       ctx.font='9px monospace';
+      const nw=Math.min(ctx.measureText(name).width,60);
+      ctx.fillRect(px-nw/2-4,py-30,nw+8,12);
+      ctx.fillStyle='#b8960f';
       ctx.textAlign='center';
-      ctx.fillText(npc.name||'NPC',px,py-22);
+      ctx.textBaseline='middle';
+      ctx.fillText(name,px,py-24);
+
       // 对话气泡
       if(npc.bubble){
         const age=(Date.now()-npc.bubble.ts)/5000;
@@ -1799,7 +1818,8 @@ const Lobby={
           ctx.fillStyle=`rgba(212,200,160,${ba})`;
           ctx.font='9px monospace';
           ctx.textAlign='center';
-          ctx.fillText(npc.bubble.text,px,py-42);
+          ctx.textBaseline='middle';
+          ctx.fillText(npc.bubble.text.substring(0,12),px,py-43);
         }
       }
       ctx.globalAlpha=1;
@@ -2484,37 +2504,99 @@ function _drawNameTag(ctx,x,y,name,isMe){
 
 function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
   const px=Math.floor(x),py=Math.floor(y);
-  const sprite=Lobby.sprites['adventurer'];
-  if(sprite&&sprite.complete){
-    // 精灵图是 40x40 的格子，每行3个方向（下、上、右）
-    // 每方向4帧动画
-    const p=playerObj||{};
-    const dir=p.faceDir>0?2:1; // 1=左/上, 2=右/下
-    let animFrame=0;
-    if(p.animState==='walk')animFrame=Math.floor(time*8)%4;
-    else if(p.animState==='interact')animFrame=2;
-    else if(p.animState==='sit')animFrame=0;
-    const sx=animFrame*40;
-    const sy=dir*40;
-    ctx.drawImage(sprite,sx,sy,40,40,px-20,py-20,40,40);
-  }else{
-    // 后备：像素方块
-    const bodyColor=isMe?'#5a8a3c':'#7a7060';
-    ctx.fillStyle=bodyColor;
-    ctx.fillRect(px-4,py-6,8,12);
-    ctx.fillStyle=isMe?'#6a9a4c':'#8a8070';
-    ctx.fillRect(px-3,py-14,6,6);
-  }
-  // 名字标签
   const p=playerObj||{};
-  if(p.name){
-    ctx.fillStyle='rgba(0,0,0,0.6)';
-    ctx.fillRect(px-20,py-28,40,12);
-    ctx.fillStyle='#d4c8a8';
-    ctx.font='10px monospace';
-    ctx.textAlign='center';
-    ctx.fillText(p.name,px,py-20);
+
+  // 确定方向: 0=下, 1=上, 2=左, 3=右
+  let dir=0;
+  if(p.faceDir!==undefined){
+    if(p.faceDir<0)dir=2; // 左
+    else dir=3; // 右
   }
+  // 如果有 lastDir，更精确判断
+  if(p.lastDir){
+    const lx=p.lastDir.x||0,ly=p.lastDir.y||0;
+    if(Math.abs(ly)>Math.abs(lx)){dir=ly>0?0:1}
+    else{dir=lx>0?3:2}
+  }
+
+  // 确定动画帧
+  let frame=0;
+  if(p.animState==='walk'){
+    frame=Math.floor(time*6)%4; // 4帧行走循环，每秒6帧
+  }else if(p.animState==='sit'){
+    frame=0; // 坐下用站立帧
+  }else if(p.animState==='interact'){
+    frame=Math.floor(time*4)%2; // 交互用2帧
+  }else{
+    // idle: 微小呼吸动画
+    frame=Math.floor(time*2)%2;
+  }
+
+  // 选择精灵图
+  const sprite=Lobby.sprites['chars32'];
+  if(sprite&&sprite.complete&&sprite.width>32&&sprite.height>32){
+    // 精灵图布局: 每行一个角色，每帧32x32
+    // 行号由角色决定（自己=第0行，其他玩家=第1行起）
+    const row=isMe?0:1;
+    const cols=Math.floor(sprite.width/32);
+    const sx=frame*32;
+    const sy=row*32;
+
+    // 确保不超出精灵图范围
+    if(sx+32<=sprite.width&&sy+32<=sprite.height){
+      ctx.drawImage(sprite,sx,sy,32,32,px-16,py-16,32,32);
+    }else{
+      _drawPixelCharFallback(ctx,px,py,isMe);
+    }
+  }else{
+    _drawPixelCharFallback(ctx,px,py,isMe);
+  }
+
+  // 名字标签
+  if(p.name){
+    const nameW=Math.min(ctx.measureText(p.name).width,80);
+    ctx.fillStyle='rgba(0,0,0,0.7)';
+    ctx.fillRect(px-nameW/2-4,py-30,nameW+8,12);
+    ctx.fillStyle=isMe?'#4a7a3a':'#a09080';
+    ctx.font='9px monospace';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(p.name,px,py-24);
+  }
+}
+
+// 后备像素角色（当精灵图未加载时）
+function _drawPixelCharFallback(ctx,px,py,isMe){
+  // 元气骑士风格：大头小身体
+  // 头部 10x10
+  ctx.fillStyle=isMe?'#5a8a3c':'#7a7060';
+  ctx.fillRect(px-5,py-16,10,10);
+  // 身体 8x8
+  ctx.fillStyle=isMe?'#4a7a2c':'#6a6050';
+  ctx.fillRect(px-4,py-6,8,8);
+  // 腿 3x4
+  ctx.fillStyle=isMe?'#3a5a1c':'#5a5040';
+  ctx.fillRect(px-4,py+2,3,4);
+  ctx.fillRect(px+1,py+2,3,4);
+  // 眼睛（2个白点）
+  ctx.fillStyle='#fff';
+  ctx.fillRect(px-3,py-13,2,2);
+  ctx.fillRect(px+1,py-13,2,2);
+}
+
+function _drawNPCFallback(ctx,px,py,npc){
+  // NPC后备：像素风格小人
+  const colors=['#8a6050','#6a5080','#506a80','#806a50','#508060'];
+  const c=colors[(npc.idx||0)%colors.length];
+  ctx.fillStyle=c;
+  ctx.fillRect(px-5,py-16,10,10); // 头
+  ctx.fillRect(px-4,py-6,8,8); // 身体
+  ctx.fillRect(px-4,py+2,3,4); // 左腿
+  ctx.fillRect(px+1,py+2,3,4); // 右腿
+  // 眼睛
+  ctx.fillStyle='#fff';
+  ctx.fillRect(px-3,py-13,2,2);
+  ctx.fillRect(px+1,py-13,2,2);
 }
 function _drawWalkParticles(ctx,walkParticles){for(const wp of walkParticles){ctx.fillStyle=wp.color?`rgba(${hexToRgb(wp.color)},${wp.life*0.6})`:`rgba(180,160,120,${wp.life*0.6})`;ctx.fillRect(Math.floor(wp.x),Math.floor(wp.y),Math.floor(wp.size)||2,Math.floor(wp.size)||2)}}
 function hexToRgb(hex){const num=parseInt(hex.replace('#',''),16);const r=(num>>16)&255;const g=(num>>8)&255;const b=num&255;return `${r},${g},${b}`;}
