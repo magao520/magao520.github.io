@@ -212,8 +212,18 @@
       touch-action: none;
     }
 
-    #joystickLeft { left: 16px; }
-    #joystickRight { right: 16px; }
+    #joystickLeft { left: 16px; z-index: 5; }
+    #joystickRight { display: none; }
+    #lookArea {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 66vw;
+      height: 100vh;
+      pointer-events: auto;
+      touch-action: none;
+      z-index: 1;
+    }
 
     .joystick-base {
       position: absolute;
@@ -271,10 +281,11 @@
 
     .action-btn:active { background: rgba(255, 255, 255, .28); }
 
-    #btnShoot { right: 20px; bottom: 180px; width: 72px; height: 72px; background: rgba(217, 76, 61, .22); border-color: rgba(217, 76, 61, .45); }
-    #btnLoot { left: 50%; bottom: 20px; transform: translateX(-50%); }
-    #btnFlashlight { right: 100px; bottom: 20px; }
-    #btnRun { left: 180px; bottom: 20px; }
+    #btnShoot { right: 22px; bottom: 142px; width: 78px; height: 78px; background: rgba(217, 76, 61, .28); border-color: rgba(255, 100, 86, .6); z-index: 6; }
+    #btnLoot { right: 112px; bottom: 128px; z-index: 6; }
+    #btnFlashlight { right: 22px; bottom: 54px; z-index: 6; }
+    #btnRun { left: 156px; bottom: 36px; z-index: 6; }
+    .action-btn.disabled { opacity: .45; }
 
     #start, #dead {
       position: fixed;
@@ -340,12 +351,12 @@
       .joystick-base { width: 100px; height: 100px; }
       .joystick-stick { width: 40px; height: 40px; }
       #joystickLeft { left: 10px; bottom: 16px; }
-      #joystickRight { right: 10px; bottom: 16px; }
+      #joystickRight { display: none; }
       .action-btn { width: 54px; height: 54px; font-size: 12px; }
-      #btnShoot { right: 14px; bottom: 150px; width: 60px; height: 60px; }
-      #btnLoot { bottom: 16px; }
-      #btnFlashlight { right: 80px; bottom: 16px; }
-      #btnRun { left: 140px; bottom: 16px; }
+      #btnShoot { right: 14px; bottom: 132px; width: 66px; height: 66px; }
+      #btnLoot { right: 88px; bottom: 118px; left: auto; transform: none; }
+      #btnFlashlight { right: 14px; bottom: 56px; }
+      #btnRun { left: 138px; bottom: 28px; }
     }
   </style>
 </head>
@@ -370,14 +381,16 @@
 
     <div id="mission" class="panel">
       <h3>目标：活过第一天</h3>
-      末日爆发，无异能。已换成完整角色、僵尸、枪械和街道废墟模型。触屏左侧移动，右侧转视角，按钮射击/搜刮。
+      末日爆发，无异能。已换成完整角色、僵尸、枪械和街道废墟模型。左摇杆移动，右半屏滑动视角，右侧按钮射击/搜刮。
     </div>
 
     <div id="message" class="panel">素材加载中...</div>
     <div id="interaction" class="panel">点击搜刮</div>
     <div id="crosshair"></div>
     <div id="miniMap" class="panel"><div id="playerDot"></div></div>
-    <div class="note panel">触屏操作：左侧摇杆移动，右侧摇杆视角，按钮射击/搜刮/手电</div>
+    <div class="note panel">触屏操作：左摇杆移动，右半屏滑动视角，右侧按钮射击/搜刮/手电</div>
+
+    <div id="lookArea" aria-label="右半屏滑动视角"></div>
 
     <!-- 虚拟摇杆 -->
     <div id="joystickLeft" class="joystick-zone">
@@ -477,6 +490,7 @@
       btnLoot: document.getElementById('btnLoot'),
       btnFlashlight: document.getElementById('btnFlashlight'),
       btnRun: document.getElementById('btnRun'),
+      lookArea: document.getElementById('lookArea'),
       stickLeft: document.getElementById('stickLeft'),
       stickRight: document.getElementById('stickRight')
     };
@@ -537,7 +551,10 @@
       // 虚拟摇杆状态
       joyLeft: { active: false, dx: 0, dy: 0 },
       joyRight: { active: false, dx: 0, dy: 0 },
-      running: false
+      running: false,
+      lookPointerId: null,
+      lastLookX: 0,
+      lastLookY: 0
     };
 
     const tmpA = new pc.Vec3();
@@ -650,7 +667,9 @@
       }
       const e = asset.resource.instantiateRenderEntity();
       e.name = name;
-      e.setLocalScale(scale, scale, scale);
+      e._assetName = name;
+      const baseScale = 1;
+      e.setLocalScale(baseScale, baseScale, baseScale);
       if (parent) {
         parent.addChild(e);
         e.setLocalPosition(position);
@@ -660,7 +679,71 @@
         e.setPosition(position);
         e.setEulerAngles(0, yaw, 0);
       }
+      normalizePostAsset(e, name, scale, parent ? 0 : position.y, !(parent && isWeaponAsset(name)));
       return e;
+    }
+
+    function isWeaponAsset(name) {
+      return ['Rifle','Shotgun','Smg','Axe','Knife','Pistol','Spear','Wooden_Bat_Barbed','Wooden_Bat_Saw'].indexOf(name) >= 0;
+    }
+
+    function targetHeightForPostAsset(name, scale) {
+      let h = 1.2;
+      if (name.indexOf('Characters_') === 0 || name === 'Lis') h = 1.75;
+      else if (name.indexOf('Zombie') === 0 || name === 'Big_arm') h = name === 'Zombie_half' ? 0.95 : 1.65;
+      else if (name.indexOf('Container_') === 0) h = 2.6;
+      else if (name === 'Water_Tower') h = 13.5;
+      else if (name === 'Street_Light') h = 5.8;
+      else if (name.indexOf('Traffic_Light') === 0) h = 4.4;
+      else if (name.indexOf('Traffic_Cone') === 0) h = 0.7;
+      else if (name.indexOf('Traffic_Barrier') === 0 || name === 'Plastic_Barrier') h = 1.05;
+      else if (name === 'Fire_Hydrant') h = 0.95;
+      else if (name === 'Town_Sign') h = 3.0;
+      else if (name === 'Damaged_Couch') h = 0.95;
+      else if (name.indexOf('Trash') === 0 || name.indexOf('Pallet') === 0 || name === 'Pipes') h = 0.75;
+      else if (isWeaponAsset(name)) h = 0.55;
+      else if (name.indexOf('Blood') === 0) h = 0.04;
+      return h * (scale || 1);
+    }
+
+    function collectAabb(entity) {
+      let min = new pc.Vec3(Infinity, Infinity, Infinity);
+      let max = new pc.Vec3(-Infinity, -Infinity, -Infinity);
+      let found = false;
+      function walk(node) {
+        if (node.render && node.render.meshInstances) {
+          node.render.meshInstances.forEach(function(mi) {
+            const aabb = mi.aabb;
+            const lo = aabb.center.clone().sub(aabb.halfExtents);
+            const hi = aabb.center.clone().add(aabb.halfExtents);
+            min.x = Math.min(min.x, lo.x); min.y = Math.min(min.y, lo.y); min.z = Math.min(min.z, lo.z);
+            max.x = Math.max(max.x, hi.x); max.y = Math.max(max.y, hi.y); max.z = Math.max(max.z, hi.z);
+            found = true;
+          });
+        }
+        node.children.forEach(walk);
+      }
+      walk(entity);
+      return found ? { min: min, max: max } : null;
+    }
+
+    function normalizePostAsset(entity, name, scale, groundY, adjustGround) {
+      setTimeout(function() {
+        const box = collectAabb(entity);
+        if (!box) return;
+        const height = Math.max(0.0001, box.max.y - box.min.y);
+        const target = targetHeightForPostAsset(name, scale);
+        const factor = target / height;
+        const s = entity.getLocalScale();
+        entity.setLocalScale(s.x * factor, s.y * factor, s.z * factor);
+        setTimeout(function() {
+          if (adjustGround === false) return;
+          const adjusted = collectAabb(entity);
+          if (!adjusted) return;
+          const p = entity.getPosition();
+          entity.setPosition(p.x, p.y + ((groundY || 0) - adjusted.min.y), p.z);
+        }, 0);
+      }, 0);
     }
 
     const sun = new pc.Entity('低角度太阳');
@@ -696,11 +779,10 @@
       if (!postAssets['Characters_Sam']) return;
       const children = player.children.slice();
       children.forEach(function(child) { child.destroy(); });
-      const model = instantiatePostAsset('Characters_Sam', new pc.Vec3(0, 0, 0), 1.45, 180, player);
+      const model = instantiatePostAsset('Characters_Sam', new pc.Vec3(0, 0, 0), 1, 180, player);
       model.setLocalPosition(0, 0, 0);
       model.setLocalEulerAngles(0, 180, 0);
-      const gun = instantiatePostAsset('Rifle', new pc.Vec3(0, 0, 0), .8, 90, player);
-      gun.setLocalPosition(.42, 1.15, .38);
+      const gun = instantiatePostAsset('Rifle', new pc.Vec3(.32, 1.05, .36), .55, 90, player);
       gun.setLocalEulerAngles(0, 90, 8);
     }
 
@@ -985,13 +1067,6 @@
       state.stamina = pc.math.clamp(state.stamina, 0, 100);
       player.setEulerAngles(0, state.yaw * pc.math.RAD_TO_DEG, 0);
 
-      // 视角控制（虚拟摇杆）
-      if (state.joyRight.active) {
-        state.yaw -= state.joyRight.dx * 2.5 * dt;
-        state.pitch -= state.joyRight.dy * 2.0 * dt;
-        state.pitch = pc.math.clamp(state.pitch, -1.20, .74);
-      }
-
       const p = player.getPosition();
       camera.setPosition(p.x, 1.68, p.z);
       camera.setEulerAngles(state.pitch * pc.math.RAD_TO_DEG, state.yaw * pc.math.RAD_TO_DEG, 0);
@@ -1191,103 +1266,103 @@
       if (e.code === 'KeyR') resetGame();
     });
 
-    window.addEventListener('mousedown', function(e) {
-      if (e.button !== 0 || !state.started || !state.alive) return;
-      fireWeapon();
-    });
+    // ========== 手游控制：左摇杆移动，右半屏滑动视角 ==========
+    function setupMoveJoystick() {
+      const zone = document.getElementById('joystickLeft');
+      const stick = document.getElementById('stickLeft');
+      let pointerId = null;
+      let centerX = 0;
+      let centerY = 0;
+      const maxDist = 42;
 
-    window.addEventListener('mousemove', function(e) {
-      if (!state.started || !state.alive) return;
-      state.yaw -= e.movementX * .0022;
-      state.pitch -= e.movementY * .0022;
-      state.pitch = pc.math.clamp(state.pitch, -1.20, .74);
-    });
-
-    // ========== 虚拟摇杆 ==========
-    function setupJoystick(zoneId, stickId, stateKey) {
-      const zone = document.getElementById(zoneId);
-      const stick = document.getElementById(stickId);
-      let startX = 0, startY = 0, activeId = null;
-      const maxDist = 40;
-
-      function start(e) {
-        e.preventDefault();
-        const touch = e.touches ? e.touches[0] : e;
-        const rect = zone.getBoundingClientRect();
-        startX = rect.left + rect.width / 2;
-        startY = rect.top + rect.height / 2;
-        activeId = touch.identifier || 0;
-        state[stateKey].active = true;
-        move(e);
+      function reset() {
+        pointerId = null;
+        state.joyLeft.active = false;
+        state.joyLeft.dx = 0;
+        state.joyLeft.dy = 0;
+        stick.style.transform = 'translate(-50%, -50%)';
       }
 
-      function move(e) {
+      zone.addEventListener('pointerdown', function(e) {
         e.preventDefault();
-        if (!state[stateKey].active) return;
-        const touch = e.touches ? findTouch(e.touches, activeId) : e;
-        if (!touch) return;
-        let dx = touch.clientX - startX;
-        let dy = touch.clientY - startY;
+        pointerId = e.pointerId;
+        zone.setPointerCapture(pointerId);
+        const rect = zone.getBoundingClientRect();
+        centerX = rect.left + rect.width / 2;
+        centerY = rect.top + rect.height / 2;
+        state.joyLeft.active = true;
+        update(e);
+      });
+
+      function update(e) {
+        if (pointerId !== e.pointerId) return;
+        let dx = e.clientX - centerX;
+        let dy = e.clientY - centerY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > maxDist) {
           dx = dx / dist * maxDist;
           dy = dy / dist * maxDist;
         }
         stick.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
-        state[stateKey].dx = dx / maxDist;
-        state[stateKey].dy = -dy / maxDist;
+        state.joyLeft.dx = dx / maxDist;
+        state.joyLeft.dy = -dy / maxDist;
       }
 
-      function end(e) {
-        e.preventDefault();
-        if (e.changedTouches && !findTouch(e.changedTouches, activeId)) return;
-        state[stateKey].active = false;
-        state[stateKey].dx = 0;
-        state[stateKey].dy = 0;
-        stick.style.transform = 'translate(-50%, -50%)';
-        activeId = null;
-      }
-
-      function findTouch(touches, id) {
-        for (let i = 0; i < touches.length; i++) {
-          if (touches[i].identifier === id) return touches[i];
-        }
-        return null;
-      }
-
-      zone.addEventListener('touchstart', start, { passive: false });
-      zone.addEventListener('touchmove', move, { passive: false });
-      zone.addEventListener('touchend', end, { passive: false });
-      zone.addEventListener('touchcancel', end, { passive: false });
+      zone.addEventListener('pointermove', function(e) { e.preventDefault(); update(e); });
+      zone.addEventListener('pointerup', function(e) { e.preventDefault(); if (e.pointerId === pointerId) reset(); });
+      zone.addEventListener('pointercancel', function(e) { e.preventDefault(); if (e.pointerId === pointerId) reset(); });
     }
 
-    setupJoystick('joystickLeft', 'stickLeft', 'joyLeft');
-    setupJoystick('joystickRight', 'stickRight', 'joyRight');
+    function setupLookArea() {
+      const area = ui.lookArea;
+      area.addEventListener('pointerdown', function(e) {
+        if (e.target.classList && e.target.classList.contains('action-btn')) return;
+        e.preventDefault();
+        state.lookPointerId = e.pointerId;
+        state.lastLookX = e.clientX;
+        state.lastLookY = e.clientY;
+        area.setPointerCapture(e.pointerId);
+      });
+      area.addEventListener('pointermove', function(e) {
+        if (state.lookPointerId !== e.pointerId || !state.started || !state.alive) return;
+        e.preventDefault();
+        const dx = e.clientX - state.lastLookX;
+        const dy = e.clientY - state.lastLookY;
+        state.lastLookX = e.clientX;
+        state.lastLookY = e.clientY;
+        state.yaw -= dx * 0.006;
+        state.pitch -= dy * 0.005;
+        state.pitch = pc.math.clamp(state.pitch, -1.20, .74);
+      });
+      function end(e) {
+        if (state.lookPointerId === e.pointerId) state.lookPointerId = null;
+      }
+      area.addEventListener('pointerup', end);
+      area.addEventListener('pointercancel', end);
+    }
+
+    setupMoveJoystick();
+    setupLookArea();
 
     // ========== 操作按钮 ==========
-    ui.btnShoot.addEventListener('touchstart', function(e) { e.preventDefault(); fireWeapon(); }, { passive: false });
-    ui.btnShoot.addEventListener('mousedown', function(e) { e.preventDefault(); fireWeapon(); });
+    function bindTap(el, fn) {
+      el.addEventListener('pointerdown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        fn(e);
+      });
+    }
 
-    ui.btnLoot.addEventListener('touchstart', function(e) { e.preventDefault(); lootNearest(); }, { passive: false });
-    ui.btnLoot.addEventListener('mousedown', function(e) { e.preventDefault(); lootNearest(); });
-
-    ui.btnFlashlight.addEventListener('touchstart', function(e) {
-      e.preventDefault();
-      state.flashlight = !state.flashlight;
-      setMessage(state.flashlight ? '手电打开。' : '手电关闭。');
-    }, { passive: false });
-    ui.btnFlashlight.addEventListener('mousedown', function(e) {
-      e.preventDefault();
+    bindTap(ui.btnShoot, function() { fireWeapon(); });
+    bindTap(ui.btnLoot, function() { lootNearest(); });
+    bindTap(ui.btnFlashlight, function() {
       state.flashlight = !state.flashlight;
       setMessage(state.flashlight ? '手电打开。' : '手电关闭。');
     });
-
-    ui.btnRun.addEventListener('touchstart', function(e) { e.preventDefault(); state.running = true; }, { passive: false });
-    ui.btnRun.addEventListener('touchend', function(e) { e.preventDefault(); state.running = false; }, { passive: false });
-    ui.btnRun.addEventListener('touchcancel', function(e) { e.preventDefault(); state.running = false; }, { passive: false });
-    ui.btnRun.addEventListener('mousedown', function(e) { e.preventDefault(); state.running = true; });
-    ui.btnRun.addEventListener('mouseup', function(e) { e.preventDefault(); state.running = false; });
-    ui.btnRun.addEventListener('mouseleave', function(e) { e.preventDefault(); state.running = false; });
+    ui.btnRun.addEventListener('pointerdown', function(e) { e.preventDefault(); e.stopPropagation(); state.running = true; });
+    ui.btnRun.addEventListener('pointerup', function(e) { e.preventDefault(); state.running = false; });
+    ui.btnRun.addEventListener('pointercancel', function(e) { e.preventDefault(); state.running = false; });
+    ui.btnRun.addEventListener('pointerleave', function() { state.running = false; });
 
     ui.startButton.addEventListener('click', function() {
       if (!state.loaded) return;
