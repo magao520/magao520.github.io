@@ -2856,7 +2856,7 @@ const Lobby={
     const showNext=()=>{if(idx>=steps.length){localStorage.setItem('wl_tutorial','1');return}const s=steps[idx];const div=document.createElement('div');div.className='tutorial-overlay';div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px';div.innerHTML=`<div style="background:var(--panel);border:1px solid var(--gold);padding:20px 28px;border-radius:4px;text-align:center;max-width:300px"><div style="font-size:14px;color:var(--text);margin-bottom:12px">${s.text}</div><button style="background:var(--gold);border:none;color:#1a1610;padding:8px 20px;border-radius:2px;font-size:12px;font-weight:700;cursor:pointer">下一步 (${idx+1}/${steps.length})</button></div>`;document.body.appendChild(div);div.querySelector('button').onclick=()=>{div.remove();idx++;showNext()}};showNext();
   },
 
-  show(){this.init();if(!this.animId)this.startLoop();const actionBtn=$('action-btn');if(actionBtn)actionBtn.style.display='block';const fireBtn=$('fire-btn');if(fireBtn)fireBtn.style.display='block';const swapBtn=$('swap-btn');if(swapBtn)swapBtn.style.display='block';},
+  show(){this.init();if(!this.animId)this.startLoop();this.bindInput();const actionBtn=$('action-btn');if(actionBtn)actionBtn.style.display='block';const fireBtn=$('fire-btn');if(fireBtn)fireBtn.style.display='block';const swapBtn=$('swap-btn');if(swapBtn)swapBtn.style.display='block';},
   hide(){this.stop();const actionBtn=$('action-btn');if(actionBtn)actionBtn.style.display='none';const fireBtn=$('fire-btn');if(fireBtn)fireBtn.style.display='none';const swapBtn=$('swap-btn');if(swapBtn)swapBtn.style.display='none';}
 };
 
