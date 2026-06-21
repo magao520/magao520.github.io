@@ -1645,6 +1645,48 @@ const Lobby={
     {x:600,y:680,label:'长桌',max:4,players:0,code:null},
     {x:1300,y:340,label:'厨房桌',max:2,players:0,code:null},
   ],
+  // 碰撞体列表 (x,y,w,h) - 墙壁和家具
+  colliders:[
+    // 外墙
+    {x:0,y:0,w:1600,h:32,type:'wall'},      // 上墙
+    {x:0,y:1168,w:1600,h:32,type:'wall'},    // 下墙
+    {x:0,y:0,w:32,h:1200,type:'wall'},       // 左墙
+    {x:1568,y:0,w:32,h:1200,type:'wall'},    // 右墙
+    // 内墙 - 卧室
+    {x:400,y:50,w:32,h:250,type:'wall'},     // 卧室右墙(上段,留门)
+    {x:50,y:400,w:350,h:32,type:'wall'},     // 卧室下墙
+    // 内墙 - 厨房
+    {x:1200,y:50,w:32,h:250,type:'wall'},    // 厨房左墙(上段,留门)
+    {x:1200,y:400,w:350,h:32,type:'wall'},   // 厨房下墙
+    // 内墙 - 浴室
+    {x:400,y:800,w:32,h:350,type:'wall'},    // 浴室右墙
+    {x:50,y:800,w:350,h:32,type:'wall'},     // 浴室上墙
+    // 内墙 - 储藏室
+    {x:1200,y:800,w:32,h:350,type:'wall'},   // 储藏室左墙
+    {x:1200,y:800,w:350,h:32,type:'wall'},   // 储藏室上墙
+    // 家具碰撞体 - 卧室
+    {x:80,y:80,w:78,h:114,type:'furniture'},   // 双人床
+    {x:230,y:100,w:45,h:31,type:'furniture'},  // 床头柜
+    {x:300,y:60,w:108,h:60,type:'furniture'},  // 大柜子
+    {x:250,y:250,w:39,h:110,type:'furniture'}, // 单人床
+    // 家具碰撞体 - 厨房
+    {x:1220,y:60,w:150,h:42,type:'furniture'}, // 超长柜台
+    {x:1400,y:250,w:46,h:37,type:'furniture'}, // 洗衣机
+    {x:1300,y:300,w:57,h:56,type:'furniture'}, // 方桌
+    // 家具碰撞体 - 大厅
+    {x:500,y:400,w:60,h:51,type:'furniture'},  // 三人沙发
+    {x:800,y:400,w:108,h:51,type:'furniture'},  // 双人沙发
+    {x:700,y:550,w:76,h:73,type:'furniture'},   // 圆桌
+    {x:500,y:650,w:120,h:42,type:'furniture'},  // 长桌
+    {x:500,y:800,w:108,h:51,type:'furniture'},  // 双人沙发
+    {x:750,y:800,w:60,h:51,type:'furniture'},   // 三人沙发
+    // 家具碰撞体 - 浴室
+    {x:100,y:850,w:46,h:37,type:'furniture'},   // 洗衣机
+    // 家具碰撞体 - 储藏室
+    {x:1250,y:850,w:72,h:60,type:'furniture'},  // 滚轮柜
+    {x:1400,y:850,w:120,h:72,type:'furniture'}, // 大柜子
+    {x:1300,y:1000,w:57,h:56,type:'furniture'}, // 方桌
+  ],
   benches:[],
   currentRegion:'',
   keys:{},joystick:{active:false,cx:0,cy:0,dx:0,dy:0,touchId:null,opacity:0},
@@ -1733,11 +1775,26 @@ const Lobby={
     for(let i=0;i<5;i++){
       this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*0.3,vy:(Math.random()-.5)*0.3,life:5+Math.random()*3,size:2,color:'rgba(200,200,220,0.02)',type:'fog'});
     }
+    // 添加桌子碰撞体
+    for(const t of this.tables){
+      this.colliders.push({x:t.x-30,y:t.y-15,w:60,h:30,type:'table'});
+    }
     this.bindInput();bindLobbyCanvasClick();this.startLoop();return true;
   },
 
   initNPCs(){
     this.npcs=[];
+  },
+  checkCollision(newX,newY){
+    const playerR=12; // 玩家碰撞半径
+    for(const c of this.colliders){
+      // AABB碰撞检测
+      if(newX+playerR>c.x&&newX-playerR<c.x+c.w&&
+         newY+playerR>c.y&&newY-playerR<c.y+c.h){
+        return true; // 碰撞
+      }
+    }
+    return false; // 无碰撞
   },
   updateNPCs(dt){
     for(const npc of this.npcs){
@@ -1943,9 +2000,38 @@ const Lobby={
     const ch=CHARACTERS[selectedChar];if(isNight&&ch&&ch.skills&&ch.skills.find(s=>s.effect==='nightSpeed'&&s.unlocked)){speed*=1.2}
     if(this.me.sitting){dx=0;dy=0;this.me.moving=false;this.me.animState='sit'}
     const isMovingNow=(dx!==0||dy!==0)||(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0))||this.me.moving;
-    if(dx!==0||dy!==0){const len=Math.sqrt(dx*dx+dy*dy);dx/=len;dy/=len;this.lastDir.x=dx;this.lastDir.y=dy;this.me.faceDir=dx<0?-1:1;this.me.x+=dx*speed*dt;this.me.y+=dy*speed*dt;this.me.moving=true;this.me.animState='walk'}
-    else if(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0)){if(this.me.moving){this.me.moving=false;this.me.tx=this.me.x;this.me.ty=this.me.y;}this.lastDir.x=this.joystick.dx;this.lastDir.y=this.joystick.dy;this.me.faceDir=this.joystick.dx<0?-1:1;this.me.x+=this.joystick.dx*speed*dt;this.me.y+=this.joystick.dy*speed*dt;this.me.moving=true;this.me.animState='walk'}
-    else if(this.me.moving){const tx=this.me.tx,ty=this.me.ty;const ddx=tx-this.me.x,ddy=ty-this.me.y;const dist=Math.sqrt(ddx*ddx+ddy*ddy);if(dist<5){this.me.moving=false;this.me.animState='idle'}else{const mx=(ddx/dist)*speed*dt,my=(ddy/dist)*speed*dt;this.me.x+=mx;this.me.y+=my;this.me.faceDir=mx<0?-1:1;this.me.animState='walk'}}
+    if(dx!==0||dy!==0){
+      const len=Math.sqrt(dx*dx+dy*dy);dx/=len;dy/=len;
+      this.lastDir.x=dx;this.lastDir.y=dy;this.me.faceDir=dx<0?-1:1;
+      const newX=this.me.x+dx*speed*dt;
+      const newY=this.me.y+dy*speed*dt;
+      if(!this.checkCollision(newX,this.me.y))this.me.x=newX;
+      if(!this.checkCollision(this.me.x,newY))this.me.y=newY;
+      this.me.moving=true;this.me.animState='walk';
+    }
+    else if(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0)){
+      if(this.me.moving){this.me.moving=false;this.me.tx=this.me.x;this.me.ty=this.me.y;}
+      this.lastDir.x=this.joystick.dx;this.lastDir.y=this.joystick.dy;this.me.faceDir=this.joystick.dx<0?-1:1;
+      const newX=this.me.x+this.joystick.dx*speed*dt;
+      const newY=this.me.y+this.joystick.dy*speed*dt;
+      if(!this.checkCollision(newX,this.me.y))this.me.x=newX;
+      if(!this.checkCollision(this.me.x,newY))this.me.y=newY;
+      this.me.moving=true;this.me.animState='walk';
+    }
+    else if(this.me.moving){
+      const tx=this.me.tx,ty=this.me.ty;
+      const ddx=tx-this.me.x,ddy=ty-this.me.y;
+      const dist=Math.sqrt(ddx*ddx+ddy*ddy);
+      if(dist<5){this.me.moving=false;this.me.animState='idle'}
+      else{
+        const mx=(ddx/dist)*speed*dt,my=(ddy/dist)*speed*dt;
+        const newX=this.me.x+mx;
+        const newY=this.me.y+my;
+        if(!this.checkCollision(newX,this.me.y))this.me.x=newX;
+        if(!this.checkCollision(this.me.x,newY))this.me.y=newY;
+        this.me.faceDir=mx<0?-1:1;this.me.animState='walk';
+      }
+    }
     else if(!this.me.sitting){this.me.animState='idle'}
     const chClimb=CHARACTERS[selectedChar];const hasClimb=chClimb&&chClimb.skills&&chClimb.skills.find(s=>s.effect==='climb'&&s.unlocked);const margin=hasClimb?0:16;this.me.x=Math.max(margin,Math.min(this.mapW-margin,this.me.x));this.me.y=Math.max(margin,Math.min(this.mapH-margin,this.me.y));
     const edgeDist=Math.min(this.me.x,this.me.y,this.mapW-this.me.x,this.mapH-this.me.y);
@@ -2446,37 +2532,37 @@ function _drawDecorFunc(ctx,w,h){
   };
 
   // === 卧室 (50-400, 50-400) ===
-  draw(33,80,80,130,190);    // 双人床
-  draw(17,230,100,75,52);    // 床头柜
-  draw(45,300,60,180,100);   // 大柜子
-  draw(14,50,200,60,65);     // 窗户
-  draw(36,250,250,65,184);   // 单人床
+  draw(33,80,80,78,114);     // 双人床 (原130x190)
+  draw(17,230,100,45,31);    // 床头柜 (原75x52)
+  draw(45,300,60,108,60);    // 大柜子 (原180x100)
+  draw(14,50,200,36,39);     // 窗户 (原60x65)
+  draw(36,250,250,39,110);   // 单人床 (原65x184)
 
   // === 厨房 (1200-1550, 50-400) ===
-  draw(58,1220,60,250,70);   // 超长柜台
-  draw(23,1280,150,64,66);   // 电饭煲
-  draw(20,1400,250,77,62);   // 洗衣机
-  draw(51,1300,300,95,94);   // 方桌
+  draw(58,1220,60,150,42);   // 超长柜台 (原250x70)
+  draw(23,1280,150,38,40);   // 电饭煲 (原64x66)
+  draw(20,1400,250,46,37);   // 洗衣机 (原77x62)
+  draw(51,1300,300,57,56);   // 方桌 (原95x94)
 
   // === 大厅 (400-1200, 300-900) ===
-  draw(7,500,400,100,85);    // 三人沙发(上排)
-  draw(51,650,430,95,94);    // 方桌(茶几)
-  draw(0,800,400,180,85);    // 双人沙发(右侧)
-  draw(54,700,550,127,122);  // 圆桌(中央)
-  draw(39,500,650,200,70);   // 长桌
-  draw(56,450,350,100,110);  // 盆栽(左)
-  draw(57,1050,350,100,110); // 盆栽(右)
-  draw(3,500,800,180,85);    // 双人沙发(下排左)
-  draw(10,750,800,100,85);   // 三人沙发(下排中)
+  draw(7,500,400,60,51);     // 三人沙发(上排) (原100x85)
+  draw(51,650,430,57,56);    // 方桌(茶几) (原95x94)
+  draw(0,800,400,108,51);    // 双人沙发(右侧) (原180x85)
+  draw(54,700,550,76,73);    // 圆桌(中央) (原127x122)
+  draw(39,500,650,120,42);   // 长桌 (原200x70)
+  draw(56,450,350,60,66);    // 盆栽(左) (原100x110)
+  draw(57,1050,350,60,66);   // 盆栽(右) (原100x110)
+  draw(3,500,800,108,51);    // 双人沙发(下排左) (原180x85)
+  draw(10,750,800,60,51);    // 三人沙发(下排中) (原100x85)
 
   // === 浴室 (50-400, 800-1150) ===
-  draw(21,100,850,77,62);    // 洗衣机
-  draw(15,50,950,60,65);     // 窗户
+  draw(21,100,850,46,37);    // 洗衣机 (原77x62)
+  draw(15,50,950,36,39);     // 窗户 (原60x65)
 
   // === 储藏室 (1200-1550, 800-1150) ===
-  draw(48,1250,850,120,100); // 滚轮柜
-  draw(46,1400,850,200,120); // 大柜子
-  draw(52,1300,1000,95,94);  // 方桌
+  draw(48,1250,850,72,60);   // 滚轮柜 (原120x100)
+  draw(46,1400,850,120,72);  // 大柜子 (原200x120)
+  draw(52,1300,1000,57,56);  // 方桌 (原95x94)
 }
 
 function _drawNameTag(ctx,x,y,name,isMe){
@@ -2539,16 +2625,16 @@ function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
     const sx=frame*cellW;
     const sy=animRow*cellH;
 
-    // 方向修复: faceDir<0 表示向左移动,脸应该朝左
-    // 素材默认脸朝右,所以 faceDir<0(左移)时翻转,faceDir>0(右移)时不翻转
+    // 方向: faceDir<0 向左, faceDir>0 向右
+    // 素材默认脸朝右
     const faceDir=p.faceDir||1;
-    const drawSize=32;
+    const drawSize=48; // 放大到48
     const half=drawSize/2;
 
     ctx.save();
     ctx.translate(px,py);
     if(faceDir<0){
-      // 向左移动: 翻转让脸朝左
+      // 向左移动: 素材默认脸朝右,需要翻转
       ctx.scale(-1,1);
     }
     ctx.drawImage(sprite,sx,sy,cellW,cellH,-half,-half,drawSize,drawSize);
@@ -2612,12 +2698,16 @@ function _drawDustParticles(ctx,dustParticles){for(const dp of dustParticles){ct
 
 function _drawTable(ctx,t,isHovered,isFull,time){
   const x=Math.floor(t.x),y=Math.floor(t.y);
-  const sprite=Lobby.sprites['village_objects'];
-  if(sprite&&sprite.complete&&sprite.width>64){
-    // village_objects 包含市场摊位，用第一个摊位作为桌子
-    // 摊位大约在图片左上角区域
-    const tw=48,th=32;
-    ctx.drawImage(sprite,0,0,tw,th,x-tw/2,y-th/2,tw,th);
+  const objs=Lobby.indoorSprites;
+
+  // 使用室内素材中的方桌(51)或圆桌(54)作为桌子
+  let tableIdx=51; // 默认方桌
+  if(t.label&&t.label.includes('圆'))tableIdx=54;
+
+  const sprite=objs[tableIdx];
+  if(sprite&&sprite.complete){
+    const tw=60,th=60;
+    ctx.drawImage(sprite,x-tw/2,y-th/2,tw,th);
   }else{
     // 后备：像素矩形
     ctx.fillStyle=isFull?'#5a2020':(t.code?'#3a4a2a':'#3a3020');
