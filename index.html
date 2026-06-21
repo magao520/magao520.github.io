@@ -280,10 +280,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       <div id="boundary-warning" style="position:absolute;top:60px;left:50%;transform:translateX(-50%);padding:6px 14px;background:rgba(196,70,58,.85);border:1px solid var(--accent);border-radius:4px;color:#fff;font-size:12px;display:none;pointer-events:none;z-index:20;font-weight:700;letter-spacing:1px">地图边界</div>
       <!-- 交互提示 -->
       <div id="interact-hint" style="position:absolute;bottom:200px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(0,0,0,.7);border:1px solid var(--gold);border-radius:4px;color:var(--gold);font-size:13px;display:none;pointer-events:none;z-index:10"></div>
-      <!-- 任务面板 -->
-      <div id="quest-panel" style="position:absolute;top:12px;left:12px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:6px 8px;border-radius:4px;max-width:130px;font-size:10px"></div>
-      <!-- 等级面板 -->
-      <div id="level-panel" style="position:absolute;top:12px;left:148px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:6px 8px;border-radius:4px;max-width:130px;font-size:10px"></div>
+
       <!-- 聊天输入 -->
       <div id="chat-bar" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:20;display:none;align-items:center;gap:6px;background:rgba(0,0,0,.7);padding:6px 10px;border-radius:4px;border:1px solid var(--border)">
         <input id="chat-input" type="text" maxlength="30" placeholder="输入消息..." style="background:transparent;border:none;color:var(--text);font-size:12px;outline:none;width:160px;font-family:inherit">
@@ -362,7 +359,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">音效</span><button class="sm-btn btn-press" id="settings-sound" onclick="toggleSound()">开启</button></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">背景音乐</span><button class="sm-btn btn-press" id="settings-bgm" onclick="toggleBGM()">开启</button></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">更换角色</span><button class="sm-btn btn-press" onclick="showCharSelect()">选择</button></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">等级</span><span style="font-size:12px;color:var(--gold)" id="settings-level">Lv.1 拾荒者</span></div>
+
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">属性</span><span style="font-size:12px;color:var(--dim)" id="settings-stats">幸运 10 | 魅力 10 | 敏捷 10</span></div>
       <div style="margin:8px 0"><span style="font-size:13px">技能</span><div style="margin-top:4px;padding:6px;background:rgba(0,0,0,.3);border-radius:4px" id="settings-skills"></div></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0"><span style="font-size:13px">好友</span><span style="font-size:12px;color:var(--dim)" id="settings-friends">0/20</span></div>
@@ -412,6 +409,6 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=190"></script>
+<script src="js/game.js?v=200"></script>
 </body>
 </html>

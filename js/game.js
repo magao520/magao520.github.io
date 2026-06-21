@@ -31,7 +31,6 @@ const G = {
   onlineUsers:{},
   presenceTimer:null,
   diceState:{dice:[null,null,null],sum:0,phase:'bet'},
-  level:1, exp:0,
   stats:{luck:10, charm:10, agility:10},
   skinIndex:0,
   weather:{type:'clear', intensity:0, timer:0, nextChange:0},
@@ -187,7 +186,7 @@ function showSettings(){
   const se=$('settings-sound');if(se)se.textContent=Sound._enabled?'开启':'关闭';
   const be=$('settings-bgm');if(be)be.textContent=Sound._bgmOsc?'开启':'关闭';
   const st=$('settings-stats');if(st)st.innerHTML=`幸运 ${G.stats.luck} | 魅力 ${G.stats.charm} | 敏捷 ${G.stats.agility}`;
-  const lv=$('settings-level');if(lv)lv.textContent=`Lv.${G.level} ${getLevelTitle(G.level)} (${G.exp}/${expToNext(G.level)} 经验)`;
+
   const sk=$('settings-skills');if(sk){const ch=CHARACTERS[selectedChar];let skHtml='';if(ch&&ch.skills){for(const s of ch.skills){skHtml+=`<div style="font-size:11px;color:${s.unlocked?'var(--green)':'var(--dim)'};margin:2px 0">${s.unlocked?'✓':'🔒'} ${s.name}: ${s.desc}</div>`}}sk.innerHTML=skHtml||'<div style="font-size:11px;color:var(--dim)">无技能</div>';}
   updateFriendCountUI();updateGuildUI();
 }
@@ -206,7 +205,7 @@ function renderSkinChoices(charIdx){
   const ch=CHARACTERS[charIdx];if(!ch||!ch.skins)return '';
   let html='<div style="display:flex;gap:4px;justify-content:center;margin-top:6px">';
   for(let i=0;i<ch.skins.length;i++){
-    const unlocked=i===0||(i===1&&G.level>=5)||(i===2&&G.level>=15);
+    const unlocked=true;
     const isSelected=i===G.skinIndex&&charIdx===selectedChar;
     html+=`<div onclick="event.stopPropagation();selectSkin(${charIdx},${i})" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;border:1px solid ${isSelected?'var(--gold)':'var(--border)'};background:${unlocked?'rgba(255,255,255,.03)':'rgba(0,0,0,.3)'};cursor:${unlocked?'pointer':'not-allowed'};font-size:16px;opacity:${unlocked?1:0.4}" title="${unlocked?ch.skins[i]:'Lv.'+(i===1?5:15)+'解锁'}">${ch.skins[i]}</div>`;
   }
@@ -214,7 +213,7 @@ function renderSkinChoices(charIdx){
 }
 function selectSkin(charIdx,skinIdx){
   const ch=CHARACTERS[charIdx];if(!ch||!ch.skins)return;
-  const unlocked=skinIdx===0||(skinIdx===1&&G.level>=5)||(skinIdx===2&&G.level>=15);
+  const unlocked=true;
   if(!unlocked){toast('等级不足，无法解锁该皮肤');return}
   selectedChar=charIdx;G.skinIndex=skinIdx;
   const emoji=ch.skins[skinIdx];
@@ -234,7 +233,7 @@ function selectCharModal(idx){
 function closeCharSelect(){const m=$('char-modal');if(m)m.classList.remove('open')}
 const MAX_ROUNDS=20;
 const MAX_SEATS=3;
-const LEVEL_TITLES=['拾荒者','流浪者','交易者','精明商人','黑市中介','物资大亨','废土领主','交易所之王'];
+
 const CHARACTERS=[
   {emoji:'🐦',name:'灰鸽',desc:'废土信使',skins:['🐦','🕊️','🦅'],skills:[{name:'信使直觉',desc:'看牌时10%概率看到对手一张牌',unlocked:false,effect:'peek10'},{name:'顺风耳',desc:'大厅中听到更远处的聊天',unlocked:false,effect:'farChat'}]},
   {emoji:'🐱',name:'野猫',desc:'夜行猎手',skins:['🐱','🐯','🦁'],skills:[{name:'夜行',desc:'夜晚移动速度+20%',unlocked:false,effect:'nightSpeed'},{name:'敏锐',desc:'骰子猜大小时有5%额外胜率',unlocked:false,effect:'diceBonus'}]},
@@ -262,45 +261,8 @@ function resetGameState(){
 }
 
 // ==================== 存储 ====================
-function load(){try{const s=localStorage.getItem('wl_user');if(s){const d=JSON.parse(s);G.user=d.n;G.chips=d.c||50;if(d.s!==undefined)selectedChar=d.s;if(d.px!==undefined&&d.py!==undefined){_savedPos={x:d.px,y:d.py}}if(d.l!==undefined)G.level=d.l;if(d.e!==undefined)G.exp=d.e;if(d.st!==undefined)G.stats=d.st;if(d.sk!==undefined)G.skinIndex=d.sk;return true}}catch(e){}return false}
-function save(){if(G.user)try{const px=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.x:0;const py=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.y:0;localStorage.setItem('wl_user',JSON.stringify({n:G.user,c:G.chips,s:selectedChar,px,py,l:G.level,e:G.exp,st:G.stats,sk:G.skinIndex}));}catch(e){}}
-function loadQuest(){try{const s=localStorage.getItem('wl_quest');if(s)return JSON.parse(s)}catch(e){}return {date:'',progress:0,claimed:false}}
-function saveQuest(q){try{localStorage.setItem('wl_quest',JSON.stringify(q))}catch(e){}}
-function checkQuest(){
-  const q=loadQuest();const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  if(q.date!==today){q.date=today;q.progress=0;q.claimed=false;saveQuest(q)}
-  return q;
-}
-function getLevelTitle(lv){const idx=Math.min(Math.max(0,Math.floor((lv-1)/3)),LEVEL_TITLES.length-1);return LEVEL_TITLES[idx]}
-function expToNext(lv){return Math.min(lv,20)*100}
-function addExp(amount){
-  if(G.level>=20)return;
-  G.exp+=amount;
-  const needed=expToNext(G.level);
-  if(G.exp>=needed){G.exp-=needed;G.level++;const title=getLevelTitle(G.level);toast(`升级！你现在是 Lv.${G.level} ${title}`);Sound.win();levelUpStats();}
-  updateLevelPanel();save();
-}
-function levelUpStats(){
-  const points=1+Math.floor(Math.random()*3);
-  for(let i=0;i<points;i++){const keys=['luck','charm','agility'];const k=keys[Math.floor(Math.random()*keys.length)];G.stats[k]=Math.min(100,G.stats[k]+1)}
-}
-function updateLevelPanel(){
-  const el=$('level-panel');if(!el)return;
-  const needed=expToNext(G.level);
-  const pct=G.level>=20?100:(G.exp/needed)*100;
-  const title=getLevelTitle(G.level);
-  el.style.borderColor='rgba(184,150,15,.7)';
-  el.style.boxShadow='0 0 12px rgba(184,150,15,.25),inset 0 0 8px rgba(184,150,15,.08)';
-  el.innerHTML=`<div style="font-size:20px;color:#b8960f;font-weight:900;margin-bottom:4px;text-shadow:0 0 12px rgba(184,150,15,.5)">Lv.${G.level}</div><div style="font-size:13px;color:#ff9944;margin-bottom:6px;font-weight:bold">${title}</div><div style="height:14px;background:rgba(0,0,0,.5);border-radius:7px;overflow:hidden;border:2px solid rgba(184,150,15,.6);box-shadow:inset 0 1px 3px rgba(0,0,0,.5)"><div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#5a8a3c,#8a6a0f,#b8960f,#dab820);transition:width .3s;border-radius:7px;box-shadow:0 0 6px rgba(184,150,15,.4)"></div></div><div style="font-size:11px;color:var(--dim);margin-top:4px">${G.level>=20?'已满级':G.exp+'/'+needed+' 经验'}</div><div style="margin-top:6px;border-top:1px solid rgba(184,150,15,.2);padding-top:4px;font-size:10px;color:#b8960f">幸运 ${G.stats.luck} | 魅力 ${G.stats.charm} | 敏捷 ${G.stats.agility}</div>`;
-}
-function updateQuestPanel(){
-  const q=checkQuest();const el=$('quest-panel');if(!el)return;
-  const pct=(q.progress/3)*100;
-  const winner=getTodayWinner();
-  el.style.borderColor='rgba(90,138,60,.6)';
-  el.style.boxShadow='0 0 8px rgba(90,138,60,.15)';
-  el.innerHTML=`<div style="font-size:13px;color:var(--gold);margin-bottom:4px;font-weight:bold">📋 每日任务</div><div style="font-size:11px;color:#d4c8a8;margin-bottom:6px">参与3局游戏</div><div style="height:10px;background:rgba(0,0,0,.5);border-radius:5px;overflow:hidden;border:1px solid rgba(90,138,60,.4)"><div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#3a6a2a,#5a8a3c,#7aaa4c);transition:width .3s;border-radius:5px"></div></div><div style="font-size:11px;color:var(--dim);margin-top:4px">${q.progress}/3 ${q.claimed?'✅ 已领取':'进行中'}</div>${q.progress>=3&&!q.claimed?'<div style="margin-top:4px;font-size:10px;color:#ff9944;font-weight:bold">点击领取奖励！</div>':''}${winner?`<div style="margin-top:6px;border-top:1px solid var(--border);padding-top:4px;font-size:10px;color:var(--gold)">今日赢家: ${winner.emoji} ${escHTML(winner.name)} (${winner.chips}单位)</div>`:''}`;
-}
+function load(){try{const s=localStorage.getItem('wl_user');if(s){const d=JSON.parse(s);G.user=d.n;G.chips=d.c||50;if(d.s!==undefined)selectedChar=d.s;if(d.px!==undefined&&d.py!==undefined){_savedPos={x:d.px,y:d.py}}if(d.st!==undefined)G.stats=d.st;if(d.sk!==undefined)G.skinIndex=d.sk;return true}}catch(e){}return false}
+function save(){if(G.user)try{const px=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.x:0;const py=typeof Lobby!=='undefined'&&Lobby.me?Lobby.me.y:0;localStorage.setItem('wl_user',JSON.stringify({n:G.user,c:G.chips,s:selectedChar,px,py,st:G.stats,sk:G.skinIndex}));}catch(e){}}
 function getTodayWinner(){
   const now=Date.now();
   let best=null;
@@ -309,11 +271,6 @@ function getTodayWinner(){
     if(now-u.ts<45000&&(!best||u.chips>best.chips))best=u;
   }
   return best;
-}
-function completeGameQuest(){
-  const q=checkQuest();
-  if(q.progress<3){q.progress++;saveQuest(q);updateQuestPanel()}
-  if(q.progress>=3&&!q.claimed){q.claimed=true;G.chips+=10;saveQuest(q);save();updateChips();toast('任务完成！获得10单位物资')}
 }
 function checkRelief(){
   const d=new Date();
@@ -758,7 +715,7 @@ function showModal(t,m,w){
   if(mc){mc.style.display='block';mc.textContent=w?'+10单位物资':'-10单位物资';mc.style.color=w?'var(--green)':'var(--accent)'}
   if(rm)rm.classList.add('open');
   if(w){startConfetti();checkFirstWin()}else{startScreenShake()}
-  const expGain=w?(10+G.level*2):5;addExp(expGain);
+  
   const ch2=CHARACTERS[selectedChar];if(ch2&&ch2.skills&&ch2.skills.find(s=>s.effect==='regen5'&&s.unlocked)){G.chips+=5;toast('壁虎再生：恢复5物资');updateChips();}
   if(!w){const ch3=CHARACTERS[selectedChar];if(ch3&&ch3.skills&&ch3.skills.find(s=>s.effect==='teamReward'&&s.unlocked)){const winner=G.players.find(p=>p.id!==G.myId&&p.chips>50);if(winner){const bonus=Math.floor(G.pot*0.1);if(bonus>0){G.chips+=bonus;toast(`忠诚：队友获胜，你获得${bonus}物资奖励`);updateChips();}}}}
   updateStreak(w);
@@ -1071,12 +1028,12 @@ const _authBtn=$('auth-btn');if(_authBtn){
   _authBtn.onclick=()=>{
     if(!validateNameInput())return;
     const n=$('auth-name').value.trim();G.user=n;
-    if(!load()){G.chips=50;G.level=1;G.exp=0;G.stats={luck:10,charm:10,agility:10};G.skinIndex=0}G.myId=genId();save();
+    if(!load()){G.chips=50;G.stats={luck:10,charm:10,agility:10};G.skinIndex=0}G.myId=genId();save();
     const un=$('user-name');if(un)un.textContent=n;updateChips();showScreen('main');initMQTT();G.inventory=loadInventory();updateMailBadge();updateFriendCountUI();
   };
 }
 function logout(){cleanupAll();G.user=null;G.onlineUsers={};try{localStorage.removeItem('wl_user')}catch(e){}showScreen('auth')}
-if(load()){G.myId=genId();refreshSkills();updateLevelPanel();const un=$('user-name');if(un)un.textContent=G.user;updateChips();showScreen('main');initMQTT();G.inventory=loadInventory();updateMailBadge();updateFriendCountUI();}else{hideLoading()}
+if(load()){G.myId=genId();const un=$('user-name');if(un)un.textContent=G.user;updateChips();showScreen('main');initMQTT();G.inventory=loadInventory();updateMailBadge();updateFriendCountUI();}else{hideLoading()}
 
 // ==================== MQTT ====================
 function initMQTT(){
@@ -1285,7 +1242,7 @@ function updateWaitPlayers(){
   if(G.isHost){const c=G.roomPeers.length;const sb=$('start-btn');if(sb){sb.disabled=c<2;sb.textContent=c>=2?`开局 (${c}人)`:'等待幸存者... (至少2人)'}}renderLobby();
 }
 function refreshSkills(){
-  for(const ch of CHARACTERS){if(!ch.skills)continue;ch.skills[0].unlocked=G.level>=5;ch.skills[1].unlocked=G.level>=10;}
+  for(const ch of CHARACTERS){if(!ch.skills)continue;ch.skills[0].unlocked=true;ch.skills[1].unlocked=true;}
 }
 
 // ==================== 加入牌桌 ====================
@@ -1353,7 +1310,7 @@ function hostStartGame(){
   else if(G.gameType==='dice'){for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,chips:startChips,bet:5,folded:false,choice:null,isMe:false});G.pot=players.length*5;G.currentBet=5;G.diceState={dice:[null,null,null],sum:0,phase:'bet'};const jackpotFee=players.length;G.diceJackpot+=jackpotFee;for(const p of players)p.chips-=1;G.pot-=jackpotFee;G.diceJackpotStreak=0;}
   G.players=players;G.gameOver=false;G.inGame=true;G.turnIndex=0;G.roundCount=0;G.resultShown=false;
   const gameMsg={type:'start-game',game:G.gameType,deck:deck.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),players:players.map(pl=>({id:pl.id,name:pl.name,cards:pl.cards.map(c=>({s:c.s,r:c.r,v:c.v,red:c.red})),chips:pl.chips,bet:pl.bet,folded:pl.folded,seen:pl.seen,busted:pl.busted,stood:pl.stood,choice:pl.choice,hands:pl.hands,currentHand:pl.currentHand,doubled:pl.doubled,insured:pl.insured})),pot:G.pot,currentBet:G.currentBet,playerOrder:G.playerOrder,turnIndex:0,diceState:G.diceState,diceJackpot:G.diceJackpot,diceJackpotStreak:G.diceJackpotStreak,spectators:G.spectators};
-  publishRoom(gameMsg);G.players.forEach(pl=>{pl.isMe=pl.id===G.myId});checkMyTurn();const wp=$('wait-panel');if(wp)wp.style.display='none';showScreen('game');const gt=$('game-title');if(gt)gt.textContent=G.gameType==='zjh'?'物资炸金花':(G.gameType==='bj'?'物资二十一点':'骰子猜大小');clearLog();log('=== 牌局开始，物资已入底池 ===','system');Sound.deal();Sound.startRoomBGM(G.gameType);startCandle();renderTable();publishPresence();completeGameQuest();if(G.gameType==='bj')checkBJEnd();
+  publishRoom(gameMsg);G.players.forEach(pl=>{pl.isMe=pl.id===G.myId});checkMyTurn();const wp=$('wait-panel');if(wp)wp.style.display='none';showScreen('game');const gt=$('game-title');if(gt)gt.textContent=G.gameType==='zjh'?'物资炸金花':(G.gameType==='bj'?'物资二十一点':'骰子猜大小');clearLog();log('=== 牌局开始，物资已入底池 ===','system');Sound.deal();Sound.startRoomBGM(G.gameType);startCandle();renderTable();publishPresence();if(G.gameType==='bj')checkBJEnd();
 }
 
 // ==================== 轮次 ====================
@@ -1672,7 +1629,7 @@ function buyBuff(type,amount,cost){
 }
 
 // ==================== 初始化 ====================
-function initApp(){renderLobby();renderOnlineList();renderCharSelector();refreshSkills();updateLevelPanel();G.inventory=loadInventory();cleanOldMail();updateMailBadge();updateFriendCountUI();cleanupExpiredAuctions();if(!G._roomCleanupTimer){G._roomCleanupTimer=setInterval(()=>{const now=Date.now();let changed=false;for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}}if(changed)renderLobby()},10000)}const st=document.getElementById('sound-toggle');if(st)st.onclick=toggleSound;Sound.startAmbient(G.weather.type);}
+function initApp(){renderLobby();renderOnlineList();renderCharSelector();refreshSkills();G.inventory=loadInventory();cleanOldMail();updateMailBadge();updateFriendCountUI();cleanupExpiredAuctions();if(!G._roomCleanupTimer){G._roomCleanupTimer=setInterval(()=>{const now=Date.now();let changed=false;for(const code in G.knownRooms){if(now-G.knownRooms[code].ts>30000){delete G.knownRooms[code];changed=true}}if(changed)renderLobby()},10000)}const st=document.getElementById('sound-toggle');if(st)st.onclick=toggleSound;Sound.startAmbient(G.weather.type);}
 if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initApp)}else{initApp()}
 setTimeout(()=>{try{const m=$('main-screen');if(m&&m.style.display!=='none'&&Lobby&&!Lobby.animId){Lobby.show()}}catch(e){}},100);
 
@@ -1697,7 +1654,7 @@ const Lobby={
   floorCacheW:0,floorCacheH:0,dirty:true,welcomeTime:0,walkParticles:[],animId:null,lastBroadcast:0,
   camera:{x:0,y:0},mapW:1600,mapH:1200,dayNightAlpha:0,dustStorm:0,ambientParticles:[],
   _tableGlowGrad:null,_vignetteGrad:null,_floorPattern:null,_brickPattern:null,
-  _cachedDecor:null,_lastLightAngle:0,_lightAngle:0,_particlePool:[],_dustParticles:[],
+  _lastLightAngle:0,_lightAngle:0,_particlePool:[],_dustParticles:[],
   _hoveredTable:null,_screenShake:0,_transitionAlpha:0,_transitionTarget:0,
   weatherParticles:[],greenTrails:[],lastWeatherCollect:0,_regionFlash:0,_regionFlashColor:'',_regionToastName:'',_regionToastTime:0,
   npcs:[],
@@ -1710,7 +1667,7 @@ const Lobby={
     this.resize();
     this.me.name=G.user||'幸存者';const chInit=CHARACTERS[selectedChar];this.me.emoji=chInit&&chInit.skins?chInit.skins[G.skinIndex||0]:chInit?.emoji||'🐦';this.keys={};
     if(_savedPos){this.me.x=_savedPos.x;this.me.y=_savedPos.y;_savedPos=null}
-    this.time=0;this.welcomeTime=2;this.fountainTime=0;updateQuestPanel();
+    this.time=0;this.welcomeTime=2;this.fountainTime=0;
     // 加载角色精灵图
     this.sprites={};
     const loadSprite=(name,src)=>{
@@ -1768,7 +1725,7 @@ const Lobby={
     this.ambientParticles=[];for(let i=0;i<5;i++){this.ambientParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*2,vy:(Math.random()-.5)*1,size:1+Math.random()})}
     this._dustParticles=[];for(let i=0;i<10;i++){this._dustParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*1,vy:(Math.random()-.5)*0.5+0.2,size:0.5+Math.random(),alpha:0.1+Math.random()*0.2})}
     this._particlePool=[];for(let i=0;i<20;i++){this._particlePool.push({x:0,y:0,vx:0,vy:0,life:0,maxLife:1,size:2,color:'#fff',active:false})}
-    this._cachedDecor=null;this._lastLightAngle=0;this._lightAngle=0;this._hoveredTable=null;this._screenShake=0;this._transitionAlpha=0;this._transitionTarget=0;
+    this._lastLightAngle=0;this._lightAngle=0;this._hoveredTable=null;this._screenShake=0;this._transitionAlpha=0;this._transitionTarget=0;
     this.weatherParticles=[];this.greenTrails=[];this.lastWeatherCollect=0;this._regionFlash=0;this._regionFlashColor='';
     this.initWeather();this.initNPCs();
     // 只生成少量极淡环境粒子
@@ -1932,7 +1889,7 @@ const Lobby={
     this.ctx.imageSmoothingEnabled=false;
     this.ctx.setTransform(dpr,0,0,dpr,0,0);
     this.w=rect.width;this.h=rect.height;
-    this.floorCache=null;this.dirty=true;this._cachedDecor=null;this._vignetteGrad=null;
+    this.floorCache=null;this.dirty=true;this._vignetteGrad=null;
     this.particles=[];this.me.x=Math.max(30,Math.min(this.mapW-30,this.me.x));this.me.y=Math.max(30,Math.min(this.mapH-30,this.me.y));
   },
 
@@ -2097,8 +2054,8 @@ const Lobby={
     ctx.fillStyle='#7a6540';
     ctx.fillRect(0,0,this.mapW,20);ctx.fillRect(0,this.mapH-20,this.mapW,20);
     ctx.fillRect(0,0,20,this.mapH);ctx.fillRect(this.mapW-20,0,20,this.mapH);
-    // 装饰物
-    if(this._cachedDecor){ctx.drawImage(this._cachedDecor,0,0)}else{const dc=document.createElement('canvas');dc.width=this.mapW;dc.height=this.mapH;const dctx=dc.getContext('2d');dctx.imageSmoothingEnabled=false;_drawDecorFunc(dctx,this.mapW,this.mapH);this._cachedDecor=dc;ctx.drawImage(dc,0,0)}
+    // 装饰物 - 直接绘制，不使用缓存（避免素材未加载时缓存空白）
+    _drawDecorFunc(ctx,this.mapW,this.mapH);
     // 废金属
     this._drawScraps(ctx);
     // 桌子
