@@ -1723,8 +1723,11 @@ const Lobby={
       img.onerror=()=>{console.warn('Sprite failed:',name)};
       img.src=src;
     };
-    loadSprite('chars32','assets/rpg_chars_32.png');
-    loadSprite('soldier32','assets/rpg_soldier_32.png');
+    loadSprite('knight','assets/knight_sprite.jpg');
+    loadSprite('npcs','assets/npc_sprites.jpg');
+    loadSprite('tileset_brown','assets/tileset_brown.png');
+    loadSprite('tileset_gray','assets/tileset_gray.png');
+    loadSprite('tileset_green','assets/tileset_green.png');
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
     // 移除喷泉粒子（减少光污染）
     this.fountainParticles=[];
@@ -1770,7 +1773,7 @@ const Lobby={
     }
   },
   drawNPCs(ctx){
-    const sprite=Lobby.sprites['chars32'];
+    const sprite=Lobby.sprites['npcs'];
     for(const npc of this.npcs){
       let alpha=1;
       if(G.weather.type==='fog'){
@@ -1781,18 +1784,19 @@ const Lobby={
       ctx.globalAlpha=alpha;
       const px=Math.floor(npc.x),py=Math.floor(npc.y);
 
-      if(sprite&&sprite.complete&&sprite.width>32&&sprite.height>32){
-        // NPC使用不同的行（从第3行开始）
-        const npcRow=2+Math.floor(npc.idx||0);
-        const cols=Math.floor(sprite.width/32);
-        const idleFrame=Math.floor(this.time*2)%2;
-        const sx=idleFrame*32;
-        const sy=npcRow*32;
-        if(sx+32<=sprite.width&&sy+32<=sprite.height){
-          ctx.drawImage(sprite,sx,sy,32,32,px-16,py-16,32,32);
-        }else{
-          _drawNPCFallback(ctx,px,py,npc);
-        }
+      if(sprite&&sprite.complete&&sprite.width>64){
+        // AI生成的NPC精灵图，8个NPC水平排列
+        const npcCount=Math.min(8,Math.floor(sprite.width/64));
+        const npcIdx=(npc.idx||0)%npcCount;
+        const cellW=Math.floor(sprite.width/npcCount);
+        const cellH=sprite.height;
+        const sx=npcIdx*cellW;
+
+        // idle动画：微小呼吸
+        const breathe=Math.floor(this.time*2)%2;
+        const sy=breathe*0; // 如果没有多行，用同一行
+
+        ctx.drawImage(sprite,sx,sy,cellW,cellH,px-16,py-16,32,32);
       }else{
         _drawNPCFallback(ctx,px,py,npc);
       }
@@ -2238,21 +2242,54 @@ const Lobby={
   getRegionColor(r){return{slum:'#4a3828',black:'#6a2828',safe:'#3a4a2a'}[r]||'#4a4028'},
   getRegionName(r){return{slum:'贫民区',black:'黑市区',safe:'安全区'}[r]||''},
   _drawFloor(ctx){
-    const tileSize=32;
-    const startX=Math.floor(this.camera.x/tileSize)*tileSize;
-    const startY=Math.floor(this.camera.y/tileSize)*tileSize;
-    const endX=startX+this.w+tileSize;
-    const endY=startY+this.h+tileSize;
-    for(let tx=startX;tx<endX;tx+=tileSize){
-      for(let ty=startY;ty<endY;ty+=tileSize){
-        if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
-        const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);
-        const baseColor=this.getRegionColor(region);
-        ctx.fillStyle=baseColor;
-        ctx.fillRect(Math.floor(tx),Math.floor(ty),tileSize,tileSize);
-        ctx.strokeStyle='rgba(0,0,0,0.15)';
-        ctx.lineWidth=1;
-        ctx.strokeRect(Math.floor(tx)+0.5,Math.floor(ty)+0.5,tileSize-1,tileSize-1);
+    const ts=this.sprites['tileset_brown'];
+    const tsGray=this.sprites['tileset_gray'];
+    const tsGreen=this.sprites['tileset_green'];
+
+    if(ts&&ts.complete&&ts.width>=16){
+      // 使用图块渲染
+      const tileSize=16; // 图块是16x16
+      const cols=Math.floor(ts.width/tileSize);
+      const rows=Math.floor(ts.height/tileSize);
+      const startX=Math.floor(this.camera.x/tileSize)*tileSize;
+      const startY=Math.floor(this.camera.y/tileSize)*tileSize;
+      const endX=startX+this.w+tileSize;
+      const endY=startY+this.h+tileSize;
+
+      for(let tx=startX;tx<endX;tx+=tileSize){
+        for(let ty=startY;ty<endY;ty+=tileSize){
+          if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
+          const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);
+          // 根据区域选择不同图块集
+          let tileImg=ts; // 默认棕色（废土）
+          if(region==='safe')tileImg=tsGreen||ts;
+          else if(region==='black')tileImg=tsGray||ts;
+
+          // 根据位置选择图块帧（伪随机但稳定）
+          const tileCols=Math.floor(tileImg.width/tileSize);
+          const tileRows=Math.floor(tileImg.height/tileSize);
+          const txi=Math.abs(Math.floor(tx/tileSize))%tileCols;
+          const tyi=Math.abs(Math.floor(ty/tileSize))%tileRows;
+          const sx=txi*tileSize;
+          const sy=tyi*tileSize;
+
+          ctx.drawImage(tileImg,sx,sy,tileSize,tileSize,Math.floor(tx),Math.floor(ty),tileSize,tileSize);
+        }
+      }
+    }else{
+      // 后备：纯色方块
+      const tileSize=16;
+      const startX=Math.floor(this.camera.x/tileSize)*tileSize;
+      const startY=Math.floor(this.camera.y/tileSize)*tileSize;
+      const endX=startX+this.w+tileSize;
+      const endY=startY+this.h+tileSize;
+      for(let tx=startX;tx<endX;tx+=tileSize){
+        for(let ty=startY;ty<endY;ty+=tileSize){
+          if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
+          const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);
+          ctx.fillStyle=this.getRegionColor(region);
+          ctx.fillRect(Math.floor(tx),Math.floor(ty),tileSize,tileSize);
+        }
       }
     }
     this._drawRegionBorders(ctx);
@@ -2531,11 +2568,6 @@ function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
 
   // 确定方向: 0=下, 1=上, 2=左, 3=右
   let dir=0;
-  if(p.faceDir!==undefined){
-    if(p.faceDir<0)dir=2; // 左
-    else dir=3; // 右
-  }
-  // 如果有 lastDir，更精确判断
   if(p.lastDir){
     const lx=p.lastDir.x||0,ly=p.lastDir.y||0;
     if(Math.abs(ly)>Math.abs(lx)){dir=ly>0?0:1}
@@ -2545,40 +2577,38 @@ function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
   // 确定动画帧
   let frame=0;
   if(p.animState==='walk'){
-    frame=Math.floor(time*6)%4; // 4帧行走循环，每秒6帧
+    frame=Math.floor(time*6)%4;
   }else if(p.animState==='sit'){
-    frame=0; // 坐下用站立帧
+    frame=0;
   }else if(p.animState==='interact'){
-    frame=Math.floor(time*4)%2; // 交互用2帧
+    frame=Math.floor(time*4)%2;
   }else{
-    // idle: 微小呼吸动画
     frame=Math.floor(time*2)%2;
   }
 
-  // 选择精灵图
-  const sprite=Lobby.sprites['chars32'];
+  const sprite=Lobby.sprites['knight'];
   if(sprite&&sprite.complete&&sprite.width>32&&sprite.height>32){
-    // 精灵图布局: 每行一个角色，每帧32x32
-    // 行号由角色决定（自己=第0行，其他玩家=第1行起）
-    const row=isMe?0:1;
-    const cols=Math.floor(sprite.width/32);
-    const sx=frame*32;
-    const sy=row*32;
+    // AI生成的精灵图，假设布局：4列(方向) x 4行(帧)
+    const spriteW=sprite.width;
+    const spriteH=sprite.height;
+    const cols=4;
+    const rows=4;
+    const cellW=Math.floor(spriteW/cols);
+    const cellH=Math.floor(spriteH/rows);
+    const sx=dir*cellW;
+    const sy=frame*cellH;
 
-    // 确保不超出精灵图范围
-    if(sx+32<=sprite.width&&sy+32<=sprite.height){
-      ctx.drawImage(sprite,sx,sy,32,32,px-16,py-16,32,32);
-    }else{
-      _drawPixelCharFallback(ctx,px,py,isMe);
-    }
+    // 绘制放大到合适大小（32x32显示）
+    const drawSize=32;
+    ctx.drawImage(sprite,sx,sy,cellW,cellH,px-drawSize/2,py-drawSize/2,drawSize,drawSize);
   }else{
     _drawPixelCharFallback(ctx,px,py,isMe);
   }
 
   // 名字标签
   if(p.name){
-    const nameW=Math.min(ctx.measureText(p.name).width,80);
     ctx.fillStyle='rgba(0,0,0,0.7)';
+    const nameW=Math.min(ctx.measureText(p.name).width,80);
     ctx.fillRect(px-nameW/2-4,py-30,nameW+8,12);
     ctx.fillStyle=isMe?'#4a7a3a':'#a09080';
     ctx.font='9px monospace';
