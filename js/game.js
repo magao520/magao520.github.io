@@ -207,6 +207,7 @@ const Sound={
     if(!this._enabled)return;this._init();
     if(this._bgmOsc)return;
     const ctx=this._ctx;
+    if(!this._bgmGain){this._bgmGain=ctx.createGain();this._bgmGain.connect(ctx.destination)}
     this._bgmGain.gain.value=0.012;
     this._bgmOsc=ctx.createOscillator();this._bgmOsc.type='sine';this._bgmOsc.frequency.value=80;
     this._bgmOsc.connect(this._bgmGain);
@@ -925,7 +926,8 @@ function confirmTrade() {
   if (G.tradeState.peerConfirm) finalizeTrade();
 }
 function finalizeTrade() {
-  if (!G.tradeState) return;
+  if (!G.tradeState || G.tradeState._finalized) return;
+  G.tradeState._finalized = true;
   const taxRate = getTradeTaxRate();
   const myGive = G.tradeState.myOffer;
   const peerGive = G.tradeState.peerOffer;
@@ -1419,7 +1421,7 @@ function renderBJ(){
   if(me.hands&&me.hands.length>0){
     let myHtml='';for(let hi=0;hi<me.hands.length;hi++){const hand=me.hands[hi];const isActive=hi===(me.currentHand||0);myHtml+=`<div style="display:inline-block;margin:0 8px;padding:4px;border:1px solid ${isActive?'var(--gold)':'transparent'};border-radius:4px"><div style="font-size:10px;color:var(--dim);margin-bottom:2px">手牌${hi+1}${isActive?' (当前)':''}</div>${hand.map((c,i)=>`<div class="card-deal" style="animation-delay:${i*0.08}s">${cardHTML(c)}</div>`).join('')}<div style="font-size:11px;margin-top:2px">点数:${bjValue(hand)}</div></div>`}
     $('p0-cards').innerHTML=myHtml;
-    safeSet('p0-hand','textContent',`当前: ${bjValue(activeHand)} 点`);
+    safeSet('p0-hand','textContent',`当前: ${bjValue(me.hands[me.currentHand||0])} 点`);
   }else{
     safeSet('p0-cards','innerHTML',me.cards.map((c,i)=>`<div class="card-deal" style="animation-delay:${i*0.08}s">${cardHTML(c)}</div>`).join(''));safeSet('p0-hand','textContent',`点数: ${bjValue(me.cards)}`);
   }
@@ -1805,6 +1807,14 @@ const Lobby={
       if(loadingText)loadingText.textContent='加载中... '+Math.floor(pct)+'%';
     };
 
+    // 如果素材已加载过，跳过重新加载
+    const spritesReady=this.sprites&&Object.keys(this.sprites).length>0;
+    const gunsReady=this.gunSprites&&Object.keys(this.gunSprites).length>0;
+
+    if(spritesReady&&gunsReady){
+      // 素材已就绪，直接关闭loading
+      if(loadingOverlay){loadingOverlay.style.display='none'}
+    }else{
     // 计算需要加载的素材总数
     const spriteNames=['tilemap','village_street','village_objects','indoors','room_tiles','knight','npcs'];
     const indoorCount=61; // 0-60
@@ -1878,6 +1888,18 @@ const Lobby={
       img.src=g.src;
     });
 
+    // 等待所有素材加载完毕关闭loading遮罩
+    const checkLoaded=()=>{
+      if(this._loadedCount>=this._loadTotal){
+        updateProgress(100);
+        if(loadingOverlay){loadingOverlay.style.opacity='0';setTimeout(()=>{loadingOverlay.style.display='none'},500)}
+      }else{
+        setTimeout(checkLoaded,100);
+      }
+    };
+    setTimeout(checkLoaded,200);
+    }// end else
+
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
     // 移除喷泉粒子（减少光污染）
     this.fountainParticles=[];
@@ -1896,20 +1918,11 @@ const Lobby={
     for(let i=0;i<5;i++){
       this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*0.3,vy:(Math.random()-.5)*0.3,life:5+Math.random()*3,size:2,color:'rgba(200,200,220,0.02)',type:'fog'});
     }
-    // 添加桌子碰撞体
+    // 添加桌子碰撞体（先清除已有的table类型碰撞体防止重复）
+    this.colliders=this.colliders.filter(c=>c.type!=='table');
     for(const t of this.tables){
       this.colliders.push({x:t.x-30,y:t.y-15,w:60,h:30,type:'table'});
     }
-    // 等待所有素材加载完毕关闭loading遮罩
-    const checkLoaded=()=>{
-      if(this._loadedCount>=this._loadTotal){
-        updateProgress(100);
-        if(loadingOverlay){loadingOverlay.style.opacity='0';setTimeout(()=>{loadingOverlay.style.display='none'},500)}
-      }else{
-        setTimeout(checkLoaded,100);
-      }
-    };
-    setTimeout(checkLoaded,200);
     return true;
   },
 
@@ -2240,9 +2253,9 @@ const Lobby={
     // 更新子弹
     for(let i=this.bullets.length-1;i>=0;i--){
       const b=this.bullets[i];
-      b.x+=b.vx*0.016;
-      b.y+=b.vy*0.016;
-      b.life-=0.016;
+      b.x+=b.vx*dt;
+      b.y+=b.vy*dt;
+      b.life-=dt;
       // 碰撞检测 - 墙壁
       if(this.checkCollision(b.x,b.y)){b.life=0}
       // 碰撞检测 - 其他玩家
@@ -2307,7 +2320,7 @@ const Lobby={
       }
     }
     if(this.me.sitting){hint.textContent='点击退出桌子';hint.style.display='block';hint.style.fontSize='16px';return;}
-    if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;this.joinTable(nearTable)}else{hint.style.display='none'}
+    if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;if(!this.me.sitting)this.joinTable(nearTable)}else{hint.style.display='none'}
     // 检查附近的桌子 - 弹药补给
     for(const t of this.tables){
       const dx=t.x-this.me.x,dy=t.y-this.me.y;
@@ -2322,7 +2335,7 @@ const Lobby={
   },
 
   openCrate(crate){
-    if(crate.cooldown>0||crate.opened&&crate.cooldown<=0){crate.opened=false}
+    if(crate.cooldown>0)return;
     crate.opened=true;crate.openAnim=1;crate.cooldown=60;
     const isScrap=Math.random()<0.3;const amount=isScrap?1:(1+Math.floor(Math.random()*5));
     if(isScrap){const chVal=CHARACTERS[selectedChar];const hasScrapValue=chVal&&chVal.skills&&chVal.skills.find(s=>s.effect==='scrapValue'&&s.unlocked);const val=hasScrapValue?2:1;G.chips+=val;toast(`物资箱：获得废金属 x${val}`)}
@@ -2330,7 +2343,7 @@ const Lobby={
     Sound.chip();updateChips();save();
   },
   kickBarrel(barrel){
-    const dx=this.me.x-barrel.x,dy=this.me.y-barrel.y;const dist=Math.sqrt(dx*dx+dy*dy);
+    const dx=this.me.x-barrel.x,dy=this.me.y-barrel.y;let dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<1)dist=1;
     barrel.vx=-(dx/dist)*(200+Math.random()*100);barrel.vy=-(dy/dist)*(200+Math.random()*100);
     barrel.state='rolling';Sound.click();
@@ -2730,7 +2743,7 @@ const Lobby={
     // 枪口火焰
     for(let i=this.muzzleFlashes.length-1;i>=0;i--){
       const mf=this.muzzleFlashes[i];
-      mf.life-=0.016;
+      mf.life-=this._dt||0.016;
       if(mf.life<=0){this.muzzleFlashes.splice(i,1);continue}
       ctx.globalAlpha=mf.life*3;
       ctx.fillStyle='#ffdd44';
@@ -2843,7 +2856,7 @@ const Lobby={
     let last=performance.now();let skipped=0;
     const loop=(now)=>{
       if(document.hidden){this.animId=requestAnimationFrame(loop);return}
-      let dt=(now-last)/1000;last=now;if(dt>0.1){dt=0.016;skipped++;if(skipped>5)skipped=0}this.time+=dt;this.update(dt);
+      let dt=(now-last)/1000;last=now;if(dt>0.1){dt=0.016;skipped++;if(skipped>5)skipped=0}this.time+=dt;this._dt=dt;this.update(dt);
     // 交互动作计时恢复
     if(this.me.animState==='interact'){this.me.animTimer-=dt;if(this.me.animTimer<=0)this.me.animState='idle'}
     this.draw();this.animId=requestAnimationFrame(loop);
@@ -2865,7 +2878,7 @@ const _origRenderLobby=renderLobby;
 renderLobby=function(){_origRenderLobby();Lobby.updateTablesFromState()};
 function subscribeLobbyPos(){if(!G.mqtt)return;G.mqtt.subscribe('wl_pos_v6/+',{qos:0},(err)=>{if(err)console.warn('[Lobby] pos sub failed',err)})}
 function bindLobbyCanvasClick(){
-  const c=$('lobby-canvas');if(!c)return;
+  const c=$('lobby-canvas');if(!c||c._clickBound)return;c._clickBound=true;
   c.addEventListener('click',e=>{
     if(Lobby._ignoreNextClick){Lobby._ignoreNextClick=false;return}
     const rect=c.getBoundingClientRect();
