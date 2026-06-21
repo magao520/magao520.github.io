@@ -2287,43 +2287,47 @@ const Lobby={
     
     // 外墙
     ctx.fillStyle='#2a1a0a';
-    // 上墙
-    ctx.fillRect(0,0,this.mapW,wallThick);
-    // 下墙
-    ctx.fillRect(0,this.mapH-wallThick,this.mapW,wallThick);
-    // 左墙
-    ctx.fillRect(0,0,wallThick,this.mapH);
-    // 右墙
-    ctx.fillRect(this.mapW-wallThick,0,wallThick,this.mapH);
+    ctx.fillRect(0,0,this.mapW,wallThick);          // 上墙
+    ctx.fillRect(0,this.mapH-wallThick,this.mapW,wallThick); // 下墙
+    ctx.fillRect(0,0,wallThick,this.mapH);           // 左墙
+    ctx.fillRect(this.mapW-wallThick,0,wallThick,this.mapH); // 右墙
     
-    // 内墙（房间分隔）
+    // 内墙（房间分隔）- 与碰撞体colliders一致，留门
     ctx.fillStyle='#3a2a1a';
-    // 卧室右墙
-    ctx.fillRect(400,50,wallThick,350);
-    // 厨房左墙
-    ctx.fillRect(1200,50,wallThick,350);
-    // 浴室右墙
-    ctx.fillRect(400,800,wallThick,350);
-    // 储藏室左墙
-    ctx.fillRect(1200,800,wallThick,350);
+    // 卧室右墙 (留门 y=270-380)
+    ctx.fillRect(400,50,wallThick,220);
+    ctx.fillRect(400,380,wallThick,70);
     // 卧室下墙
-    ctx.fillRect(50,400,380,wallThick);
+    ctx.fillRect(50,400,350,wallThick);
+    // 厨房左墙 (留门 y=270-380)
+    ctx.fillRect(1200,50,wallThick,220);
+    ctx.fillRect(1200,380,wallThick,70);
     // 厨房下墙
     ctx.fillRect(1200,400,350,wallThick);
+    // 浴室右墙 (留门 y=880-980)
+    ctx.fillRect(400,800,wallThick,80);
+    ctx.fillRect(400,980,wallThick,170);
     // 浴室上墙
-    ctx.fillRect(50,800,380,wallThick);
+    ctx.fillRect(50,800,350,wallThick);
+    // 储藏室左墙 (留门 y=880-980)
+    ctx.fillRect(1200,800,wallThick,80);
+    ctx.fillRect(1200,980,wallThick,170);
     // 储藏室上墙
     ctx.fillRect(1200,800,350,wallThick);
     
-    // 大厅边界（开口连接走廊）
-    ctx.fillRect(400,300,wallThick,wallThick); // 卧室门框
-    ctx.fillRect(1200,300,wallThick,wallThick); // 厨房门框
-    ctx.fillRect(400,900,wallThick,wallThick); // 浴室门框
-    ctx.fillRect(1200,900,wallThick,wallThick); // 储藏室门框
+    // 门框装饰
+    ctx.fillStyle='#5a4a30';
+    // 卧室门框
+    ctx.fillRect(398,270,4,110);ctx.fillRect(430,270,4,110);
+    // 厨房门框
+    ctx.fillRect(1198,270,4,110);ctx.fillRect(1230,270,4,110);
+    // 浴室门框
+    ctx.fillRect(398,880,4,100);ctx.fillRect(430,880,4,100);
+    // 储藏室门框
+    ctx.fillRect(1198,880,4,100);ctx.fillRect(1230,880,4,100);
     
-    // 如果有墙壁精灵图，覆盖墙壁区域
+    // 如果有墙壁精灵图，覆盖外墙区域
     if(wallImg&&wallImg.complete){
-      // 在外墙上贴图块
       for(let x=0;x<this.mapW;x+=wallImg.width){
         ctx.drawImage(wallImg,x,0);
         ctx.drawImage(wallImg,x,this.mapH-wallImg.height);
