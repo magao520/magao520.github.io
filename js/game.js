@@ -1110,7 +1110,7 @@ function initMQTT(){
         else if(topic===TOPIC_PRESENCE){handlePresenceMsg(msg)}
         else if(topic.startsWith(TOPIC_ROOM_PREFIX+'_chat/')){handleRoomMsg(msg)}
         else if(topic.startsWith(TOPIC_ROOM_PREFIX+'/')&&!topic.includes('_chat')){const code=topic.split('/').pop();handleRoomListMsg(code,msg)}
-        else if(topic.startsWith('wl_pos_v6/')){const fromId=topic.split('/')[1];if(fromId!==G.myId)try{Lobby.handlePos(msg,fromId)}catch(e){}}
+        else if(topic.startsWith('wl_pos_v6/')){const fromId=topic.split('/')[1];if(fromId!==G.myId){try{Lobby.handlePos(msg,fromId)}catch(e){}}}
         else if(topic===TOPIC_CHAT){handleChatMsg(msg)}
         else if(topic.startsWith(TOPIC_WHISPER+'/')){handleWhisperMsg(topic,payload)}
         else if(topic.startsWith(TOPIC_TRADE+'/')){handleTradeMsg(topic,payload)}
@@ -1689,7 +1689,7 @@ setTimeout(()=>{try{const m=$('main-screen');if(m&&m.style.display!=='none'&&Lob
 // ==================== 2D 大厅系统 v10.0 全面升级 ====================
 const Lobby={
   canvas:null,ctx:null,w:0,h:0,
-  me:{x:800,y:600,tx:800,ty:600,moving:false,emoji:'🐦',name:'',level:1,exp:0,sitting:false,animState:'idle',animTimer:0,faceDir:1,hp:100},
+  me:{x:800,y:600,tx:800,ty:600,moving:false,emoji:'🐦',name:'',level:1,exp:0,sitting:false,animState:'idle',animTimer:0,faceDir:1,hp:100,maxHp:100,dead:false,deadTimer:0},
   gameTime:20,
   dayNightCycle:480,
   others:new Map(),
@@ -2188,12 +2188,42 @@ const Lobby={
     if(hour>=6&&hour<18){this.dayNightAlpha=0}
     else if(hour>=18&&hour<20){this.dayNightAlpha=(hour-18)/2*0.4}
     else if(hour>=20||hour<6){this.dayNightAlpha=0.6}
+
+    // ===== 阵亡/复活系统 =====
+    if(this.me.dead){
+      this.me.deadTimer-=dt;
+      if(this.me.deadTimer<=0){
+        // 复活
+        this.me.dead=false;
+        this.me.deadTimer=0;
+        this.me.hp=this.me.maxHp;
+        this.me.animState='idle';
+        toast('已复活！');
+      }else{
+        this.me.animState='dead';
+      }
+      // 阵亡时禁止移动和射击
+      dx=0;dy=0;this.me.moving=false;
+    }else{
+      // 检查是否阵亡
+      if(this.me.hp<=0){
+        this.me.dead=true;
+        this.me.deadTimer=5;
+        this.me.hp=0;
+        this.me.animState='dead';
+        toast('你阵亡了！5秒后复活');
+        Sound.lose();
+      }
+    }
+
     const baseSpeed=280;const sprintSpeed=480;let dx=0,dy=0;
-    // 键盘输入(PC)
-    if(this.keys['w']||this.keys['arrowup'])dy=-1;
-    if(this.keys['s']||this.keys['arrowdown'])dy=1;
-    if(this.keys['a']||this.keys['arrowleft'])dx=-1;
-    if(this.keys['d']||this.keys['arrowright'])dx=1;
+    // 键盘输入(PC) - 阵亡时禁用
+    if(!this.me.dead){
+      if(this.keys['w']||this.keys['arrowup'])dy=-1;
+      if(this.keys['s']||this.keys['arrowdown'])dy=1;
+      if(this.keys['a']||this.keys['arrowleft'])dx=-1;
+      if(this.keys['d']||this.keys['arrowright'])dx=1;
+    }
     let isSprinting=this.keys['shift']||false;
     if(this.joystick.active){const jLen=Math.sqrt(this.joystick.dx*this.joystick.dx+this.joystick.dy*this.joystick.dy);if(jLen>0.9)isSprinting=true}
     let speed=isSprinting?sprintSpeed:baseSpeed;
@@ -2201,7 +2231,7 @@ const Lobby={
     // 沙尘暴减速已移除
     const isNight=hour>=20||hour<6;
     const ch=CHARACTERS[selectedChar];if(isNight&&ch&&ch.skills&&ch.skills.find(s=>s.effect==='nightSpeed'&&s.unlocked)){speed*=1.2}
-    if(this.me.sitting){dx=0;dy=0;this.me.moving=false;this.me.animState='sit'}
+    if(this.me.sitting||this.me.dead){dx=0;dy=0;this.me.moving=false;if(this.me.dead)this.me.animState='dead';else this.me.animState='sit'}
     const isMovingNow=(dx!==0||dy!==0)||(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0))||this.me.moving;
     if(dx!==0||dy!==0){
       const len=Math.sqrt(dx*dx+dy*dy);dx/=len;dy/=len;
@@ -2212,7 +2242,7 @@ const Lobby={
       if(!this.checkCollision(this.me.x,newY))this.me.y=newY;
       this.me.moving=true;this.me.animState='walk';
     }
-    else if(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0)){
+    else if(this.joystick.active&&(this.joystick.dx!==0||this.joystick.dy!==0)&&!this.me.dead){
       if(this.me.moving){this.me.moving=false;this.me.tx=this.me.x;this.me.ty=this.me.y;}
       this.lastDir.x=this.joystick.dx;this.lastDir.y=this.joystick.dy;this.me.faceDir=this.joystick.dx<0?-1:1;
       const newX=this.me.x+this.joystick.dx*speed*dt;
@@ -2235,7 +2265,7 @@ const Lobby={
         this.me.faceDir=mx<0?-1:1;this.me.animState='walk';
       }
     }
-    else if(!this.me.sitting){this.me.animState='idle'}
+    else if(!this.me.sitting&&!this.me.dead){this.me.animState='idle'}
     const chClimb=CHARACTERS[selectedChar];const hasClimb=chClimb&&chClimb.skills&&chClimb.skills.find(s=>s.effect==='climb'&&s.unlocked);const margin=hasClimb?0:16;this.me.x=Math.max(margin,Math.min(this.mapW-margin,this.me.x));this.me.y=Math.max(margin,Math.min(this.mapH-margin,this.me.y));
     const edgeDist=Math.min(this.me.x,this.me.y,this.mapW-this.me.x,this.mapH-this.me.y);
     const bw=$('boundary-warning');if(bw)bw.style.display=edgeDist<50?'block':'none';
@@ -2258,17 +2288,26 @@ const Lobby={
       b.life-=dt;
       // 碰撞检测 - 墙壁
       if(this.checkCollision(b.x,b.y)){b.life=0}
-      // 碰撞检测 - 其他玩家
+      // 碰撞检测 - 其他玩家（自己射出的子弹）
       if(b.owner==='me'){
         for(const[id,p]of this.others){
           const dx=b.x-p.x,dy=b.y-p.y;
           if(Math.sqrt(dx*dx+dy*dy)<16){
             p.hp=(p.hp||100)-b.damage;
             b.life=0;
-            if(p.hp<=0){this.others.delete(id);toast('击杀了 '+p.name)}
+            if(p.hp<=0){p.dead=true;p.deadTimer=5;toast('击杀了 '+p.name)}
             else{toast(`命中！剩余HP: ${p.hp}`)}
             break;
           }
+        }
+      }
+      // 碰撞检测 - 自己（别人射来的子弹）
+      else if(b.owner!=='me'&&!this.me.dead){
+        const dx=b.x-this.me.x,dy=b.y-this.me.y;
+        if(Math.sqrt(dx*dx+dy*dy)<16){
+          this.me.hp-=b.damage;
+          b.life=0;
+          toast(`被击中！HP: ${Math.max(0,this.me.hp)}`);
         }
       }
       if(b.life<=0)this.bullets.splice(i,1);
@@ -2371,10 +2410,19 @@ const Lobby={
     toast('已离开桌子');
   },
 
-  broadcastPos(){if(!G.mqtt||!G.mqttConnected)return;const msg={type:'pos',x:Math.round(this.me.x),y:Math.round(this.me.y),name:G.user,emoji:this.me.emoji,sitting:this.me.sitting,animState:this.me.animState,faceDir:this.me.faceDir};G.mqtt.publish(`wl_pos_v6/${G.myId}`,JSON.stringify(msg),{qos:0})},
+  broadcastPos(){if(!G.mqtt||!G.mqttConnected)return;const msg={type:'pos',x:Math.round(this.me.x),y:Math.round(this.me.y),name:G.user,emoji:this.me.emoji,sitting:this.me.sitting,animState:this.me.animState,faceDir:this.me.faceDir,hp:this.me.hp,maxHp:this.me.maxHp,dead:this.me.dead,deadTimer:this.me.deadTimer};G.mqtt.publish(`wl_pos_v6/${G.myId}`,JSON.stringify(msg),{qos:0})},
 
   handlePos(msg,fromId){
-    if(fromId===G.myId)return;let mx=typeof msg.x==='number'&&!isNaN(msg.x)?msg.x:0;let my=typeof msg.y==='number'&&!isNaN(msg.y)?msg.y:0;mx=Math.max(0,Math.min(this.mapW,mx));my=Math.max(0,Math.min(this.mapH,my));const existing=this.others.get(fromId);if(existing){existing.tx=mx;existing.ty=my;existing.emoji=msg.emoji||'🐦';existing.name=msg.name||'幸存者';existing.lastSeen=Date.now();if(msg.sitting!==undefined)existing.sitting=msg.sitting;if(msg.animState)existing.animState=msg.animState;if(msg.faceDir)existing.faceDir=msg.faceDir;}else{this.others.set(fromId,{x:mx,y:my,tx:mx,ty:my,emoji:msg.emoji||'🐦',name:msg.name||'幸存者',lastSeen:Date.now(),fadeIn:0,scale:0,reaction:null,reactionTime:0,warpParticles:[],sitting:msg.sitting||false,animState:msg.animState||'idle',faceDir:msg.faceDir||1});for(let i=0;i<12;i++){const p=this.others.get(fromId);if(p)p.warpParticles.push({x:mx,y:my,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:1})}}
+    if(fromId===G.myId)return;
+    // 处理子弹消息
+    if(msg.type==='bullet'){
+      this.bullets.push({
+        x:msg.x,y:msg.y,vx:msg.vx,vy:msg.vy,
+        damage:msg.damage||10,life:msg.life||2,owner:fromId
+      });
+      return;
+    }
+    let mx=typeof msg.x==='number'&&!isNaN(msg.x)?msg.x:0;let my=typeof msg.y==='number'&&!isNaN(msg.y)?msg.y:0;mx=Math.max(0,Math.min(this.mapW,mx));my=Math.max(0,Math.min(this.mapH,my));const existing=this.others.get(fromId);if(existing){existing.tx=mx;existing.ty=my;existing.emoji=msg.emoji||'🐦';existing.name=msg.name||'幸存者';existing.lastSeen=Date.now();if(msg.sitting!==undefined)existing.sitting=msg.sitting;if(msg.animState)existing.animState=msg.animState;if(msg.faceDir)existing.faceDir=msg.faceDir;if(msg.hp!==undefined)existing.hp=msg.hp;if(msg.maxHp!==undefined)existing.maxHp=msg.maxHp;if(msg.dead!==undefined)existing.dead=msg.dead;if(msg.deadTimer!==undefined)existing.deadTimer=msg.deadTimer;}else{this.others.set(fromId,{x:mx,y:my,tx:mx,ty:my,emoji:msg.emoji||'🐦',name:msg.name||'幸存者',lastSeen:Date.now(),fadeIn:0,scale:0,reaction:null,reactionTime:0,warpParticles:[],sitting:msg.sitting||false,animState:msg.animState||'idle',faceDir:msg.faceDir||1,hp:msg.hp||100,maxHp:msg.maxHp||100,dead:msg.dead||false,deadTimer:msg.deadTimer||0});for(let i=0;i<12;i++){const p=this.others.get(fromId);if(p)p.warpParticles.push({x:mx,y:my,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:1})}}
   },
 
   updateTablesFromState(){
@@ -2719,7 +2767,6 @@ const Lobby={
   _drawGun(ctx){
     const gun=this.guns[this.currentGun];
     const sprite=this.gunSprites[gun.id];
-    if(!sprite||!sprite.complete)return;
 
     const px=Math.floor(this.me.x);
     const py=Math.floor(this.me.y);
@@ -2730,15 +2777,25 @@ const Lobby={
     const gunX=faceDir>0?px+8:px-8-gunW;
     const gunY=py+4;
 
-    ctx.save();
-    if(faceDir<0){
-      ctx.translate(gunX+gunW,gunY);
-      ctx.scale(-1,1);
-      ctx.drawImage(sprite,0,0,gunW,gunH);
+    if(sprite&&sprite.complete){
+      ctx.save();
+      if(faceDir<0){
+        ctx.translate(gunX+gunW,gunY);
+        ctx.scale(-1,1);
+        ctx.drawImage(sprite,0,0,gunW,gunH);
+      }else{
+        ctx.drawImage(sprite,gunX,gunY,gunW,gunH);
+      }
+      ctx.restore();
     }else{
-      ctx.drawImage(sprite,gunX,gunY,gunW,gunH);
+      // 后备：像素枪
+      ctx.fillStyle='#6a6a6a';
+      ctx.fillRect(gunX,gunY,gunW,gunH);
+      ctx.fillStyle='#4a4a4a';
+      ctx.fillRect(gunX,gunY+4,gunW,4);
+      ctx.fillStyle='#8a8a8a';
+      ctx.fillRect(gunX+4,gunY+2,8,4);
     }
-    ctx.restore();
 
     // 枪口火焰
     for(let i=this.muzzleFlashes.length-1;i>=0;i--){
@@ -2756,6 +2813,7 @@ const Lobby={
   },
 
   fireGun(){
+    if(this.me.dead){toast('阵亡中无法射击！');return}
     const now=Date.now()/1000;
     const gun=this.guns[this.currentGun];
     if(now-this.lastFireTime<gun.fireRate)return;
@@ -2782,6 +2840,14 @@ const Lobby={
         life:2,
         owner:'me',
       });
+    }
+
+    // 广播子弹给其他玩家
+    if(G.mqtt&&G.mqttConnected){
+      const b=this.bullets[this.bullets.length-1];
+      G.mqtt.publish(`wl_pos_v6/${G.myId}/bullet`,JSON.stringify({
+        type:'bullet',x:b.x,y:b.y,vx:b.vx,vy:b.vy,damage:b.damage,life:b.life
+      }),{qos:0});
     }
 
     // 枪口火焰
@@ -3050,6 +3116,35 @@ function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
     ctx.restore();
   }else{
     _drawPixelCharFallback(ctx,px,py,isMe);
+  }
+
+  // 血条（在名字下方）
+  const maxHp=p.maxHp||100;
+  const curHp=Math.max(0,p.hp||0);
+  if(maxHp>0){
+    const barW=40,barH=4;
+    const barX=px-barW/2,barY=py-36;
+    // 背景
+    ctx.fillStyle='rgba(0,0,0,0.6)';
+    ctx.fillRect(barX,barY,barW,barH);
+    // 血量
+    const hpRatio=curHp/maxHp;
+    const hpColor=hpRatio>0.5?'#4a7a3a':hpRatio>0.25?'#b8960f':'#c4463a';
+    ctx.fillStyle=hpColor;
+    ctx.fillRect(barX,barY,barW*hpRatio,barH);
+    // 边框
+    ctx.strokeStyle='rgba(255,255,255,0.3)';
+    ctx.lineWidth=1;
+    ctx.strokeRect(barX,barY,barW,barH);
+  }
+
+  // 阵亡倒计时文字
+  if(p.dead&&p.deadTimer>0){
+    ctx.fillStyle='#c4463a';
+    ctx.font='bold 10px monospace';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(`复活 ${Math.ceil(p.deadTimer)}s`,px,py-44);
   }
 
   // 名字标签
