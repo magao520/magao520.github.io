@@ -1684,21 +1684,21 @@ const Lobby={
   dayNightCycle:480,
   others:new Map(),
   tables:[
-    {x:200,y:175,code:'',game:'zjh',label:'🥫 炸金花',players:0,max:3,host:'',region:'slum',minBet:5},
-    {x:500,y:150,code:'',game:'bj',label:'⛽ 二十一点',players:0,max:3,host:'',region:'black',minBet:20},
-    {x:350,y:450,code:'',game:'dice',label:'🎲 骰子',players:0,max:3,host:'',region:'safe',minBet:5},
-    {x:700,y:300,code:'',game:'zjh',label:'🥫 炸金花 II',players:0,max:3,host:'',region:'black',minBet:10},
-    {x:150,y:550,code:'',game:'bj',label:'⛽ 二十一点 II',players:0,max:3,host:'',region:'slum',minBet:10},
-    {x:600,y:600,code:'',game:'dice',label:'🎲 骰子 II',players:0,max:3,host:'',region:'safe',minBet:5}
+    // 大厅桌子
+    {x:700,y:500,code:'',game:'zjh',label:'牌桌1',players:0,max:4,host:'',region:'lobby',minBet:5},
+    {x:900,y:600,code:'',game:'bj',label:'牌桌2',players:0,max:4,host:'',region:'lobby',minBet:20},
+    {x:600,y:750,code:'',game:'dice',label:'牌桌3',players:0,max:4,host:'',region:'lobby',minBet:5},
+    // 厨房桌子
+    {x:1300,y:250,code:'',game:'zjh',label:'厨房桌',players:0,max:2,host:'',region:'kitchen',minBet:10}
   ],
   benches:[{x:450,y:300},{x:550,y:400},{x:350,y:350}],
   currentRegion:'',
   keys:{},joystick:{active:false,cx:0,cy:0,dx:0,dy:0,touchId:null,opacity:0},
   particles:[],time:0,lastDir:{x:0,y:1},
   floorCache:null,fountainParticles:[],lootCrates:[],fountainTime:0,scraps:[],scrapCount:0,
-  barrels:[],portal:null,portalParticles:[],
+  barrels:[],portalParticles:[],
   floorCacheW:0,floorCacheH:0,dirty:true,welcomeTime:0,walkParticles:[],animId:null,lastBroadcast:0,
-  camera:{x:0,y:0},mapW:1000,mapH:750,dayNightAlpha:0,dustStorm:0,ambientParticles:[],
+  camera:{x:0,y:0},mapW:1600,mapH:1200,dayNightAlpha:0,dustStorm:0,ambientParticles:[],
   _tableGlowGrad:null,_vignetteGrad:null,_floorPattern:null,_brickPattern:null,
   _cachedDecor:null,_lastLightAngle:0,_lightAngle:0,_particlePool:[],_dustParticles:[],
   _hoveredTable:null,_screenShake:0,_transitionAlpha:0,_transitionTarget:0,
@@ -1730,12 +1730,56 @@ const Lobby={
     loadSprite('room_tiles','assets/tile_room.png');
     loadSprite('knight','assets/raccoon_sheet.png');
     loadSprite('npcs','assets/npc_sprites.jpg');
+
+    // 室内素材 - 每个物件单独加载
+    const indoorBase='assets/indoor/';
+    const indoorObjects=[
+      'Objects/PNG/objects_house_0000_Layer-1.png',   // 双人沙发(绿色)
+      'Objects/PNG/objects_house_0001_Layer-2.png',
+      'Objects/PNG/objects_house_0005_Layer-6.png',   // 双人沙发(紫色)
+      'Objects/PNG/objects_house_0010_Layer-11.png',   // 三人沙发(棕色)
+      'Objects/PNG/objects_house_0015_Layer-16.png',   // 窗户
+      'Objects/PNG/objects_house_0020_Layer-21.png',   // 洗衣机
+      'Objects/PNG/objects_house_0025_Layer-26.png',   // 电饭煲
+      'Objects/PNG/objects_house_0030_Layer-31.png',   // 单人椅(蓝色)
+      'Objects/PNG/objects_house_0035_Layer-36.png',   // 床
+      'Objects/PNG/objects_house_0040_Layer-41.png',   // 柜门
+      'Objects/PNG/objects_house_0045_Layer-46.png',   // 圆桌/转盘
+      'Objects/PNG/objects_house_0050_Layer-51.png',   // 滚轮柜
+      'Objects/PNG/objects_house_0055_Layer-56.png',   // 盆栽
+      'Objects/PNG/objects_house_0060_Layer-0.png',   // 长桌/柜台
+    ];
+    this.indoorSprites=[];
+    indoorObjects.forEach((rel,i)=>{
+      const img=new Image();
+      img.crossOrigin='anonymous';
+      img.onload=()=>{this.indoorSprites[i]=img};
+      img.src=indoorBase+rel;
+    });
+
+    // 墙壁图块
+    const wallFiles=[
+      'Tiles/PNG/Walls/walls_0000_Layer-1.png',  // 木墙2x2
+      'Tiles/PNG/Walls/walls_0002_Layer-3.png',
+      'Tiles/PNG/Walls/walls_0004_Layer-5.png',
+      'Tiles/PNG/Walls/walls_0007_Layer-8.png',
+      'Tiles/PNG/Walls/walls_0010_Layer-11.png', // 横条
+      'Tiles/PNG/Walls/walls_0020_Layer-21.png', // 竖板
+      'Tiles/PNG/Walls/walls_0051_Layer-0.png',  // 大竖板
+    ];
+    this.wallSprites=[];
+    wallFiles.forEach((rel,i)=>{
+      const img=new Image();
+      img.crossOrigin='anonymous';
+      img.onload=()=>{this.wallSprites[i]=img};
+      img.src=indoorBase+rel;
+    });
+
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
     // 移除喷泉粒子（减少光污染）
     this.fountainParticles=[];
-    this.lootCrates=[];const cratePositions=[[125,125],[850,600],[150,600],[800,150],[450,300]];for(const[posX,posY]of cratePositions){this.lootCrates.push({x:posX,y:posY,opened:false,cooldown:0,sparkleTime:Math.random()*Math.PI*2,openAnim:0})}
-    this.barrels=[];const barrelPositions=[[200,200],[750,550],[300,650],[900,250],[400,350]];for(const[posX,posY]of barrelPositions){this.barrels.push({x:posX,y:posY,state:'idle',vx:0,vy:0,respawnTimer:0,explodeAnim:0})}
-    this.portal={x:50,y:375,active:true,respawnTimer:0};
+    this.lootCrates=[];const cratePositions=[[200,500],[350,600],[250,700]];for(const[posX,posY]of cratePositions){this.lootCrates.push({x:posX,y:posY,opened:false,cooldown:0,sparkleTime:Math.random()*Math.PI*2,openAnim:0})}
+    this.barrels=[];const barrelPositions=[[1000,400],[1100,500]];for(const[posX,posY]of barrelPositions){this.barrels.push({x:posX,y:posY,state:'idle',vx:0,vy:0,respawnTimer:0,explodeAnim:0})}
     const chScrap=CHARACTERS[selectedChar];const hasFindScrap=chScrap&&chScrap.skills&&chScrap.skills.find(s=>s.effect==='findScrap'&&s.unlocked);const scrapCountInit=hasFindScrap?20:15;
     this.scraps=[];for(let i=0;i<scrapCountInit;i++){this.scraps.push({x:50+Math.random()*(this.mapW-100),y:50+Math.random()*(this.mapH-100),collected:false,rot:Math.random()*Math.PI*2})}
     this.scrapCount=0;
@@ -1755,10 +1799,9 @@ const Lobby={
 
   initNPCs(){
     this.npcs=[
-      {id:'npc_merchant',x:600,y:500,emoji:'🧔',name:'老杰克',type:'merchant',state:'wander',stateTimer:5,tx:600,ty:500,dialogueTimer:8,bubble:null,shopOpen:false},
-      {id:'npc_beggar',x:1400,y:1000,emoji:'🧟',name:'流浪者',type:'beggar',state:'wander',stateTimer:3,tx:1400,ty:1000,dialogueTimer:6,bubble:null},
-      {id:'npc_guard',x:1000,y:300,emoji:'💂',name:'守卫',type:'guard',state:'idle',stateTimer:4,tx:1000,ty:300,dialogueTimer:10,bubble:null,patrolCenter:{x:1000,y:300},patrolRadius:80},
-      {id:'npc_wanderer',x:300,y:800,emoji:'🧔',name:'拾荒者',type:'merchant',state:'wander',stateTimer:4,tx:300,ty:800,dialogueTimer:7,bubble:null,shopOpen:false}
+      {id:'npc_merchant',x:800,y:350,emoji:'🧔',name:'前台',type:'merchant',state:'wander',stateTimer:5,tx:800,ty:350,dialogueTimer:8,bubble:null,shopOpen:false},
+      {id:'npc_guard',x:1100,y:500,emoji:'💂',name:'守卫',type:'guard',state:'idle',stateTimer:4,tx:1100,ty:500,dialogueTimer:10,bubble:null,patrolCenter:{x:1100,y:500},patrolRadius:80},
+      {id:'npc_beggar',x:500,y:700,emoji:'🧟',name:'乞丐',type:'beggar',state:'wander',stateTimer:3,tx:500,ty:700,dialogueTimer:6,bubble:null}
     ];
   },
   updateNPCs(dt){
@@ -1975,7 +2018,7 @@ const Lobby={
     this.checkTableInteraction();this._lightAngle+=dt*0.5;
     this.updateWeather(dt);this.updateNPCs(dt);
     const newRegion=this.getRegionAt(this.me.x,this.me.y);
-    if(newRegion!==this.currentRegion){this.currentRegion=newRegion;if(newRegion){this._regionFlash=0.7;this._regionFlashColor=newRegion==='slum'?'rgb(100,80,50)':newRegion==='black'?'rgb(150,50,50)':'rgb(80,120,80)';this._regionToastName=this.getRegionName(newRegion);this._regionToastTime=3.5;}}
+    if(newRegion!==this.currentRegion){this.currentRegion=newRegion;if(newRegion){this._regionFlash=0.7;this._regionFlashColor='rgb(80,70,60)';this._regionToastName=this.getRegionName(newRegion);this._regionToastTime=3.5;}}
     const now=Date.now();if(now-this.lastBroadcast>100){this.lastBroadcast=now;this.broadcastPos()}
     for(const[id,p]of this.others){if(now-p.lastSeen>10000)this.others.delete(id)}
     for(const[id,p]of this.others){if(p.tx!==undefined){p.x+=(p.tx-p.x)*0.15;p.y+=(p.ty-p.y)*0.15}if(p.fadeIn<1)p.fadeIn=Math.min(1,p.fadeIn+0.05);if(p.scale<1)p.scale=Math.min(1,p.scale+0.04);if(p.reaction&&now-p.reactionTime>2000)p.reaction=null;if(p.warpParticles){for(let i=p.warpParticles.length-1;i>=0;i--){const wp=p.warpParticles[i];wp.x+=wp.vx;wp.y+=wp.vy;wp.life-=dt*2;if(wp.life<=0)p.warpParticles.splice(i,1)}}}
@@ -1993,7 +2036,6 @@ const Lobby={
       if(b.state==='explode'){b.explodeAnim-=dt;if(b.explodeAnim<=0){b.state='dead';b.respawnTimer=30}}
       if(b.state==='dead'){b.respawnTimer-=dt;if(b.respawnTimer<=0){b.state='idle';b.x=50+Math.random()*(this.mapW-100);b.y=50+Math.random()*(this.mapH-100)}}
     }
-    if(this.portal){this.portal.active=true;const pdx=this.me.x-this.portal.x,pdy=this.me.y-this.portal.y;if(Math.sqrt(pdx*pdx+pdy*pdy)<30&&this.portal.active){this.doPortalTeleport()}}
     for(const scrap of this.scraps){if(scrap.collected)continue;const sdx=this.me.x-scrap.x,sdy=this.me.y-scrap.y;if(Math.sqrt(sdx*sdx+sdy*sdy)<20){scrap.collected=true;this.scrapCount++;const chVal=CHARACTERS[selectedChar];const hasScrapValue=chVal&&chVal.skills&&chVal.skills.find(s=>s.effect==='scrapValue'&&s.unlocked);const val=hasScrapValue?2:1;G.chips+=val;Sound.chip();toast(`收集废金属 +${val} (${this.scrapCount})`);updateChips();}}
     if(this._screenShake>0){this._screenShake-=dt*5;if(this._screenShake<0)this._screenShake=0}
     if(this._transitionAlpha!==this._transitionTarget){const diff=this._transitionTarget-this._transitionAlpha;this._transitionAlpha+=diff*Math.min(1,dt*3)}
@@ -2088,14 +2130,6 @@ const Lobby={
     for(let i=0;i<20;i++){this._dustParticles.push({x,y,vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8-2,size:2+Math.random()*4,alpha:0.8})}
     for(const[id,p]of this.others){const dx=p.x-x,dy=p.y-y;if(Math.sqrt(dx*dx+dy*dy)<100){p.chatBubble={text:'啊！',name:p.name||'幸存者',emoji:p.emoji||'🐦',ts:Date.now()}}}
   },
-  doPortalTeleport(){
-    const targets=[[this.mapW-100,this.mapH-100],[this.mapW-100,100],[100,this.mapH-100],[this.mapW/2,this.mapH/2]];
-    const target=targets[Math.floor(Math.random()*targets.length)];
-    this.portalParticles=[];for(let i=0;i<20;i++){this.portalParticles.push({x:this.me.x,y:this.me.y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:'#b8960f'})}
-    this.me.x=target[0];this.me.y=target[1];this.me.moving=false;
-    toast('传送门：你被传送到了地图另一端！');Sound.win();
-  },
-
   joinTable(table){
     if(table.players>=table.max){toast('这桌满了');return}
     if(table.code){
@@ -2145,8 +2179,6 @@ const Lobby={
     for(const crate of this.lootCrates){this._drawCrate(ctx,crate)}
     // 油桶
     for(const b of this.barrels){if(b.state!=='dead')this._drawBarrel(ctx,b)}
-    // 传送门
-    if(this.portal)this._drawPortal(ctx,this.portal);
     // 长椅（像素风格）
     for(const b of this.benches){const bx=Math.floor(b.x),by=Math.floor(b.y);ctx.fillStyle='#5a4a30';ctx.fillRect(bx-22,by-9,44,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=2;ctx.strokeRect(bx-22,by-9,44,18);ctx.fillStyle='#3a3020';ctx.fillRect(bx-18,by-14,36,5);ctx.fillRect(bx-18,by+9,36,5)}
     // 桌子
@@ -2236,78 +2268,108 @@ const Lobby={
   },
 
   getRegionAt(x,y){
-    if(x>=0&&x<=400&&y>=400&&y<=750)return'slum';
-    if(x>=600&&x<=1000&&y>=0&&y<=350)return'black';
-    if(x>=300&&x<=700&&y>=200&&y<=550)return'safe';
-    return'neutral';
+    // 室内布局：大厅、卧室、厨房、浴室
+    // 大厅(中央)
+    if(x>=400&&x<=1200&&y>=300&&y<=900)return'lobby';
+    // 卧室(左上)
+    if(x>=50&&x<=400&&y>=50&&y<=400)return'bedroom';
+    // 厨房(右上)
+    if(x>=1200&&x<=1550&&y>=50&&y<=400)return'kitchen';
+    // 浴室(左下)
+    if(x>=50&&x<=400&&y>=800&&y<=1150)return'bathroom';
+    // 走廊
+    return'corridor';
   },
-  getRegionColor(r){return{slum:'#4a3828',black:'#6a2828',safe:'#3a4a2a'}[r]||'#4a4028'},
-  getRegionName(r){return{slum:'贫民区',black:'黑市区',safe:'安全区'}[r]||''},
+  getRegionName(r){
+    const names={lobby:'大厅',bedroom:'卧室',kitchen:'厨房',bathroom:'浴室',corridor:'走廊'};
+    return names[r]||'未知';
+  },
+  getRegionColor(r){
+    const colors={lobby:'#4a3a2a',bedroom:'#3a2a4a',kitchen:'#4a4a2a',bathroom:'#2a3a4a',corridor:'#3a3a3a'};
+    return colors[r]||'#3a3a3a';
+  },
   _drawFloor(ctx){
-    const tm=this.sprites['tilemap'];
-    if(tm&&tm.complete&&tm.width>=16){
-      // Kenney tilemap: 203x186, 16x16格子
-      // 前2行是草地/泥土地板图块
-      const tileSize=16;
-      const cols=Math.floor(tm.width/tileSize); // ~12列
-      const startX=Math.floor(this.camera.x/tileSize)*tileSize;
-      const startY=Math.floor(this.camera.y/tileSize)*tileSize;
-      const endX=startX+this.w+tileSize*2;
-      const endY=startY+this.h+tileSize*2;
-
-      for(let tx=startX;tx<endX;tx+=tileSize){
-        for(let ty=startY;ty<endY;ty+=tileSize){
-          if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
-          const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);
-
-          // 选择图块：根据区域和位置
-          let tileIdx=0;
-          if(region==='slum'){
-            // 贫民窟：用泥土/深色图块
-            tileIdx=((Math.abs(Math.floor(tx/tileSize))%3)*cols)+Math.abs(Math.floor(ty/tileSize))%2;
-          }else if(region==='black'){
-            // 黑市：用石头/深色图块
-            tileIdx=((Math.abs(Math.floor(tx/tileSize))%3)*cols)+2;
-          }else if(region==='safe'){
-            // 安全区：用草地/浅色图块
-            tileIdx=((Math.abs(Math.floor(tx/tileSize))%4)*cols)+Math.abs(Math.floor(ty/tileSize))%3;
-          }else{
-            // 中立区：混合
-            tileIdx=((Math.abs(Math.floor(tx/tileSize))+Math.abs(Math.floor(ty/tileSize)))%6)*cols+Math.abs(Math.floor(ty/tileSize))%3;
-          }
-
-          const sx=(tileIdx%cols)*tileSize;
-          const sy=Math.floor(tileIdx/cols)*tileSize;
-
-          if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
-            ctx.drawImage(tm,sx,sy,tileSize,tileSize,Math.floor(tx),Math.floor(ty),tileSize,tileSize);
-          }
-        }
-      }
-    }else{
-      // 后备：纯色
-      const tileSize=16;
-      const startX=Math.floor(this.camera.x/tileSize)*tileSize;
-      const startY=Math.floor(this.camera.y/tileSize)*tileSize;
-      for(let tx=startX;tx<startX+this.w+tileSize;tx+=tileSize){
-        for(let ty=startY;ty<startY+this.h+tileSize;ty+=tileSize){
-          if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
-          ctx.fillStyle=this.getRegionColor(this.getRegionAt(tx+tileSize/2,ty+tileSize/2));
-          ctx.fillRect(Math.floor(tx),Math.floor(ty),tileSize,tileSize);
-        }
+    // 室内木地板
+    const wallImg=this.wallSprites[0]; // 木墙图块作为地板纹理
+    const tileSize=32;
+    const startX=Math.floor(this.camera.x/tileSize)*tileSize;
+    const startY=Math.floor(this.camera.y/tileSize)*tileSize;
+    const endX=startX+this.w+tileSize*2;
+    const endY=startY+this.h+tileSize*2;
+    
+    for(let tx=startX;tx<endX;tx+=tileSize){
+      for(let ty=startY;ty<endY;ty+=tileSize){
+        if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
+        const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);
+        
+        // 根据区域选择地板颜色
+        const colors={
+          lobby:'#5a4a3a',
+          bedroom:'#4a3a5a',
+          kitchen:'#5a5a3a',
+          bathroom:'#3a4a5a',
+          corridor:'#4a4a4a'
+        };
+        ctx.fillStyle=colors[region]||'#4a4a4a';
+        ctx.fillRect(Math.floor(tx),Math.floor(ty),tileSize,tileSize);
+        
+        // 地板纹理线
+        ctx.strokeStyle='rgba(0,0,0,0.15)';
+        ctx.lineWidth=1;
+        ctx.strokeRect(Math.floor(tx),Math.floor(ty),tileSize,tileSize);
       }
     }
-    this._drawRegionBorders(ctx);
+    
+    // 绘制墙壁边界
+    this._drawWalls(ctx);
   },
-  _drawRegionBorders(ctx){
-    ctx.strokeStyle='rgba(100,80,60,0.4)';
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    ctx.moveTo(400,400);ctx.lineTo(400,750);
-    ctx.moveTo(600,0);ctx.lineTo(600,350);
-    ctx.moveTo(300,200);ctx.lineTo(700,200);
-    ctx.moveTo(300,550);ctx.lineTo(700,550);
-    ctx.stroke();
+  _drawWalls(ctx){
+    const wallImg=this.wallSprites[0];
+    const wallThick=32;
+    
+    // 外墙
+    ctx.fillStyle='#2a1a0a';
+    // 上墙
+    ctx.fillRect(0,0,this.mapW,wallThick);
+    // 下墙
+    ctx.fillRect(0,this.mapH-wallThick,this.mapW,wallThick);
+    // 左墙
+    ctx.fillRect(0,0,wallThick,this.mapH);
+    // 右墙
+    ctx.fillRect(this.mapW-wallThick,0,wallThick,this.mapH);
+    
+    // 内墙（房间分隔）
+    ctx.fillStyle='#3a2a1a';
+    // 卧室右墙
+    ctx.fillRect(400,50,wallThick,350);
+    // 厨房左墙
+    ctx.fillRect(1200,50,wallThick,350);
+    // 浴室右墙
+    ctx.fillRect(400,800,wallThick,350);
+    // 卧室下墙
+    ctx.fillRect(50,400,380,wallThick);
+    // 厨房下墙
+    ctx.fillRect(1200,400,350,wallThick);
+    // 浴室上墙
+    ctx.fillRect(50,800,380,wallThick);
+    
+    // 大厅边界（开口连接走廊）
+    ctx.fillRect(400,300,wallThick,wallThick); // 卧室门框
+    ctx.fillRect(1200,300,wallThick,wallThick); // 厨房门框
+    ctx.fillRect(400,900,wallThick,wallThick); // 浴室门框
+    
+    // 如果有墙壁精灵图，覆盖墙壁区域
+    if(wallImg&&wallImg.complete){
+      // 在外墙上贴图块
+      for(let x=0;x<this.mapW;x+=wallImg.width){
+        ctx.drawImage(wallImg,x,0);
+        ctx.drawImage(wallImg,x,this.mapH-wallImg.height);
+      }
+      for(let y=0;y<this.mapH;y+=wallImg.height){
+        ctx.drawImage(wallImg,0,y);
+        ctx.drawImage(wallImg,this.mapW-wallImg.width,y);
+      }
+    }
   },
 
   _drawVignette(ctx){
@@ -2419,33 +2481,6 @@ const Lobby={
       ctx.fillRect(x-26,y-26,52,52);
     }
   },
-  _drawPortal(ctx,portal){
-    const x=Math.floor(portal.x),y=Math.floor(portal.y);
-    const tm=this.sprites['tilemap'];
-    if(tm&&tm.complete&&tm.width>=16){
-      // Kenney tilemap 门/拱门图块在中间区域（约第6-7行，第6-8列）
-      const tileSize=16;
-      const sx=6*tileSize;
-      const sy=6*tileSize;
-      const drawSize=40;
-      if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
-        ctx.drawImage(tm,sx,sy,tileSize,tileSize,x-drawSize/2,y-drawSize/2,drawSize,drawSize);
-      }
-    }else{
-      // 后备：像素矩形
-      ctx.fillStyle='#4a3a20';
-      ctx.fillRect(x-20,y-20,40,40);
-      ctx.strokeStyle='#b8960f';
-      ctx.lineWidth=2;
-      ctx.strokeRect(x-20,y-20,40,40);
-    }
-    ctx.fillStyle='#b8960f';
-    ctx.font='9px monospace';
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.fillText('传送门',x,y+28);
-  },
-
   startLoop(){
     let last=performance.now();let skipped=0;
     const loop=(now)=>{
@@ -2484,11 +2519,10 @@ function bindLobbyCanvasClick(){
       for(const btn of Lobby._featureBtns){
         if(screenX>=btn.x&&screenX<=btn.x+btn.w&&screenY>=btn.y&&screenY<=btn.y+btn.h){
           const msgs=[
-            '昼夜循环：游戏内12分钟=24小时，夜晚灯笼亮起',
-            '天气系统：沙尘暴减速、辐射雨收集物资、浓雾视野受限',
+            '昼夜循环：游戏内12分钟=24小时',
             '走近NPC商人按E键打开商店',
             '地图上有物资箱和油桶，走近点击收集',
-            '地图左下角有传送门，走近点击传送到随机位置',
+            '大厅、卧室、厨房、浴室四个房间可以探索',
             '等级系统：打牌获得经验升级，解锁新技能'
           ];
           if(btn.idx===5){showSettings()}
@@ -2539,18 +2573,6 @@ function bindLobbyCanvasClick(){
         }
       }
     }
-    // 再检查是否点击了传送门
-    if(!clickedTable&&Lobby.portal){
-      const dx=Lobby.portal.x-cx,dy=Lobby.portal.y-cy;
-      if(Math.sqrt(dx*dx+dy*dy)<30){
-        // 传送
-        Lobby.me.x=200+Math.random()*(Lobby.mapW-400);
-        Lobby.me.y=200+Math.random()*(Lobby.mapH-400);
-        Lobby.me.moving=false;
-        toast('传送门将你传送到了另一个位置');
-        clickedTable=true;
-      }
-    }
     // 如果没有点击任何交互物，则移动到点击位置
     if(!clickedTable){
       Lobby.me.tx=cx;Lobby.me.ty=cy;Lobby.me.moving=true;
@@ -2561,35 +2583,62 @@ function bindLobbyCanvasClick(){
 // ==================== 辅助绘制函数 ====================
 function _drawDecorFunc(ctx,w,h){
   ctx.imageSmoothingEnabled=false;
-  const tm=Lobby.sprites['tilemap'];
-  const tileSize=16;
-  const cols=tm&&tm.complete?Math.floor(tm.width/tileSize):12;
-  // 装饰位置列表：[x, y, 图块列, 图块行]
-  // Kenney tilemap 树木大约在第3-5行，灌木在第2-3行
-  const decorItems=[
-    [35,35,3,3],[w-55,35,4,3],[35,h-55,3,4],[w-50,h-58,4,4],
-    [300,300,5,3],[w-300,h-300,3,5],[w-300,300,4,3],[300,h-300,5,4],
-    [w/2-40,h/2-30,3,3],[w/2+30,h/2+20,4,4],
-    [120,80,5,3],[w-160,60,4,3],
-    [90,h-140,3,4],[118,h-135,4,3],[108,h-150,5,4],
-    [w-120,h-190,3,5]
-  ];
-  for(const[dx,dy,tc,tr]of decorItems){
-    if(tm&&tm.complete&&tm.width>=16){
-      const sx=tc*tileSize;
-      const sy=tr*tileSize;
-      const drawSize=32;
-      if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
-        ctx.drawImage(tm,sx,sy,tileSize,tileSize,dx-drawSize/2,dy-drawSize/2,drawSize,drawSize);
-      }
-    }else{
-      // 后备：纯色方块
-      ctx.fillStyle='#4a3a20';
-      ctx.fillRect(dx,dy,18,24);
-      ctx.strokeStyle='#6a5a3a';
-      ctx.lineWidth=1;
-      ctx.strokeRect(dx,dy,18,24);
-    }
+  // 室内家具布局
+  const objs=Lobby.indoorSprites;
+  
+  // 大厅家具
+  // 0=双人沙发(绿), 10=三人沙发(棕), 8=单人椅(蓝)
+  if(objs[0]&&objs[0].complete){
+    ctx.drawImage(objs[0],500,500,120,60); // 绿色双人沙发
+  }
+  if(objs[10]&&objs[10].complete){
+    ctx.drawImage(objs[10],700,450,200,60); // 棕色三人沙发
+  }
+  if(objs[8]&&objs[8].complete){
+    ctx.drawImage(objs[8],650,550,60,60); // 蓝色单人椅
+  }
+  // 圆桌 11
+  if(objs[11]&&objs[11].complete){
+    ctx.drawImage(objs[11],620,500,80,80);
+  }
+  // 盆栽 13
+  if(objs[13]&&objs[13].complete){
+    ctx.drawImage(objs[13],450,350,40,40);
+    ctx.drawImage(objs[13],1150,350,40,40);
+  }
+  // 长桌/柜台 14
+  if(objs[14]&&objs[14].complete){
+    ctx.drawImage(objs[14],800,700,200,50);
+  }
+  
+  // 卧室
+  // 床 9
+  if(objs[9]&&objs[9].complete){
+    ctx.drawImage(objs[9],100,150,120,180);
+  }
+  // 柜子 10
+  if(objs[10]&&objs[10].complete){
+    ctx.drawImage(objs[10],300,100,60,80);
+  }
+  
+  // 厨房
+  // 柜门 10
+  if(objs[10]&&objs[10].complete){
+    ctx.drawImage(objs[10],1250,100,60,80);
+  }
+  // 电饭煲 7
+  if(objs[7]&&objs[7].complete){
+    ctx.drawImage(objs[7],1350,200,40,40);
+  }
+  // 洗衣机 6
+  if(objs[6]&&objs[6].complete){
+    ctx.drawImage(objs[6],1450,300,50,50);
+  }
+  
+  // 浴室
+  // 窗户 5
+  if(objs[5]&&objs[5].complete){
+    ctx.drawImage(objs[5],200,850,60,60);
   }
 }
 
@@ -2654,15 +2703,15 @@ function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
     const sy=animRow*cellH;
 
     // 方向修复: faceDir<0 表示向左移动,脸应该朝左
-    // 素材默认脸朝右,所以 faceDir<0(左移)时不翻转,faceDir>0(右移)时翻转
+    // 素材默认脸朝右,所以 faceDir<0(左移)时翻转,faceDir>0(右移)时不翻转
     const faceDir=p.faceDir||1;
     const drawSize=32;
     const half=drawSize/2;
 
     ctx.save();
     ctx.translate(px,py);
-    if(faceDir>0){
-      // 向右移动: 素材默认脸朝右,需要翻转让脸朝左
+    if(faceDir<0){
+      // 向左移动: 翻转让脸朝左
       ctx.scale(-1,1);
     }
     ctx.drawImage(sprite,sx,sy,cellW,cellH,-half,-half,drawSize,drawSize);
@@ -2750,37 +2799,6 @@ function _drawTable(ctx,t,isHovered,isFull,time){
   ctx.fillText(t.label||'',x,y+24);
 }
 
-function _drawDecorOn(ctx,w,h){
-    ctx.imageSmoothingEnabled=false;
-    const tm=Lobby.sprites['tilemap'];
-    const tileSize=16;
-    // 装饰位置列表：[x, y, 图块列, 图块行]
-    const decorItems=[
-      [35,35,3,3],[w-55,35,4,3],[35,h-55,3,4],[w-50,h-58,4,4],
-      [300,300,5,3],[w-300,h-300,3,5],[w-300,300,4,3],[300,h-300,5,4],
-      [w/2-40,h/2-30,3,3],[w/2+30,h/2+20,4,4],
-      [120,80,5,3],[w-160,60,4,3],
-      [90,h-140,3,4],[118,h-135,4,3],[108,h-150,5,4],
-      [w-120,h-190,3,5]
-    ];
-    for(const[dx,dy,tc,tr]of decorItems){
-      if(tm&&tm.complete&&tm.width>=16){
-        const sx=tc*tileSize;
-        const sy=tr*tileSize;
-        const drawSize=32;
-        if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
-          ctx.drawImage(tm,sx,sy,tileSize,tileSize,dx-drawSize/2,dy-drawSize/2,drawSize,drawSize);
-        }
-      }else{
-        ctx.fillStyle='#4a3a20';
-        ctx.fillRect(dx,dy,18,24);
-        ctx.strokeStyle='#6a5a3a';
-        ctx.lineWidth=1;
-        ctx.strokeRect(dx,dy,18,24);
-      }
-    }
-  }
-
 Lobby._drawMinimap = function(ctx){
     const mw=120,mh=80;const mx=this.w-mw-8,my=8;const sx=mw/this.mapW,sy=mh/this.mapH;
     // 像素风格小地图：简单矩形背景
@@ -2791,9 +2809,10 @@ Lobby._drawMinimap = function(ctx){
     ctx.strokeRect(mx,my+4,mw,mh);
     // 区域底色（纯色块）
     const mmy=my+4;
-    ctx.fillStyle='#4a3828';ctx.fillRect(mx,mmy+400*sy,400*sx,350*sy);
-    ctx.fillStyle='#6a2828';ctx.fillRect(mx+600*sx,mmy,400*sx,350*sy);
-    ctx.fillStyle='#3a4a2a';ctx.fillRect(mx+300*sx,mmy+200*sy,400*sx,350*sy);
+    ctx.fillStyle='#5a4a3a';ctx.fillRect(mx+400*sx,mmy+300*sy,800*sx,600*sy); // 大厅
+    ctx.fillStyle='#4a3a5a';ctx.fillRect(mx+50*sx,mmy+50*sy,350*sx,350*sy); // 卧室
+    ctx.fillStyle='#5a5a3a';ctx.fillRect(mx+1200*sx,mmy+50*sy,350*sx,350*sy); // 厨房
+    ctx.fillStyle='#3a4a5a';ctx.fillRect(mx+50*sx,mmy+800*sy,350*sx,350*sy); // 浴室
     // 桌子
     for(const t of this.tables){ctx.fillStyle=t.code?'#5a8a3c':'#7a7060';ctx.fillRect(mx+t.x*sx-2,mmy+t.y*sy-1,4,2)}
     // NPC位置
