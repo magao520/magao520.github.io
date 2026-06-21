@@ -245,7 +245,14 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 </head>
 <body>
 
-<div id="loading-overlay" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s"><div style="text-align:center"><div class="loading-spinner" style="width:40px;height:40px;margin:0 auto 16px"></div><div style="font-size:12px;color:var(--dim);letter-spacing:2px">信号同步中...</div><div id="loading-tip" style="margin-top:6px;font-size:11px;color:var(--dim);font-style:italic"></div></div></div>
+<div id="loading-overlay" style="position:fixed;inset:0;background:#1a1610;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+  <div style="color:#b8960f;font:bold 16px monospace">废土交易所</div>
+  <div id="loading-tip" style="color:#8a8070;font:12px monospace;max-width:300px;text-align:center"></div>
+  <div style="width:240px;height:8px;background:#2a2a2a;border-radius:4px;overflow:hidden">
+    <div id="loading-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#b8960f,#d4a820);border-radius:4px;transition:width 0.2s"></div>
+  </div>
+  <div id="loading-text" style="color:#6a6050;font:10px monospace">加载中... 0%</div>
+</div>
 
 <div id="auth-screen">
   <div class="auth-box fade-in">
@@ -409,6 +416,6 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=210"></script>
+<script src="js/game.js?v=220"></script>
 </body>
 </html>

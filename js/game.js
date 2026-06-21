@@ -75,6 +75,57 @@ const Sound={
   chipMetal(){this._p(800,'square',0.05,0,0.06);setTimeout(()=>this._p(1200,'sine',0.04,0.02,0.08),40);setTimeout(()=>this._p(600,'triangle',0.03,0.04,0.06),80)},
   diceRoll(){for(let i=0;i<6;i++)setTimeout(()=>this._p(150+Math.random()*300,'sawtooth',0.03,0,0.05),i*30)},
   toggle(){this._enabled=!this._enabled;if(this._enabled){this.chip();this.startBGM()}else{this.fold();this.stopBGM();this.stopAmbient();this.stopRoomBGM()}return this._enabled},
+  playShoot(type){
+    if(!this._enabled)return;
+    try{
+      this._init();
+      const osc=this._ctx.createOscillator();
+      const gain=this._ctx.createGain();
+      osc.connect(gain);
+      gain.connect(this._sfxGain);
+
+      if(type==='pistol'){
+        osc.frequency.setValueAtTime(800,this._ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(200,this._ctx.currentTime+0.05);
+        gain.gain.setValueAtTime(0.3,this._ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001,this._ctx.currentTime+0.08);
+        osc.start();osc.stop(this._ctx.currentTime+0.08);
+      }else if(type==='rifle'){
+        osc.frequency.setValueAtTime(600,this._ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150,this._ctx.currentTime+0.04);
+        gain.gain.setValueAtTime(0.25,this._ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001,this._ctx.currentTime+0.06);
+        osc.start();osc.stop(this._ctx.currentTime+0.06);
+      }else if(type==='shotgun'){
+        // 白噪声模拟
+        const bufferSize=this._ctx.sampleRate*0.15;
+        const buffer=this._ctx.createBuffer(1,bufferSize,this._ctx.sampleRate);
+        const data=buffer.getChannelData(0);
+        for(let i=0;i<bufferSize;i++)data[i]=(Math.random()*2-1)*0.5;
+        const noise=this._ctx.createBufferSource();
+        noise.buffer=buffer;
+        const ng=this._ctx.createGain();
+        noise.connect(ng);
+        ng.connect(this._sfxGain);
+        ng.gain.setValueAtTime(0.4,this._ctx.currentTime);
+        ng.gain.exponentialRampToValueAtTime(0.001,this._ctx.currentTime+0.15);
+        noise.start();noise.stop(this._ctx.currentTime+0.15);
+        return;
+      }else if(type==='sniper'){
+        osc.frequency.setValueAtTime(1200,this._ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(100,this._ctx.currentTime+0.12);
+        gain.gain.setValueAtTime(0.35,this._ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001,this._ctx.currentTime+0.15);
+        osc.start();osc.stop(this._ctx.currentTime+0.15);
+      }else if(type==='minigun'){
+        osc.frequency.setValueAtTime(400,this._ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(200,this._ctx.currentTime+0.03);
+        gain.gain.setValueAtTime(0.15,this._ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001,this._ctx.currentTime+0.04);
+        osc.start();osc.stop(this._ctx.currentTime+0.04);
+      }
+    }catch(e){}
+  },
   // 环境音效
   startAmbient(weatherType){
     if(!this._enabled)return;this._init();this.stopAmbient();
@@ -1636,7 +1687,7 @@ setTimeout(()=>{try{const m=$('main-screen');if(m&&m.style.display!=='none'&&Lob
 // ==================== 2D 大厅系统 v10.0 全面升级 ====================
 const Lobby={
   canvas:null,ctx:null,w:0,h:0,
-  me:{x:800,y:600,tx:800,ty:600,moving:false,emoji:'🐦',name:'',level:1,exp:0,sitting:false,animState:'idle',animTimer:0,faceDir:1},
+  me:{x:800,y:600,tx:800,ty:600,moving:false,emoji:'🐦',name:'',level:1,exp:0,sitting:false,animState:'idle',animTimer:0,faceDir:1,hp:100},
   gameTime:20,
   dayNightCycle:480,
   others:new Map(),
@@ -1700,6 +1751,20 @@ const Lobby={
   _hoveredTable:null,_screenShake:0,_transitionAlpha:0,_transitionTarget:0,
   weatherParticles:[],greenTrails:[],lastWeatherCollect:0,_regionFlash:0,_regionFlashColor:'',_regionToastName:'',_regionToastTime:0,
   npcs:[],
+  // 枪械系统
+  guns:[
+    {id:'pistol',name:'手枪',damage:10,fireRate:0.3,bulletSpeed:800,spread:0.05,bulletsPerShot:1,ammo:Infinity,auto:false,sound:'pistol'},
+    {id:'ak47',name:'AK47',damage:15,fireRate:0.12,bulletSpeed:900,spread:0.08,bulletsPerShot:1,ammo:30,maxAmmo:30,auto:true,sound:'rifle'},
+    {id:'shotgun',name:'霰弹枪',damage:8,fireRate:0.6,bulletSpeed:600,spread:0.25,bulletsPerShot:5,ammo:8,maxAmmo:8,auto:false,sound:'shotgun'},
+    {id:'sniper',name:'狙击枪',damage:50,fireRate:1.2,bulletSpeed:1500,spread:0.01,bulletsPerShot:1,ammo:5,maxAmmo:5,auto:false,sound:'sniper'},
+    {id:'minigun',name:'加特林',damage:8,fireRate:0.06,bulletSpeed:700,spread:0.15,bulletsPerShot:1,ammo:100,maxAmmo:100,auto:true,sound:'minigun'},
+  ],
+  currentGun:0, // 当前武器索引
+  lastFireTime:0,
+  bullets:[], // 飞行中的子弹
+  muzzleFlashes:[], // 枪口火焰
+  hp:100, maxHp:100,
+  _mouseDown:false,_wasMouseDown:false,
 
   init(){
     if(this.animId)return true;
@@ -1710,13 +1775,33 @@ const Lobby={
     this.me.name=G.user||'幸存者';const chInit=CHARACTERS[selectedChar];this.me.emoji=chInit&&chInit.skins?chInit.skins[G.skinIndex||0]:chInit?.emoji||'🐦';this.keys={};
     if(_savedPos){this.me.x=_savedPos.x;this.me.y=_savedPos.y;_savedPos=null}
     this.time=0;this.welcomeTime=2;this.fountainTime=0;
+    // === 加载系统 ===
+    this._loadProgress=0;
+    this._loadTotal=0;
+    this._loadedCount=0;
+    const loadingBar=$('loading-bar');
+    const loadingText=$('loading-text');
+    const loadingOverlay=$('loading-overlay');
+    const updateProgress=(pct)=>{
+      this._loadProgress=pct;
+      if(loadingBar)loadingBar.style.width=pct+'%';
+      if(loadingText)loadingText.textContent='加载中... '+Math.floor(pct)+'%';
+    };
+
+    // 计算需要加载的素材总数
+    const spriteNames=['tilemap','village_street','village_objects','indoors','room_tiles','knight','npcs'];
+    const indoorCount=61; // 0-60
+    const wallCount=7;
+    const gunCount=5;
+    this._loadTotal=spriteNames.length+indoorCount+wallCount+gunCount;
+    updateProgress(0);
     // 加载角色精灵图
     this.sprites={};
     const loadSprite=(name,src)=>{
       const img=new Image();
       img.crossOrigin='anonymous';
-      img.onload=()=>{this.sprites[name]=img;console.log('Loaded:',name,img.width,'x',img.height)};
-      img.onerror=()=>{console.warn('Failed:',name)};
+      img.onload=()=>{this.sprites[name]=img;this._loadedCount++;updateProgress((this._loadedCount/this._loadTotal)*100)};
+      img.onerror=()=>{this._loadedCount++;updateProgress((this._loadedCount/this._loadTotal)*100)};
       img.src=src;
     };
     loadSprite('tilemap','assets/tilemap.png');
@@ -1734,7 +1819,8 @@ const Lobby={
       const layer=i===60?0:i+1;
       const img=new Image();
       img.crossOrigin='anonymous';
-      img.onload=()=>{this.indoorSprites[i]=img};
+      img.onload=()=>{this.indoorSprites[i]=img;this._loadedCount++;updateProgress((this._loadedCount/this._loadTotal)*100)};
+      img.onerror=()=>{this._loadedCount++;updateProgress((this._loadedCount/this._loadTotal)*100)};
       img.src=`assets/indoor/Objects/PNG/objects_house_${num}_Layer-${layer}.png`;
     }
 
@@ -1753,8 +1839,26 @@ const Lobby={
     wallFiles.forEach((rel,i)=>{
       const img=new Image();
       img.crossOrigin='anonymous';
-      img.onload=()=>{this.wallSprites[i]=img};
+      img.onload=()=>{this.wallSprites[i]=img;this._loadedCount++;updateProgress((this._loadedCount/this._loadTotal)*100)};
+      img.onerror=()=>{this._loadedCount++;updateProgress((this._loadedCount/this._loadTotal)*100)};
       img.src=indoorBase+rel;
+    });
+
+    // 枪械素材
+    this.gunSprites={};
+    const gunFiles=[
+      {name:'pistol',src:'assets/guns/Pistol.png'},
+      {name:'ak47',src:'assets/guns/AK47.png'},
+      {name:'shotgun',src:'assets/guns/Shotgun.png'},
+      {name:'sniper',src:'assets/guns/SniperRifle.png'},
+      {name:'minigun',src:'assets/guns/Minigun.png'},
+    ];
+    gunFiles.forEach(g=>{
+      const img=new Image();
+      img.crossOrigin='anonymous';
+      img.onload=()=>{this.gunSprites[g.name]=img;this._loadedCount++;updateProgress((this._loadedCount/this._loadTotal)*100)};
+      img.onerror=()=>{this._loadedCount++;updateProgress((this._loadedCount/this._loadTotal)*100)};
+      img.src=g.src;
     });
 
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
@@ -1779,7 +1883,18 @@ const Lobby={
     for(const t of this.tables){
       this.colliders.push({x:t.x-30,y:t.y-15,w:60,h:30,type:'table'});
     }
-    this.bindInput();bindLobbyCanvasClick();this.startLoop();return true;
+    // 等待所有素材加载完毕再启动
+    const checkLoaded=()=>{
+      if(this._loadedCount>=this._loadTotal){
+        updateProgress(100);
+        if(loadingOverlay){loadingOverlay.style.opacity='0';setTimeout(()=>{loadingOverlay.style.display='none'},500)}
+        this.bindInput();bindLobbyCanvasClick();this.startLoop();
+      }else{
+        setTimeout(checkLoaded,100);
+      }
+    };
+    setTimeout(checkLoaded,200);
+    return true;
   },
 
   initNPCs(){
@@ -1953,7 +2068,7 @@ const Lobby={
 
   bindInput(){
     const c=this.canvas;this._onResize=()=>this.resize();window.addEventListener('resize',this._onResize);
-    this._onKeyDown=e=>{if(G.inGame&&G.gameType){return}this.keys[e.key.toLowerCase()]=true;if(e.key==='Enter'){const bar=$('chat-bar');if(bar&&bar.style.display!=='none'){sendChat();e.preventDefault()}else{toggleChat();e.preventDefault()}}if(e.key==='Escape'){const modals=document.querySelectorAll('.modal-overlay.open');if(modals.length>0){modals[modals.length-1].remove();return}const bar=$('chat-bar');if(bar)bar.style.display='none';closeEmoteWheel()}if(e.key.toLowerCase()==='q'){showEmoteWheel()}if(e.key.toLowerCase()==='z'){this.me.sitting=!this.me.sitting;this.me.moving=false;if(this.me.sitting){this.me.emoji='🧘'}else{const ch=CHARACTERS[selectedChar];this.me.emoji=ch&&ch.skins?ch.skins[G.skinIndex||0]:ch?.emoji||'🐦'}this.broadcastPos()}};
+    this._onKeyDown=e=>{if(G.inGame&&G.gameType){return}this.keys[e.key.toLowerCase()]=true;if(e.key==='Enter'){const bar=$('chat-bar');if(bar&&bar.style.display!=='none'){sendChat();e.preventDefault()}else{toggleChat();e.preventDefault()}}if(e.key==='Escape'){const modals=document.querySelectorAll('.modal-overlay.open');if(modals.length>0){modals[modals.length-1].remove();return}const bar=$('chat-bar');if(bar)bar.style.display='none';closeEmoteWheel()}if(e.key.toLowerCase()==='q'){showEmoteWheel()}if(e.key==='q'||e.key==='Q'){this.currentGun=(this.currentGun+1)%this.guns.length;toast('切换武器: '+this.guns[this.currentGun].name)}if(e.key.toLowerCase()==='z'){this.me.sitting=!this.me.sitting;this.me.moving=false;if(this.me.sitting){this.me.emoji='🧘'}else{const ch=CHARACTERS[selectedChar];this.me.emoji=ch&&ch.skins?ch.skins[G.skinIndex||0]:ch?.emoji||'🐦'}this.broadcastPos()}};
     this._onKeyUp=e=>{this.keys[e.key.toLowerCase()]=false};
     window.addEventListener('keydown',this._onKeyDown);window.addEventListener('keyup',this._onKeyUp);
     this._sprintHintTimer=setTimeout(()=>{if(this.keys['shift']===undefined)toast('按住 Shift 冲刺移动')},15000);
@@ -1980,6 +2095,9 @@ const Lobby={
     this._onTouchMove=e=>{if(this.joystick.active){e.preventDefault();for(const t of e.changedTouches){if(t.identifier===this.joystick.touchId){const rect=c.getBoundingClientRect();const tx=t.clientX-rect.left;const ty=t.clientY-rect.top;let ddx=tx-this.joystick.cx;let ddy=ty-this.joystick.cy;const dist=Math.sqrt(ddx*ddx+ddy*ddy);if(dist>40){ddx=(ddx/dist)*40;ddy=(ddy/dist)*40}this.joystick.dx=ddx/40;this.joystick.dy=ddy/40;this.joystick.opacity=1}}}};
     this._onTouchEnd=e=>{for(const t of e.changedTouches){if(t.identifier===this.joystick.touchId){this.joystick.active=false;this.joystick.dx=0;this.joystick.dy=0;this.joystick.touchId=null;this.joystick.opacity=0.4}}};
     c.addEventListener('touchstart',this._onTouchStart,{passive:false});c.addEventListener('touchmove',this._onTouchMove,{passive:false});c.addEventListener('touchend',this._onTouchEnd);c.addEventListener('touchcancel',this._onTouchEnd);
+    // 鼠标按下射击
+    c.addEventListener('mousedown',(e)=>{if(e.button===0)this._mouseDown=true});
+    c.addEventListener('mouseup',(e)=>{if(e.button===0)this._mouseDown=false});
   },
 
   update(dt){
@@ -2047,6 +2165,37 @@ const Lobby={
     // 辐射雨绿色轨迹已移除
     this.greenTrails=[];
     for(let i=this.walkParticles.length-1;i>=0;i--){const wp=this.walkParticles[i];wp.y+=wp.vy*dt*60;wp.life-=dt*2;if(wp.life<=0)this.walkParticles.splice(i,1)}if(this.walkParticles.length>20)this.walkParticles.length=20;
+    // 更新子弹
+    for(let i=this.bullets.length-1;i>=0;i--){
+      const b=this.bullets[i];
+      b.x+=b.vx*0.016;
+      b.y+=b.vy*0.016;
+      b.life-=0.016;
+      // 碰撞检测 - 墙壁
+      if(this.checkCollision(b.x,b.y)){b.life=0}
+      // 碰撞检测 - 其他玩家
+      if(b.owner==='me'){
+        for(const[id,p]of this.others){
+          const dx=b.x-p.x,dy=b.y-p.y;
+          if(Math.sqrt(dx*dx+dy*dy)<16){
+            p.hp=(p.hp||100)-b.damage;
+            b.life=0;
+            if(p.hp<=0){this.others.delete(id);toast('击杀了 '+p.name)}
+            else{toast(`命中！剩余HP: ${p.hp}`)}
+            break;
+          }
+        }
+      }
+      if(b.life<=0)this.bullets.splice(i,1);
+    }
+    // 自动射击
+    if(this._mouseDown){
+      const gun=this.guns[this.currentGun];
+      if(gun.auto||!this._wasMouseDown){
+        this.fireGun();
+      }
+    }
+    this._wasMouseDown=this._mouseDown;
     for(const ap of this.ambientParticles){ap.x+=ap.vx*dt;ap.y+=ap.vy*dt;if(ap.x<0)ap.x+=this.mapW;if(ap.x>this.mapW)ap.x-=this.mapW;if(ap.y<0)ap.y+=this.mapH;if(ap.y>this.mapH)ap.y-=this.mapH}
     for(const dp of this._dustParticles){dp.x+=dp.vx*dt;dp.y+=dp.vy*dt;if(dp.x<0)dp.x+=this.mapW;if(dp.x>this.mapW)dp.x-=this.mapW;if(dp.y<0)dp.y+=this.mapH;if(dp.y>this.mapH)dp.y-=this.mapH}
     // 喷泉粒子已移除
@@ -2059,7 +2208,15 @@ const Lobby={
   doAction(){
     // 检查附近的交互对象
     if(this.me.sitting){this.leaveTable();return}
-    if(this._hoveredTable){this.joinTable(this._hoveredTable);return}
+    if(this._hoveredTable){
+      // 补给弹药
+      for(const g of this.guns){
+        if(g.ammo!==Infinity)g.ammo=g.maxAmmo;
+      }
+      this.hp=this.maxHp;
+      toast('弹药已补给！HP已恢复！');
+      return;
+    }
   },
   checkTableInteraction(){
     const hint=$('interact-hint');if(!hint)return;
@@ -2079,6 +2236,17 @@ const Lobby={
     }
     if(this.me.sitting){hint.textContent='点击退出桌子';hint.style.display='block';hint.style.fontSize='16px';return;}
     if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else{hint.style.display='none'}
+    // 检查附近的桌子 - 弹药补给
+    for(const t of this.tables){
+      const dx=t.x-this.me.x,dy=t.y-this.me.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<60){
+        hint.textContent='按E补给弹药';
+        hint.style.display='block';
+        this._nearTable=t;
+        return;
+      }
+    }
   },
 
   openCrate(crate){
@@ -2160,6 +2328,19 @@ const Lobby={
     }
     // 自己
     _drawAnimatedPlayer(ctx,this.me.x,this.me.y,this.me.emoji,this.me,true,this.time);
+    // 绘制自己手持的枪
+    this._drawGun(ctx);
+    // 子弹
+    for(const b of this.bullets){
+      ctx.fillStyle=b.owner==='me'?'#ffdd44':'#ff4444';
+      const bLen=Math.sqrt(b.vx*b.vx+b.vy*b.vy)*0.01;
+      const angle=Math.atan2(b.vy,b.vx);
+      ctx.save();
+      ctx.translate(Math.floor(b.x),Math.floor(b.y));
+      ctx.rotate(angle);
+      ctx.fillRect(0,-1,Math.max(4,bLen),2);
+      ctx.restore();
+    }
     // 行走粒子
     _drawWalkParticles(ctx,this.walkParticles);
     // 环境粒子
@@ -2183,6 +2364,8 @@ const Lobby={
     Lobby._drawWelcome(ctx);
     // 功能引导提示
     Lobby._drawFeatureGuide(ctx);
+    // 枪械HUD
+    this._drawGunHUD(ctx);
     // 暗角
     this._drawVignette(ctx);
     // 摇杆
@@ -2448,6 +2631,142 @@ const Lobby={
       ctx.fillRect(x-26,y-26,52,52);
     }
   },
+  _drawGun(ctx){
+    const gun=this.guns[this.currentGun];
+    const sprite=this.gunSprites[gun.id];
+    if(!sprite||!sprite.complete)return;
+
+    const px=Math.floor(this.me.x);
+    const py=Math.floor(this.me.y);
+    const faceDir=this.me.faceDir||1;
+
+    // 枪的位置：角色前方偏下
+    const gunW=32,gunH=16;
+    const gunX=faceDir>0?px+8:px-8-gunW;
+    const gunY=py+4;
+
+    ctx.save();
+    if(faceDir<0){
+      ctx.translate(gunX+gunW,gunY);
+      ctx.scale(-1,1);
+      ctx.drawImage(sprite,0,0,gunW,gunH);
+    }else{
+      ctx.drawImage(sprite,gunX,gunY,gunW,gunH);
+    }
+    ctx.restore();
+
+    // 枪口火焰
+    for(let i=this.muzzleFlashes.length-1;i>=0;i--){
+      const mf=this.muzzleFlashes[i];
+      mf.life-=0.016;
+      if(mf.life<=0){this.muzzleFlashes.splice(i,1);continue}
+      ctx.globalAlpha=mf.life*3;
+      ctx.fillStyle='#ffdd44';
+      const fx=faceDir>0?gunX+gunW:gunX;
+      ctx.fillRect(fx-3,gunY+gunH/2-3,6,6);
+      ctx.fillStyle='#ff8800';
+      ctx.fillRect(fx-2,gunY+gunH/2-2,4,4);
+      ctx.globalAlpha=1;
+    }
+  },
+
+  fireGun(){
+    const now=Date.now()/1000;
+    const gun=this.guns[this.currentGun];
+    if(now-this.lastFireTime<gun.fireRate)return;
+    if(gun.ammo!==Infinity&&gun.ammo<=0){
+      toast('没有弹药了！');return;
+    }
+    this.lastFireTime=now;
+    if(gun.ammo!==Infinity)gun.ammo--;
+
+    const faceDir=this.me.faceDir||1;
+    const px=this.me.x;
+    const py=this.me.y;
+
+    // 发射子弹
+    for(let i=0;i<gun.bulletsPerShot;i++){
+      const angle=(faceDir>0?0:Math.PI)+((Math.random()-0.5)*gun.spread*2);
+      const speed=gun.bulletSpeed*(0.9+Math.random()*0.2);
+      this.bullets.push({
+        x:px+(faceDir>0?20:-20),
+        y:py+4,
+        vx:Math.cos(angle)*speed,
+        vy:Math.sin(angle)*speed,
+        damage:gun.damage,
+        life:2,
+        owner:'me',
+      });
+    }
+
+    // 枪口火焰
+    this.muzzleFlashes.push({x:px+(faceDir>0?20:-20),y:py+4,life:0.15});
+
+    // 音效
+    Sound.playShoot(gun.sound);
+  },
+
+  _drawGunHUD(ctx){
+    const gun=this.guns[this.currentGun];
+    const sprite=this.gunSprites[gun.id];
+
+    // 背景框
+    ctx.fillStyle='rgba(0,0,0,0.6)';
+    ctx.fillRect(8,this.h-60,140,52);
+    ctx.strokeStyle='#5a4a30';
+    ctx.lineWidth=1;
+    ctx.strokeRect(8,this.h-60,140,52);
+
+    // 枪械图标
+    if(sprite&&sprite.complete){
+      ctx.drawImage(sprite,14,this.h-54,32,16);
+    }
+
+    // 枪名
+    ctx.fillStyle='#d4c8a8';
+    ctx.font='bold 10px monospace';
+    ctx.textAlign='left';
+    ctx.textBaseline='top';
+    ctx.fillText(gun.name,50,this.h-54);
+
+    // 弹药
+    if(gun.ammo===Infinity){
+      ctx.fillStyle='#8a8070';
+      ctx.font='9px monospace';
+      ctx.fillText('∞',50,this.h-40);
+    }else{
+      ctx.fillStyle=gun.ammo>0?'#b8960f':'#c4463a';
+      ctx.font='9px monospace';
+      ctx.fillText(gun.ammo+'/'+gun.maxAmmo,50,this.h-40);
+    }
+
+    // 伤害
+    ctx.fillStyle='#8a8070';
+    ctx.font='8px monospace';
+    ctx.fillText('DMG:'+gun.damage,50,this.h-28);
+
+    // HP条
+    ctx.fillStyle='rgba(0,0,0,0.6)';
+    ctx.fillRect(8,this.h-80,140,16);
+    ctx.fillStyle='#333';
+    ctx.fillRect(10,this.h-78,136,12);
+    const hpPct=this.hp/this.maxHp;
+    ctx.fillStyle=hpPct>0.5?'#4a7a3a':(hpPct>0.25?'#b8960f':'#c4463a');
+    ctx.fillRect(10,this.h-78,136*hpPct,12);
+    ctx.fillStyle='#d4c8a8';
+    ctx.font='bold 9px monospace';
+    ctx.textAlign='center';
+    ctx.fillText('HP '+this.hp+'/'+this.maxHp,78,this.h-76);
+    ctx.textAlign='left';
+
+    // 提示
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillRect(8,this.h-96,140,14);
+    ctx.fillStyle='#6a6050';
+    ctx.font='8px monospace';
+    ctx.fillText('Q换枪 | 鼠标射击',14,this.h-93);
+  },
+
   startLoop(){
     let last=performance.now();let skipped=0;
     const loop=(now)=>{
