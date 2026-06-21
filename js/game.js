@@ -2332,13 +2332,13 @@ const Lobby={
   doAction(){
     // 检查附近的交互对象
     if(this.me.sitting){this.leaveTable();return}
-    if(this._hoveredTable){
-      // 补给弹药
-      for(const g of this.guns){
-        if(g.ammo!==Infinity)g.ammo=g.maxAmmo;
+    if(this._nearTable){
+      // 如果桌子有人，加入；如果空桌，提示搭桌
+      if(this._nearTable.code){
+        this.joinTable(this._nearTable);
+      }else{
+        toast('空桌子，点击右上角搭新桌创建房间');
       }
-      this.hp=this.maxHp;
-      toast('弹药已补给！HP已恢复！');
       return;
     }
   },
@@ -2359,18 +2359,9 @@ const Lobby={
       }
     }
     if(this.me.sitting){hint.textContent='点击退出桌子';hint.style.display='block';hint.style.fontSize='16px';return;}
-    if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;if(!this.me.sitting)this.joinTable(nearTable)}else{hint.style.display='none'}
-    // 检查附近的桌子 - 弹药补给
-    for(const t of this.tables){
-      const dx=t.x-this.me.x,dy=t.y-this.me.y;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<60){
-        hint.textContent='点击补给弹药';
-        hint.style.display='block';
-        this._nearTable=t;
-        return;
-      }
-    }
+    if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击🎮加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;this._nearTable=nearTable;return}
+    this._nearTable=null;
+    hint.style.display='none';
   },
 
   openCrate(crate){
@@ -2422,7 +2413,7 @@ const Lobby={
       });
       return;
     }
-    let mx=typeof msg.x==='number'&&!isNaN(msg.x)?msg.x:0;let my=typeof msg.y==='number'&&!isNaN(msg.y)?msg.y:0;mx=Math.max(0,Math.min(this.mapW,mx));my=Math.max(0,Math.min(this.mapH,my));const existing=this.others.get(fromId);if(existing){existing.tx=mx;existing.ty=my;existing.emoji=msg.emoji||'🐦';existing.name=msg.name||'幸存者';existing.lastSeen=Date.now();if(msg.sitting!==undefined)existing.sitting=msg.sitting;if(msg.animState)existing.animState=msg.animState;if(msg.faceDir)existing.faceDir=msg.faceDir;if(msg.hp!==undefined)existing.hp=msg.hp;if(msg.maxHp!==undefined)existing.maxHp=msg.maxHp;if(msg.dead!==undefined)existing.dead=msg.dead;if(msg.deadTimer!==undefined)existing.deadTimer=msg.deadTimer;}else{this.others.set(fromId,{x:mx,y:my,tx:mx,ty:my,emoji:msg.emoji||'🐦',name:msg.name||'幸存者',lastSeen:Date.now(),fadeIn:0,scale:0,reaction:null,reactionTime:0,warpParticles:[],sitting:msg.sitting||false,animState:msg.animState||'idle',faceDir:msg.faceDir||1,hp:msg.hp||100,maxHp:msg.maxHp||100,dead:msg.dead||false,deadTimer:msg.deadTimer||0});for(let i=0;i<12;i++){const p=this.others.get(fromId);if(p)p.warpParticles.push({x:mx,y:my,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:1})}}
+    let mx=typeof msg.x==='number'&&!isNaN(msg.x)?msg.x:0;let my=typeof msg.y==='number'&&!isNaN(msg.y)?msg.y:0;mx=Math.max(0,Math.min(this.mapW,mx));my=Math.max(0,Math.min(this.mapH,my));const existing=this.others.get(fromId);if(existing){existing.tx=mx;existing.ty=my;existing.emoji=msg.emoji||'🐦';existing.name=msg.name||'幸存者';existing.lastSeen=Date.now();if(msg.sitting!==undefined)existing.sitting=msg.sitting;if(msg.animState)existing.animState=msg.animState;if(msg.faceDir)existing.faceDir=msg.faceDir;if(msg.hp!==undefined&&msg.hp>existing.hp)existing.hp=msg.hp;if(msg.maxHp!==undefined)existing.maxHp=msg.maxHp;if(msg.dead!==undefined)existing.dead=msg.dead;if(msg.deadTimer!==undefined)existing.deadTimer=msg.deadTimer;}else{this.others.set(fromId,{x:mx,y:my,tx:mx,ty:my,emoji:msg.emoji||'🐦',name:msg.name||'幸存者',lastSeen:Date.now(),fadeIn:0,scale:0,reaction:null,reactionTime:0,warpParticles:[],sitting:msg.sitting||false,animState:msg.animState||'idle',faceDir:msg.faceDir||1,hp:msg.hp||100,maxHp:msg.maxHp||100,dead:msg.dead||false,deadTimer:msg.deadTimer||0});for(let i=0;i<12;i++){const p=this.others.get(fromId);if(p)p.warpParticles.push({x:mx,y:my,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:1})}}
   },
 
   updateTablesFromState(){
@@ -2457,6 +2448,8 @@ const Lobby={
       // 沙尘暴透明度已移除
       ctx.globalAlpha=pAlpha;
       _drawAnimatedPlayer(ctx,p.x,p.y,p.emoji||'🐦',p,false,this.time);
+      // 绘制其他玩家的枪
+      this._drawOtherGun(ctx,p);
       ctx.globalAlpha=1;
     }
     // 自己
@@ -2857,6 +2850,22 @@ const Lobby={
     Sound.playShoot(gun.sound);
   },
 
+  _drawOtherGun(ctx,p){
+    // 给其他玩家绘制枪（像素风格）
+    const px=Math.floor(p.x);
+    const py=Math.floor(p.y);
+    const faceDir=p.faceDir||1;
+    const gunW=28,gunH=12;
+    const gunX=faceDir>0?px+6:px-6-gunW;
+    const gunY=py+2;
+    ctx.fillStyle='#5a5a5a';
+    ctx.fillRect(gunX,gunY,gunW,gunH);
+    ctx.fillStyle='#3a3a3a';
+    ctx.fillRect(gunX,gunY+3,gunW,4);
+    ctx.fillStyle='#7a7a7a';
+    ctx.fillRect(gunX+3,gunY+1,6,3);
+  },
+
   _drawGunHUD(ctx){
     const gun=this.guns[this.currentGun];
     const sprite=this.gunSprites[gun.id];
@@ -2942,7 +2951,7 @@ const Lobby={
 
 const _origRenderLobby=renderLobby;
 renderLobby=function(){_origRenderLobby();Lobby.updateTablesFromState()};
-function subscribeLobbyPos(){if(!G.mqtt)return;G.mqtt.subscribe('wl_pos_v6/+',{qos:0},(err)=>{if(err)console.warn('[Lobby] pos sub failed',err)})}
+function subscribeLobbyPos(){if(!G.mqtt)return;G.mqtt.subscribe('wl_pos_v6/#',{qos:0},(err)=>{if(err)console.warn('[Lobby] pos sub failed',err)})}
 function bindLobbyCanvasClick(){
   const c=$('lobby-canvas');if(!c||c._clickBound)return;c._clickBound=true;
   c.addEventListener('click',e=>{
