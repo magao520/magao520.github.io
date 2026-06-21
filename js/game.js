@@ -1748,7 +1748,7 @@ const Lobby={
     this.ctx=this.canvas.getContext('2d');this.resize();
     this.me.name=G.user||'幸存者';const chInit=CHARACTERS[selectedChar];this.me.emoji=chInit&&chInit.skins?chInit.skins[G.skinIndex||0]:chInit?.emoji||'🐦';this.keys={};
     if(_savedPos){this.me.x=_savedPos.x;this.me.y=_savedPos.y;_savedPos=null}
-    this.time=0;this.welcomeTime=8;this.fountainTime=0;updateQuestPanel();
+    this.time=0;this.welcomeTime=2;this.fountainTime=0;updateQuestPanel();
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
     this.fountainParticles=[];for(let i=0;i<30;i++){this.fountainParticles.push({x:this.mapW/2,y:this.mapH/2,vx:(Math.random()-.5)*1.5,vy:-Math.random()*2-1,life:Math.random()*2,maxLife:2+Math.random()})}
     this.lootCrates=[];const cratePositions=[[250,250],[1700,1200],[300,1200],[1600,300],[900,600]];for(const[posX,posY]of cratePositions){this.lootCrates.push({x:posX,y:posY,opened:false,cooldown:0,sparkleTime:Math.random()*Math.PI*2,openAnim:0})}
@@ -1762,11 +1762,9 @@ const Lobby={
     this._cachedDecor=null;this._lastLightAngle=0;this._lightAngle=0;this._hoveredTable=null;this._screenShake=0;this._transitionAlpha=0;this._transitionTarget=0;
     this.weatherParticles=[];this.greenTrails=[];this.lastWeatherCollect=0;this._regionFlash=0;this._regionFlashColor='';
     this.initWeather();this.initNPCs();
-    // 立即生成一批天气粒子，确保第一帧可见
-    for(let i=0;i<50;i++){
-      if(G.weather.type==='sandstorm'){this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:12+Math.random()*8,vy:(Math.random()-.5)*2,life:1+Math.random(),size:2+Math.random()*5,color:'#c4a86b',type:'sand'})}
-      else if(G.weather.type==='rad rain'){this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*2,vy:8+Math.random()*4,life:2+Math.random(),size:1.5+Math.random(),color:'#4aff4a',type:'rain'})}
-      else if(G.weather.type==='fog'){this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*0.5,vy:(Math.random()-.5)*0.5,life:3+Math.random()*2,size:20+Math.random()*40,color:'rgba(200,200,220,0.03)',type:'fog'})}
+    // 只生成少量极淡环境粒子
+    for(let i=0;i<5;i++){
+      this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*0.3,vy:(Math.random()-.5)*0.3,life:5+Math.random()*3,size:15+Math.random()*20,color:'rgba(200,200,220,0.02)',type:'fog'});
     }
     this.bindInput();bindLobbyCanvasClick();this.startLoop();return true;
   },
@@ -1796,7 +1794,7 @@ const Lobby={
     for(const npc of this.npcs){
       let alpha=1;if(G.weather.type==='fog'){const ddx=npc.x-this.me.x,ddy=npc.y-this.me.y;const d=Math.sqrt(ddx*ddx+ddy*ddy);if(d>300)alpha=Math.max(0.1,1-(d-300)/400)}
       ctx.globalAlpha=alpha;
-      ctx.font='28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(npc.emoji,npc.x,npc.y);
+      ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(npc.emoji,npc.x,npc.y);
       // NPC标记
       ctx.fillStyle='#b8960f';ctx.font='bold 8px sans-serif';ctx.fillText('NPC',npc.x,npc.y-22);
       // 金色边框名字标签
@@ -1833,7 +1831,7 @@ const Lobby={
   },
 
   initWeather(){
-    G.weather={type:'sandstorm',intensity:0.8,timer:0,nextChange:Date.now()+this.randomWeatherInterval()};
+    G.weather={type:'clear',intensity:0,timer:0,nextChange:Date.now()+this.randomWeatherInterval()};
     G.tempLuckBonus=0;
   },
   randomWeatherInterval(){return(3+Math.random()*2)*60*1000},
@@ -1842,7 +1840,7 @@ const Lobby={
   updateWeather(dt){
     const now=Date.now();
     if(now>=G.weather.nextChange){
-      const types=['clear','sandstorm','rad rain','fog'];
+      const types=['clear','clear','clear','fog'];
       const oldType=G.weather.type;
       G.weather.type=types[Math.floor(Math.random()*types.length)];
       G.weather.intensity=0.5+Math.random()*0.5;
@@ -1856,20 +1854,8 @@ const Lobby={
       }
     }
     G.weather.timer+=dt;
-    if(G.weather.type==='rad rain'){
-      if(now-this.lastWeatherCollect>30000){
-        this.lastWeatherCollect=now;
-        const amount=1+Math.floor(Math.random()*3);
-        G.chips+=amount;updateChips();toast(`辐射雨收集器：获得${amount}单位物资`);
-      }
-      for(let i=0;i<3;i++){
-        this.weatherParticles.push({x:Math.random()*this.mapW,y:-10,vx:(Math.random()-.5)*2,vy:8+Math.random()*4,life:2+Math.random(),size:1.5+Math.random(),color:'#4aff4a',type:'rain'});
-      }
-    }else if(G.weather.type==='sandstorm'){
-      for(let i=0;i<15;i++){
-        this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:12+Math.random()*8,vy:(Math.random()-.5)*2,life:1+Math.random(),size:2+Math.random()*5,color:'#c4a86b',type:'sand'});
-      }
-    }else if(G.weather.type==='fog'){
+    // 只保留雾粒子，沙尘暴和辐射雨已移除
+    if(G.weather.type==='fog'){
       if(Math.random()<0.1){
         this.weatherParticles.push({x:Math.random()*this.mapW,y:Math.random()*this.mapH,vx:(Math.random()-.5)*0.5,vy:(Math.random()-.5)*0.5,life:3+Math.random()*2,size:20+Math.random()*40,color:'rgba(200,200,220,0.03)',type:'fog'});
       }
@@ -1947,7 +1933,7 @@ const Lobby={
     if(this.joystick.active){const jLen=Math.sqrt(this.joystick.dx*this.joystick.dx+this.joystick.dy*this.joystick.dy);if(jLen>0.9)isSprinting=true}
     let speed=isSprinting?sprintSpeed:baseSpeed;
     speed*=1+G.stats.agility/200;
-    if(G.weather.type==='sandstorm')speed*=0.8;
+    // 沙尘暴减速已移除
     const isNight=hour>=20||hour<6;
     const ch=CHARACTERS[selectedChar];if(isNight&&ch&&ch.skills&&ch.skills.find(s=>s.effect==='nightSpeed'&&s.unlocked)){speed*=1.2}
     if(this.me.sitting){dx=0;dy=0;this.me.moving=false}
@@ -1967,7 +1953,7 @@ const Lobby={
     for(const[id,p]of this.others){if(now-p.lastSeen>10000)this.others.delete(id)}
     for(const[id,p]of this.others){if(p.tx!==undefined){p.x+=(p.tx-p.x)*0.15;p.y+=(p.ty-p.y)*0.15}if(p.fadeIn<1)p.fadeIn=Math.min(1,p.fadeIn+0.05);if(p.scale<1)p.scale=Math.min(1,p.scale+0.04);if(p.reaction&&now-p.reactionTime>2000)p.reaction=null;if(p.warpParticles){for(let i=p.warpParticles.length-1;i>=0;i--){const wp=p.warpParticles[i];wp.x+=wp.vx;wp.y+=wp.vy;wp.life-=dt*2;if(wp.life<=0)p.warpParticles.splice(i,1)}}}
     if(isMovingNow&&Math.random()<.4){const pCount=isSprinting?2:1;for(let pi=0;pi<pCount;pi++){this.walkParticles.push({x:this.me.x+(Math.random()-.5)*8,y:this.me.y+12,vy:-Math.random()*.6-.3,life:1,size:1.5+Math.random(),color:isSprinting?'#ffdd88':'#b4a078'});}if(Math.random()<.12)Sound.step()}
-    if(isMovingNow&&G.weather.type==='rad rain'){this.greenTrails.push({x:this.me.x,y:this.me.y,life:3,size:4+Math.random()*3})}
+    // 辐射雨绿色轨迹已移除
     for(let i=this.greenTrails.length-1;i>=0;i--){const gt=this.greenTrails[i];gt.life-=dt;if(gt.life<=0)this.greenTrails.splice(i,1)}
     for(let i=this.walkParticles.length-1;i>=0;i--){const wp=this.walkParticles[i];wp.y+=wp.vy*dt*60;wp.life-=dt*2;if(wp.life<=0)this.walkParticles.splice(i,1)}if(this.walkParticles.length>60)this.walkParticles.length=60;
     for(const ap of this.ambientParticles){ap.x+=ap.vx*dt;ap.y+=ap.vy*dt;if(ap.x<0)ap.x+=this.mapW;if(ap.x>this.mapW)ap.x-=this.mapW;if(ap.y<0)ap.y+=this.mapH;if(ap.y>this.mapH)ap.y-=this.mapH}
@@ -2063,15 +2049,14 @@ const Lobby={
     for(const b of this.benches){ctx.fillStyle='#5a4a30';ctx.fillRect(b.x-22,b.y-9,44,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=2;ctx.strokeRect(b.x-22,b.y-9,44,18);ctx.fillStyle='#3a3020';ctx.fillRect(b.x-18,b.y-14,36,5);ctx.fillRect(b.x-18,b.y+9,36,5)}
     // 桌子
     for(const t of this.tables){const dx=t.x-this.me.x,dy=t.y-this.me.y;const dist=Math.sqrt(dx*dx+dy*dy);const isHovered=dist<50;const isFull=t.code&&t.players>=t.max;_drawTable(ctx,t,isHovered,isFull,this.time)}
-    // 绿色轨迹
-    if(G.weather.type==='rad rain'){for(const gt of this.greenTrails){ctx.fillStyle=`rgba(74,255,74,${gt.life/3*0.4})`;ctx.beginPath();ctx.arc(gt.x,gt.y,gt.size,0,Math.PI*2);ctx.fill()}}
+    // 绿色轨迹已移除（辐射雨已移除）
     // NPC
     this.drawNPCs(ctx);
     // 其他玩家
     for(const[id,p]of this.others){
       const pdx=p.x-this.me.x,pdy=p.y-this.me.y;const pDist=Math.sqrt(pdx*pdx+pdy*pdy);
       let pAlpha=1;if(G.weather.type==='fog'&&pDist>300)pAlpha=Math.max(0.1,1-(pDist-300)/400);
-      if(G.weather.type==='sandstorm')pAlpha=0.5;
+      // 沙尘暴透明度已移除
       ctx.globalAlpha=pAlpha;
       _drawAnimatedPlayer(ctx,p.x,p.y,p.emoji||'🐦',p,false,this.time);
       _drawNameTag(ctx,p.x,p.y-28,p.name||'幸存者',false);
@@ -2107,11 +2092,9 @@ const Lobby={
     // 转场
     this._drawTransition(ctx);
     // 昼夜遮罩
-    if(this.dayNightAlpha>0.01){ctx.fillStyle=`rgba(10,10,30,${this.dayNightAlpha})`;ctx.fillRect(0,0,this.w,this.h)}
-    // 天气遮罩
-    if(G.weather.type==='sandstorm'){ctx.fillStyle=`rgba(196,168,107,${0.15+G.weather.intensity*0.15})`;ctx.fillRect(0,0,this.w,this.h)}
-    else if(G.weather.type==='rad rain'){ctx.fillStyle=`rgba(74,255,74,${0.05+G.weather.intensity*0.05})`;ctx.fillRect(0,0,this.w,this.h)}
-    else if(G.weather.type==='fog'){ctx.fillStyle=`rgba(200,200,220,${0.08+G.weather.intensity*0.1})`;ctx.fillRect(0,0,this.w,this.h)}
+    if(this.dayNightAlpha>0.01){ctx.fillStyle=`rgba(10,10,30,${this.dayNightAlpha*0.25})`;ctx.fillRect(0,0,this.w,this.h)}
+    // 天气遮罩 - 沙尘暴和辐射雨已移除
+    if(G.weather.type==='fog'){ctx.fillStyle=`rgba(200,200,220,${0.03+G.weather.intensity*0.04})`;ctx.fillRect(0,0,this.w,this.h)}
     // 灯笼光晕
     if(this.dayNightAlpha>0.2){for(const t of this.tables){const sx=t.x-this.camera.x,sy=t.y-this.camera.y;if(sx>-50&&sx<this.w+50&&sy>-50&&sy<this.h+50){const glow=ctx.createRadialGradient(sx,sy,5,sx,sy,100);glow.addColorStop(0,'rgba(255,160,60,0.45)');glow.addColorStop(1,'transparent');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(sx,sy,100,0,Math.PI*2);ctx.fill()}}}
     // 区域切换闪烁
@@ -2125,17 +2108,16 @@ const Lobby={
   },
 
   _drawWeatherUI(ctx){
-    const wx=110,wy=12;
-    const ww=160,wh=44;
-    ctx.fillStyle='rgba(0,0,0,.65)';ctx.beginPath();ctx.roundRect(wx,wy,ww,wh,6);ctx.fill();ctx.strokeStyle='rgba(184,150,15,.4)';ctx.lineWidth=1;ctx.stroke();
-    ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(this.getWeatherIcon(G.weather.type),wx+18,wy+16);
-    ctx.fillStyle='#d4c8a8';ctx.font='bold 13px sans-serif';ctx.textAlign='left';
-    ctx.fillText(this.getWeatherName(G.weather.type),wx+34,wy+16);
-    // 天气效果描述
-    const effectText=G.weather.type==='sandstorm'?'移动速度-20%':G.weather.type==='rad rain'?'收集辐射物资':G.weather.type==='fog'?'视野受限':'幸运值+5%';
-    ctx.fillStyle='rgba(200,180,140,.7)';ctx.font='10px sans-serif';
-    ctx.fillText(effectText,wx+34,wy+34);
+    const wx=8,wy=8;
+    const ww=120,wh=30;
+    ctx.fillStyle='rgba(0,0,0,.5)';ctx.beginPath();ctx.roundRect(wx,wy,ww,wh,4);ctx.fill();ctx.strokeStyle='rgba(184,150,15,.3)';ctx.lineWidth=1;ctx.stroke();
+    ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(this.getWeatherIcon(G.weather.type),wx+14,wy+15);
+    ctx.fillStyle='#d4c8a8';ctx.font='bold 11px sans-serif';ctx.textAlign='left';
+    ctx.fillText(this.getWeatherName(G.weather.type),wx+28,wy+12);
+    const effectText=G.weather.type==='fog'?'视野受限':'幸运+5%';
+    ctx.fillStyle='rgba(200,180,140,.6)';ctx.font='9px sans-serif';
+    ctx.fillText(effectText,wx+28,wy+24);
   },
 
   _updateCamera(){
@@ -2150,11 +2132,11 @@ const Lobby={
     if(x>=600&&x<=1400&&y>=400&&y<=1100)return'safe';
     return'';
   },
-  getRegionColor(r){return{slum:'#2a2018',black:'#5a1515',safe:'#2a3a20'}[r]||'#4a4028'},
+  getRegionColor(r){return{slum:'#4a3828',black:'#6a2828',safe:'#3a4a2a'}[r]||'#4a4028'},
   getRegionName(r){return{slum:'贫民区',black:'黑市区',safe:'安全区'}[r]||''},
   _drawFloor(ctx){
     const tileSize=80;const startX=Math.floor(this.camera.x/tileSize)*tileSize;const startY=Math.floor(this.camera.y/tileSize)*tileSize;const endX=startX+this.w+tileSize;const endY=startY+this.h+tileSize;
-    for(let tx=startX;tx<endX;tx+=tileSize){for(let ty=startY;ty<endY;ty+=tileSize){if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);const baseColor=this.getRegionColor(region);const dark=((tx/tileSize+ty/tileSize)%2===0);ctx.fillStyle=dark?baseColor:adjustColor(baseColor,8);ctx.fillRect(tx,ty,tileSize,tileSize);ctx.fillStyle=dark?'rgba(0,0,0,.06)':'rgba(255,255,255,.03)';ctx.fillRect(tx+2,ty+2,tileSize-4,tileSize-4)}}
+    for(let tx=startX;tx<endX;tx+=tileSize){for(let ty=startY;ty<endY;ty+=tileSize){if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);const baseColor=this.getRegionColor(region);const dark=((tx/tileSize+ty/tileSize)%2===0);ctx.fillStyle=dark?baseColor:adjustColor(baseColor,4);ctx.fillRect(tx,ty,tileSize,tileSize);ctx.fillStyle=dark?'rgba(0,0,0,.03)':'rgba(255,255,255,.02)';ctx.fillRect(tx+2,ty+2,tileSize-4,tileSize-4)}}
     // 区域边界渐变过渡带（50px宽）
     this._drawRegionBorders(ctx);
   },
@@ -2162,16 +2144,16 @@ const Lobby={
     const bw=50;
     // 贫民区边界 (x:0-800, y:800-1500)
     const borders=[
-      {x1:0,y1:800,x2:800,y2:800,color1:'#2a2018',color2:'#4a4028',dir:'h'},
-      {x1:800,y1:800,x2:800,y2:1500,color1:'#2a2018',color2:'#4a4028',dir:'v'},
+      {x1:0,y1:800,x2:800,y2:800,color1:'#4a3828',color2:'#4a4028',dir:'h'},
+      {x1:800,y1:800,x2:800,y2:1500,color1:'#4a3828',color2:'#4a4028',dir:'v'},
       // 黑市区边界 (x:1200-2000, y:0-700)
-      {x1:1200,y1:0,x2:1200,y2:700,color1:'#4a4028',color2:'#5a1515',dir:'v'},
-      {x1:1200,y1:700,x2:2000,y2:700,color1:'#5a1515',color2:'#4a4028',dir:'h'},
+      {x1:1200,y1:0,x2:1200,y2:700,color1:'#4a4028',color2:'#6a2828',dir:'v'},
+      {x1:1200,y1:700,x2:2000,y2:700,color1:'#6a2828',color2:'#4a4028',dir:'h'},
       // 安全区边界 (x:600-1400, y:400-1100)
-      {x1:600,y1:400,x2:1400,y2:400,color1:'#4a4028',color2:'#2a3a20',dir:'h'},
-      {x1:600,y1:1100,x2:1400,y2:1100,color1:'#2a3a20',color2:'#4a4028',dir:'h'},
-      {x1:600,y1:400,x2:600,y2:1100,color1:'#4a4028',color2:'#2a3a20',dir:'v'},
-      {x1:1400,y1:400,x2:1400,y2:1100,color1:'#2a3a20',color2:'#4a4028',dir:'v'},
+      {x1:600,y1:400,x2:1400,y2:400,color1:'#4a4028',color2:'#3a4a2a',dir:'h'},
+      {x1:600,y1:1100,x2:1400,y2:1100,color1:'#3a4a2a',color2:'#4a4028',dir:'h'},
+      {x1:600,y1:400,x2:600,y2:1100,color1:'#4a4028',color2:'#3a4a2a',dir:'v'},
+      {x1:1400,y1:400,x2:1400,y2:1100,color1:'#3a4a2a',color2:'#4a4028',dir:'v'},
     ];
     for(const b of borders){
       if(b.dir==='h'){
@@ -2193,9 +2175,9 @@ const Lobby={
   },
 
   _drawVignette(ctx){
-    if(!this._vignetteGrad){const cx=this.w/2,cy=this.h/2,r=Math.max(this.w,this.h)*0.75;this._vignetteGrad=ctx.createRadialGradient(cx,cy,r*0.35,cx,cy,r);this._vignetteGrad.addColorStop(0,'rgba(0,0,0,0)');this._vignetteGrad.addColorStop(1,'rgba(10,8,20,0.25)')}
+    if(!this._vignetteGrad){const cx=this.w/2,cy=this.h/2,r=Math.max(this.w,this.h)*0.75;this._vignetteGrad=ctx.createRadialGradient(cx,cy,r*0.35,cx,cy,r);this._vignetteGrad.addColorStop(0,'rgba(0,0,0,0)');this._vignetteGrad.addColorStop(1,'rgba(10,8,20,0.1)')}
     ctx.fillStyle=this._vignetteGrad;ctx.fillRect(0,0,this.w,this.h);
-    const cold=ctx.createLinearGradient(0,0,this.w,0);cold.addColorStop(0,'rgba(20,30,60,0.06)');cold.addColorStop(1,'rgba(20,30,60,0.06)');ctx.fillStyle=cold;ctx.fillRect(0,0,this.w,this.h);
+    const cold=ctx.createLinearGradient(0,0,this.w,0);cold.addColorStop(0,'rgba(20,30,60,0.02)');cold.addColorStop(1,'rgba(20,30,60,0.02)');ctx.fillStyle=cold;ctx.fillRect(0,0,this.w,this.h);
   },
 
   _drawJoystick(ctx){
@@ -2393,7 +2375,7 @@ function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
   if(reaction&&Date.now()-reactionTime<2000){const t=(Date.now()-reactionTime)/2000;const bounce=1+Math.sin(t*Math.PI*3)*0.5*(1-t);scaleX=faceDir*bounce;scaleY=bounce;}
   ctx.rotate(rotation);
   ctx.scale(scaleX,scaleY);
-  ctx.font=isMe?'26px sans-serif':'24px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(emoji,0,offsetY);
+  ctx.font=isMe?'22px sans-serif':'20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(emoji,0,offsetY);
   ctx.restore();
 }
 function _drawWalkParticles(ctx,walkParticles){for(const wp of walkParticles){ctx.fillStyle=wp.color?`rgba(${hexToRgb(wp.color)},${wp.life*0.6})`:`rgba(180,160,120,${wp.life*0.6})`;ctx.beginPath();ctx.arc(wp.x,wp.y,wp.size||2,0,Math.PI*2);ctx.fill()}}
@@ -2440,99 +2422,41 @@ function _drawDecorOn(ctx,w,h){
   }
 
 Lobby._drawMinimap = function(ctx){
-    const mw=160,mh=100;const mx=this.w-mw-12,my=12;const sx=mw/this.mapW,sy=mh/this.mapH;
+    const mw=120,mh=80;const mx=this.w-mw-8,my=8;const sx=mw/this.mapW,sy=mh/this.mapH;
     // 地图标签
-    ctx.fillStyle='rgba(184,150,15,.8)';ctx.font='bold 10px "Noto Sans SC",sans-serif';ctx.textAlign='center';
-    ctx.fillText('🗺️ 地图',mx+mw/2,my-2);
+    ctx.fillStyle='rgba(184,150,15,.7)';ctx.font='bold 8px "Noto Sans SC",sans-serif';ctx.textAlign='center';
+    ctx.fillText('地图',mx+mw/2,my-1);
     // 背景
-    ctx.fillStyle='rgba(0,0,0,.75)';ctx.beginPath();ctx.roundRect(mx,my+6,mw,mh,6);ctx.fill();
-    ctx.strokeStyle='rgba(184,150,15,.6)';ctx.lineWidth=2;ctx.stroke();
-    // 区域底色 - 更明显的颜色
-    const mmy=my+6;
-    ctx.fillStyle='rgba(60,40,20,.5)';ctx.fillRect(mx,mmy+800*sy,(800)*sx,(700)*sy);
-    ctx.fillStyle='rgba(180,40,40,.5)';ctx.fillRect(mx+1200*sx,mmy,(800)*sx,(700)*sy);
-    ctx.fillStyle='rgba(40,100,40,.5)';ctx.fillRect(mx+600*sx,mmy+400*sy,(800)*sx,(700)*sy);
-    // 区域名称
-    ctx.font='bold 8px sans-serif';ctx.textAlign='center';
-    ctx.fillStyle='rgba(160,120,80,.8)';ctx.fillText('贫民区',mx+400*sx,mmy+1150*sy);
-    ctx.fillStyle='rgba(220,80,80,.8)';ctx.fillText('黑市',mx+1600*sx,mmy+350*sy);
-    ctx.fillStyle='rgba(80,180,80,.8)';ctx.fillText('安全区',mx+1000*sx,mmy+750*sy);
+    ctx.fillStyle='rgba(0,0,0,.6)';ctx.beginPath();ctx.roundRect(mx,my+4,mw,mh,4);ctx.fill();
+    ctx.strokeStyle='rgba(184,150,15,.4)';ctx.lineWidth=1;ctx.stroke();
+    // 区域底色
+    const mmy=my+4;
+    ctx.fillStyle='rgba(60,40,20,.4)';ctx.fillRect(mx,mmy+800*sy,(800)*sx,(700)*sy);
+    ctx.fillStyle='rgba(180,40,40,.4)';ctx.fillRect(mx+1200*sx,mmy,(800)*sx,(700)*sy);
+    ctx.fillStyle='rgba(40,100,40,.4)';ctx.fillRect(mx+600*sx,mmy+400*sy,(800)*sx,(700)*sy);
     // 桌子
-    for(const t of this.tables){ctx.fillStyle=t.code?'#5a8a3c':'#7a7060';ctx.fillRect(mx+t.x*sx-2.5,mmy+t.y*sy-1.5,5,3)}
-    // NPC位置（黄色点）
-    for(const npc of this.npcs){ctx.fillStyle='#ffdd44';ctx.beginPath();ctx.arc(mx+npc.x*sx,mmy+npc.y*sy,2.5,0,Math.PI*2);ctx.fill()}
-    // 物资箱位置（金色点）
-    for(const crate of this.lootCrates){if(!crate.opened){ctx.fillStyle='#b8960f';ctx.beginPath();ctx.arc(mx+crate.x*sx,mmy+crate.y*sy,2,0,Math.PI*2);ctx.fill()}}
-    // 传送门位置
-    if(this.portal){ctx.fillStyle='#b8960f';ctx.beginPath();ctx.arc(mx+this.portal.x*sx,mmy+this.portal.y*sy,3,0,Math.PI*2);ctx.fill()}
+    for(const t of this.tables){ctx.fillStyle=t.code?'#5a8a3c':'#7a7060';ctx.fillRect(mx+t.x*sx-2,mmy+t.y*sy-1,4,2)}
+    // NPC位置
+    for(const npc of this.npcs){ctx.fillStyle='#ffdd44';ctx.beginPath();ctx.arc(mx+npc.x*sx,mmy+npc.y*sy,2,0,Math.PI*2);ctx.fill()}
     // 其他玩家
     for(const[id,p]of this.others){ctx.fillStyle='#d4c8a8';ctx.fillRect(mx+p.x*sx-1,mmy+p.y*sy-1,2,2)}
     // 自己
-    ctx.fillStyle='#c4463a';ctx.fillRect(mx+this.me.x*sx-3,mmy+this.me.y*sy-3,6,6);
-    ctx.fillStyle='#c4463a';ctx.font='bold 9px sans-serif';ctx.textAlign='left';ctx.fillText(this.me.name||'我',mx+6,mmy+mh-6);
+    ctx.fillStyle='#c4463a';ctx.fillRect(mx+this.me.x*sx-2,mmy+this.me.y*sy-2,4,4);
     // 视野框
-    ctx.strokeStyle='rgba(196,70,58,.4)';ctx.lineWidth=1;const vx=mx+this.camera.x*sx,vy=mmy+this.camera.y*sy,vw=this.w*sx,vh=this.h*sy;ctx.strokeRect(vx,vy,vw,vh);
+    ctx.strokeStyle='rgba(196,70,58,.3)';ctx.lineWidth=1;const vx=mx+this.camera.x*sx,vy=mmy+this.camera.y*sy,vw=this.w*sx,vh=this.h*sy;ctx.strokeRect(vx,vy,vw,vh);
   };
 
 Lobby._drawWelcome = function(ctx){
     if(this.time<this.welcomeTime){
-      const fadeOut=Math.min(1,(this.welcomeTime-this.time)/2);
+      const fadeOut=Math.min(1,(this.welcomeTime-this.time)/0.5);
       ctx.globalAlpha=fadeOut;
-      // 背景框
-      const boxW=420,boxH=220;
-      const bx=this.w/2-boxW/2,by=this.h/2-boxH/2;
-      ctx.fillStyle='rgba(0,0,0,.75)';ctx.beginPath();ctx.roundRect(bx,by,boxW,boxH,8);ctx.fill();
-      ctx.strokeStyle='rgba(184,150,15,.6)';ctx.lineWidth=2;ctx.stroke();
-      // 标题
-      ctx.fillStyle='#b8960f';ctx.font='bold 22px "Noto Sans SC",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('欢迎来到废土交易所',this.w/2,by+30);
-      // 分隔线
-      ctx.strokeStyle='rgba(184,150,15,.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx+20,by+50);ctx.lineTo(bx+boxW-20,by+50);ctx.stroke();
-      // 功能提示列表
-      const tips=[
-        '🌍 昼夜循环已开启 - 观察光影变化',
-        '🌪️ 动态天气系统 - 天气影响游戏',
-        '🧔 走近NPC按E交易',
-        '📦 收集散落的物资箱',
-        '⬆️ 等级系统 - 打牌升级解锁技能',
-        '⚙️ 设置面板查看全部新功能'
-      ];
-      ctx.font='13px "Noto Sans SC",sans-serif';ctx.fillStyle='#d4c8a8';
-      for(let i=0;i<tips.length;i++){
-        ctx.fillText(tips[i],this.w/2,by+72+i*22);
-      }
-      // 底部操作提示
-      ctx.font='12px "Noto Sans SC",sans-serif';ctx.fillStyle='#7a7060';
-      ctx.fillText('WASD移动 | 走近桌子加入 | 点击底部图标了解更多',this.w/2,by+boxH-16);
+      ctx.fillStyle='#b8960f';ctx.font='bold 16px "Noto Sans SC",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('欢迎来到废土交易所',this.w/2,40);
       ctx.globalAlpha=1;
     }
   };
 Lobby._drawFeatureGuide = function(ctx){
-    const icons=['🌍','🌪️','🧔','📦','🌀','⬆️'];
-    const labels=['昼夜循环','天气系统','NPC交易','物资收集','传送门','等级系统'];
-    const btnW=52,btnH=54,gap=10;
-    const totalW=icons.length*(btnW+gap)-gap;
-    const startX=(this.w-totalW)/2;
-    const startY=this.h-btnH-20;
-    // 存储按钮区域供点击检测
-    this._featureBtns=[];
-    for(let i=0;i<icons.length;i++){
-      const bx=startX+i*(btnW+gap);
-      this._featureBtns.push({x:bx,y:startY,w:btnW,h:btnH,idx:i});
-      // 按钮背景 - 更醒目
-      ctx.fillStyle='rgba(0,0,0,.7)';ctx.beginPath();ctx.roundRect(bx,startY,btnW,btnH,8);ctx.fill();
-      ctx.strokeStyle='rgba(184,150,15,.5)';ctx.lineWidth=1.5;ctx.stroke();
-      // 图标
-      ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(icons[i],bx+btnW/2,startY+18);
-      // 标签
-      ctx.fillStyle='rgba(200,180,140,.8)';ctx.font='bold 9px "Noto Sans SC",sans-serif';
-      ctx.fillText(labels[i],bx+btnW/2,startY+40);
-    }
-    // "新功能"闪烁提示
-    const flash=0.5+Math.sin(this.time*4)*0.5;
-    ctx.fillStyle=`rgba(255,100,50,${flash})`;ctx.font='bold 11px "Noto Sans SC",sans-serif';ctx.textAlign='center';
-    ctx.fillText('✨ 点击图标查看功能详情 ✨',this.w/2,startY-14);
+    // 手游版不需要功能引导栏，功能已移至底部导航
   };
 Lobby._drawClock = function(ctx){
     const hour=Math.floor(this.gameTime);const minute=Math.floor((this.gameTime-hour)*60);

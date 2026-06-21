@@ -15,10 +15,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 
 /* 登录 - 消杀缓冲区 */
 #auth-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#2a2418,#1a1610);z-index:100}
-.auth-box{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:36px;width:380px;text-align:center;position:relative;overflow:hidden}
+.auth-box{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:24px 20px;width:92%;max-width:380px;text-align:center;position:relative;overflow:hidden}
 .auth-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:repeating-linear-gradient(90deg,var(--accent),var(--gold),var(--accent));background-size:40px 100%}
 .auth-box::after{content:'';position:absolute;bottom:0;right:0;width:60px;height:60px;background:radial-gradient(circle,rgba(255,200,100,.05),transparent);pointer-events:none}
-.logo{font-family:'Special Elite',cursive;font-size:28px;color:var(--gold);text-shadow:0 0 20px var(--gold-glow);margin-bottom:4px;letter-spacing:2px}
+.logo{font-family:'Special Elite',cursive;font-size:22px;color:var(--gold);text-shadow:0 0 20px var(--gold-glow);margin-bottom:4px;letter-spacing:2px}
 .logo-sub{font-size:11px;color:var(--dim);letter-spacing:8px;margin-bottom:8px}
 .logo-warn{font-size:10px;color:var(--accent);margin-bottom:24px;padding:6px;border:1px dashed var(--accent);letter-spacing:1px}
 .auth-input{width:100%;padding:12px 16px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:14px;margin-bottom:12px;outline:none;transition:.3s;font-family:inherit}
@@ -36,7 +36,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 
 /* 顶栏 */
 #main-screen{display:none;min-height:100vh}
-.top-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(26,22,16,.95);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:rgba(26,22,16,.95);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;height:40px}
 .top-bar .logo-sm{font-family:'Special Elite',cursive;font-size:16px;color:var(--gold);letter-spacing:1px}
 .user-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .res-display{display:flex;align-items:center;gap:6px;background:rgba(184,150,15,.08);border:1px solid rgba(184,150,15,.2);padding:5px 12px;border-radius:2px;font-size:13px;color:var(--gold)}
@@ -202,6 +202,15 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 @keyframes toastOut{from{opacity:1}to{opacity:0}}
 
 @media(max-width:640px){
+  .top-bar{height:36px;padding:4px 10px}
+  .top-bar .logo-sm{font-size:12px}
+  .res-display{padding:3px 8px;font-size:11px}
+  .modal{padding:20px 16px;width:95%}
+  .action-btn{padding:12px 16px;font-size:13px;min-width:70px}
+  .poker-table{padding:16px}
+  .card,.card-back{width:48px;height:68px}
+  .card-rank{font-size:16px}.card-suit{font-size:18px}
+  .pot-amount{font-size:22px}
   .auth-box{width:90%;padding:24px 16px}.logo{font-size:22px}
   .tables-grid{grid-template-columns:1fr}
   .card,.card-back{width:52px;height:72px}.card-rank{font-size:18px}.card-suit{font-size:20px}
@@ -253,48 +262,34 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 
 <div id="main-screen">
   <div class="top-bar">
-    <div class="logo-sm">WASTELAND EXCHANGE</div>
+    <div class="logo-sm" style="font-size:12px">WASTELAND</div>
     <div class="user-info">
       <span class="online-dot off" id="online-dot"></span>
-      <span id="conn-status" style="font-size:11px;color:var(--dim)">信号搜索中...</span>
-      <div class="res-display"><span class="res-icon">💊</span><span id="user-chips">50</span><span style="font-size:10px;color:var(--dim)">单位</span></div>
-      <span id="user-name" style="font-size:12px;color:var(--dim)">幸存者</span>
-      <button class="sm-btn btn-press" onclick="logout()">离开交易所</button>
-      <button class="sm-btn btn-press" onclick="showSettings()">设置</button>
-      <button class="sm-btn btn-press" onclick="showStatsPanel()">数据</button>
-      <button class="sm-btn btn-press" onclick="showFriendPanel()">好友</button>
-      <button class="sm-btn btn-press" onclick="showMailPanel()">邮件 <span id="mail-badge" style="display:none;background:var(--accent);color:#fff;border-radius:50%;padding:0 5px;font-size:10px;margin-left:2px"></span></button>
+      <span id="conn-status" style="font-size:10px;color:var(--dim)">信号搜索中...</span>
+      <div class="res-display" style="padding:3px 8px;font-size:11px"><span class="res-icon">💊</span><span id="user-chips">50</span><span style="font-size:9px;color:var(--dim)">单位</span></div>
+      <span id="user-name" style="font-size:11px;color:var(--dim)">幸存者</span>
     </div>
   </div>
   <div class="lobby" style="position:relative;padding:0">
     <!-- 2D Canvas 大厅 -->
-    <div style="position:relative;width:100%;height:calc(100vh - 50px);overflow:hidden;background:#1a1610">
+    <div style="position:relative;width:100%;height:calc(100vh - 40px - 56px);overflow:hidden;background:#1a1610">
       <canvas id="lobby-canvas" style="display:block"></canvas>
       <!-- 玩家名字标签（跟随canvas渲染） -->
       <div id="player-labels" style="position:absolute;top:0;left:0;pointer-events:none;width:100%;height:100%"></div>
       <!-- 边界警告 -->
       <div id="boundary-warning" style="position:absolute;top:60px;left:50%;transform:translateX(-50%);padding:6px 14px;background:rgba(196,70,58,.85);border:1px solid var(--accent);border-radius:4px;color:#fff;font-size:12px;display:none;pointer-events:none;z-index:20;font-weight:700;letter-spacing:1px">地图边界</div>
       <!-- 交互提示 -->
-      <div id="interact-hint" style="position:absolute;bottom:150px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(0,0,0,.7);border:1px solid var(--gold);border-radius:4px;color:var(--gold);font-size:13px;display:none;pointer-events:none;z-index:10"></div>
+      <div id="interact-hint" style="position:absolute;bottom:200px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(0,0,0,.7);border:1px solid var(--gold);border-radius:4px;color:var(--gold);font-size:13px;display:none;pointer-events:none;z-index:10"></div>
       <!-- 任务面板 -->
-      <div id="quest-panel" style="position:absolute;top:12px;left:12px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:8px 12px;border-radius:4px;max-width:160px"></div>
+      <div id="quest-panel" style="position:absolute;top:12px;left:12px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:6px 8px;border-radius:4px;max-width:130px;font-size:10px"></div>
       <!-- 等级面板 -->
-      <div id="level-panel" style="position:absolute;top:12px;left:180px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:8px 12px;border-radius:4px;max-width:160px"></div>
-      <!-- 创建桌子按钮 -->
-      <button class="create-btn btn-press" onclick="showCreateModal()" style="position:absolute;top:12px;right:12px;z-index:10">+ 搭新桌</button>
+      <div id="level-panel" style="position:absolute;top:12px;left:148px;z-index:10;background:rgba(0,0,0,.6);border:1px solid var(--border);padding:6px 8px;border-radius:4px;max-width:130px;font-size:10px"></div>
       <!-- 聊天输入 -->
       <div id="chat-bar" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:20;display:none;align-items:center;gap:6px;background:rgba(0,0,0,.7);padding:6px 10px;border-radius:4px;border:1px solid var(--border)">
         <input id="chat-input" type="text" maxlength="30" placeholder="输入消息..." style="background:transparent;border:none;color:var(--text);font-size:12px;outline:none;width:160px;font-family:inherit">
         <button onclick="sendChat()" style="background:var(--gold);border:none;color:#1a1610;font-size:11px;padding:3px 10px;border-radius:2px;cursor:pointer;font-weight:700">发送</button>
       </div>
-      <button id="chat-toggle" onclick="toggleChat()" style="position:absolute;bottom:12px;right:12px;z-index:20;background:rgba(0,0,0,.6);border:1px solid var(--border);color:var(--dim);padding:6px 10px;border-radius:4px;font-size:12px;cursor:pointer">💬</button>
-      <!-- 操作说明 -->
-      <div style="position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--dim);z-index:10;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:4px;pointer-events:none">
-        <div>WASD / 方向键 移动</div>
-        <div>点击地面 移动</div>
-        <div>走近桌子 加入</div>
-        <div>Enter 聊天</div>
-      </div>
+      <!-- 操作说明已移除（手游不需要） -->
     </div>
     <!-- 保留旧面板但默认隐藏，可后续切换显示 -->
     <div class="tables-grid" id="tables-grid" style="display:none"></div>
@@ -310,6 +305,14 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <div class="rate-row"><span>汽油 5L</span><span>= 20 单位</span></div>
       <div class="rate-row"><span>N95口罩 x1</span><span>= 2 单位</span></div>
       <div class="rate-row"><span>5号电池 x4</span><span>= 3 单位</span></div>
+    </div>
+    <!-- 底部导航栏（手游核心） -->
+    <div id="mobile-nav" style="position:fixed;bottom:0;left:0;right:0;height:56px;background:rgba(26,22,16,.98);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)">
+      <button onclick="showCreateModal()" style="flex:1;background:none;border:none;color:var(--gold);font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px"><span>🎮</span><span style="font-size:9px;color:var(--dim)">牌桌</span></button>
+      <button onclick="showSettings()" style="flex:1;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px"><span>⚙️</span><span style="font-size:9px;color:var(--dim)">设置</span></button>
+      <button onclick="showFriendPanel()" style="flex:1;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px"><span>👥</span><span style="font-size:9px;color:var(--dim)">社交</span></button>
+      <button onclick="showMailPanel()" style="flex:1;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;position:relative"><span>📬</span><span style="font-size:9px;color:var(--dim)">邮件</span><span id="mail-badge" style="display:none;position:absolute;top:2px;right:25%;background:var(--accent);color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;line-height:16px"></span></button>
+      <button onclick="toggleChat()" style="flex:1;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px"><span>💬</span><span style="font-size:9px;color:var(--dim)">聊天</span></button>
     </div>
   </div>
   <div class="wait-panel" id="wait-panel" style="display:none">
@@ -408,6 +411,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div class="game-log"><div class="log-panel" id="game-log"></div></div>
 </div>
 
-<script src="js/game.js?v=90"></script>
+<script src="js/game.js?v=100"></script>
 </body>
 </html>
