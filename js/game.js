@@ -2046,6 +2046,7 @@ const Lobby={
 
   // ==================== 核心绘制 ====================
   draw(){
+    try{
     const ctx=this.ctx;if(!ctx)return;if(this.canvas.width<100||this.canvas.height<100)this.resize();
     this._updateCamera();ctx.fillStyle='#1a1610';ctx.fillRect(0,0,this.w,this.h);
     ctx.save();ctx.translate(-this.camera.x,-this.camera.y);
@@ -2125,6 +2126,7 @@ const Lobby={
     this._drawWeatherUI(ctx);
     // 时间钟表
     this._drawClock(ctx);
+    }catch(e){console.error('Draw error:',e);}
   },
 
   _drawWeatherUI(ctx){
