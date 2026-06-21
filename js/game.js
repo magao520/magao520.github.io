@@ -2640,9 +2640,22 @@ function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
     const sx=frame*cellW;
     const sy=animRow*cellH;
 
-    // 绘制到32x32显示区域
+    // 确定朝向: faceDir<0 向左, 需要水平翻转
+    const faceDir=p.faceDir||1;
     const drawSize=32;
-    ctx.drawImage(sprite,sx,sy,cellW,cellH,px-drawSize/2,py-drawSize/2,drawSize,drawSize);
+    const half=drawSize/2;
+
+    ctx.save();
+    ctx.translate(px,py);
+    if(faceDir<0){
+      // 向左: 水平翻转
+      ctx.scale(-1,1);
+      ctx.drawImage(sprite,sx,sy,cellW,cellH,-half,-half,drawSize,drawSize);
+    }else{
+      // 向右: 正常
+      ctx.drawImage(sprite,sx,sy,cellW,cellH,-half,-half,drawSize,drawSize);
+    }
+    ctx.restore();
   }else{
     _drawPixelCharFallback(ctx,px,py,isMe);
   }
