@@ -1348,7 +1348,7 @@ function hostStartGame(){
   const startChips=hasHoard?70:50;
   const guildBuff=getGuildBuff();
   if(guildBuff>0){toast(`阵营buff激活！幸运+${guildBuff}`);G.tempLuckBonus+=guildBuff;}
-  if(G.gameType==='zjh'){const table=Lobby&&Lobby.tables.find(t=>t.code===G.roomCode);const regionMult=table&&table.region==='black'?2:1;const baseBet=5*regionMult;for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,cards:[deck.pop(),deck.pop(),deck.pop()],chips:startChips,bet:baseBet,folded:false,seen:false,bluffed:false,darkBet:false,isMe:false});G.pot=players.length*baseBet;G.currentBet=baseBet}
+  if(G.gameType==='zjh'){const baseBet=5;for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,cards:[deck.pop(),deck.pop(),deck.pop()],chips:startChips,bet:baseBet,folded:false,seen:false,bluffed:false,darkBet:false,isMe:false});G.pot=players.length*baseBet;G.currentBet=baseBet}
   else if(G.gameType==='bj'){for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,cards:[deck.pop(),deck.pop()],chips:startChips,bet:10,busted:false,stood:false,isMe:false,hands:null,currentHand:0,doubled:false,insured:false});G.pot=players.length*10;G.currentBet=10;for(const p of players){if(bjValue(p.cards)===21){p.stood=true;log(p.name+' 天然21点！','system')}}}
   else if(G.gameType==='dice'){for(const rp of G.roomPeers)players.push({id:rp.id,name:rp.name,chips:startChips,bet:5,folded:false,choice:null,isMe:false});G.pot=players.length*5;G.currentBet=5;G.diceState={dice:[null,null,null],sum:0,phase:'bet'};const jackpotFee=players.length;G.diceJackpot+=jackpotFee;for(const p of players)p.chips-=1;G.pot-=jackpotFee;G.diceJackpotStreak=0;}
   G.players=players;G.gameOver=false;G.inGame=true;G.turnIndex=0;G.roundCount=0;G.resultShown=false;
@@ -1684,26 +1684,23 @@ const Lobby={
   dayNightCycle:480,
   others:new Map(),
   tables:[
-    // 大厅桌子
-    {x:700,y:500,code:'',game:'zjh',label:'牌桌1',players:0,max:4,host:'',region:'lobby',minBet:5},
-    {x:900,y:600,code:'',game:'bj',label:'牌桌2',players:0,max:4,host:'',region:'lobby',minBet:20},
-    {x:600,y:750,code:'',game:'dice',label:'牌桌3',players:0,max:4,host:'',region:'lobby',minBet:5},
-    // 厨房桌子
-    {x:1300,y:250,code:'',game:'zjh',label:'厨房桌',players:0,max:2,host:'',region:'kitchen',minBet:10}
+    {x:700,y:550,label:'圆桌',max:4,players:0,code:null},
+    {x:600,y:680,label:'长桌',max:4,players:0,code:null},
+    {x:1300,y:340,label:'厨房桌',max:2,players:0,code:null},
   ],
-  benches:[{x:450,y:300},{x:550,y:400},{x:350,y:350}],
+  benches:[],
   currentRegion:'',
   keys:{},joystick:{active:false,cx:0,cy:0,dx:0,dy:0,touchId:null,opacity:0},
   particles:[],time:0,lastDir:{x:0,y:1},
-  floorCache:null,fountainParticles:[],lootCrates:[],fountainTime:0,scraps:[],scrapCount:0,
-  barrels:[],portalParticles:[],
+  floorCache:null,fountainParticles:[],fountainTime:0,scraps:[],scrapCount:0,
+  lootCrates:[],barrels:[],
   floorCacheW:0,floorCacheH:0,dirty:true,welcomeTime:0,walkParticles:[],animId:null,lastBroadcast:0,
   camera:{x:0,y:0},mapW:1600,mapH:1200,dayNightAlpha:0,dustStorm:0,ambientParticles:[],
   _tableGlowGrad:null,_vignetteGrad:null,_floorPattern:null,_brickPattern:null,
   _cachedDecor:null,_lastLightAngle:0,_lightAngle:0,_particlePool:[],_dustParticles:[],
   _hoveredTable:null,_screenShake:0,_transitionAlpha:0,_transitionTarget:0,
   weatherParticles:[],greenTrails:[],lastWeatherCollect:0,_regionFlash:0,_regionFlashColor:'',_regionToastName:'',_regionToastTime:0,
-  npcs:[],npcDialogues:['这鬼天气...','有物资吗？','小心那些桌子','废土上别信任何人','听说黑市有好东西','守住你的筹码','辐射雨又来了','那边有废金属'],
+  npcs:[],
 
   init(){
     if(this.animId)return true;
@@ -1731,31 +1728,16 @@ const Lobby={
     loadSprite('knight','assets/raccoon_sheet.png');
     loadSprite('npcs','assets/npc_sprites.jpg');
 
-    // 室内素材 - 每个物件单独加载
-    const indoorBase='assets/indoor/';
-    const indoorObjects=[
-      'Objects/PNG/objects_house_0000_Layer-1.png',   // 双人沙发(绿色)
-      'Objects/PNG/objects_house_0001_Layer-2.png',
-      'Objects/PNG/objects_house_0005_Layer-6.png',   // 双人沙发(紫色)
-      'Objects/PNG/objects_house_0010_Layer-11.png',   // 三人沙发(棕色)
-      'Objects/PNG/objects_house_0015_Layer-16.png',   // 窗户
-      'Objects/PNG/objects_house_0020_Layer-21.png',   // 洗衣机
-      'Objects/PNG/objects_house_0025_Layer-26.png',   // 电饭煲
-      'Objects/PNG/objects_house_0030_Layer-31.png',   // 单人椅(蓝色)
-      'Objects/PNG/objects_house_0035_Layer-36.png',   // 床
-      'Objects/PNG/objects_house_0040_Layer-41.png',   // 柜门
-      'Objects/PNG/objects_house_0045_Layer-46.png',   // 圆桌/转盘
-      'Objects/PNG/objects_house_0050_Layer-51.png',   // 滚轮柜
-      'Objects/PNG/objects_house_0055_Layer-56.png',   // 盆栽
-      'Objects/PNG/objects_house_0060_Layer-0.png',   // 长桌/柜台
-    ];
+    // 室内素材 - 加载所有61个物件（索引0-60）
     this.indoorSprites=[];
-    indoorObjects.forEach((rel,i)=>{
+    for(let i=0;i<=60;i++){
+      const num=String(i).padStart(4,'0');
+      const layer=i===60?0:i+1;
       const img=new Image();
       img.crossOrigin='anonymous';
       img.onload=()=>{this.indoorSprites[i]=img};
-      img.src=indoorBase+rel;
-    });
+      img.src=`assets/indoor/Objects/PNG/objects_house_${num}_Layer-${layer}.png`;
+    }
 
     // 墙壁图块
     const wallFiles=[
@@ -1778,8 +1760,7 @@ const Lobby={
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
     // 移除喷泉粒子（减少光污染）
     this.fountainParticles=[];
-    this.lootCrates=[];const cratePositions=[[200,500],[350,600],[250,700]];for(const[posX,posY]of cratePositions){this.lootCrates.push({x:posX,y:posY,opened:false,cooldown:0,sparkleTime:Math.random()*Math.PI*2,openAnim:0})}
-    this.barrels=[];const barrelPositions=[[1000,400],[1100,500]];for(const[posX,posY]of barrelPositions){this.barrels.push({x:posX,y:posY,state:'idle',vx:0,vy:0,respawnTimer:0,explodeAnim:0})}
+    this.lootCrates=[];this.barrels=[];
     const chScrap=CHARACTERS[selectedChar];const hasFindScrap=chScrap&&chScrap.skills&&chScrap.skills.find(s=>s.effect==='findScrap'&&s.unlocked);const scrapCountInit=hasFindScrap?20:15;
     this.scraps=[];for(let i=0;i<scrapCountInit;i++){this.scraps.push({x:50+Math.random()*(this.mapW-100),y:50+Math.random()*(this.mapH-100),collected:false,rot:Math.random()*Math.PI*2})}
     this.scrapCount=0;
@@ -1798,11 +1779,7 @@ const Lobby={
   },
 
   initNPCs(){
-    this.npcs=[
-      {id:'npc_merchant',x:800,y:350,emoji:'🧔',name:'前台',type:'merchant',state:'wander',stateTimer:5,tx:800,ty:350,dialogueTimer:8,bubble:null,shopOpen:false},
-      {id:'npc_guard',x:1100,y:500,emoji:'💂',name:'守卫',type:'guard',state:'idle',stateTimer:4,tx:1100,ty:500,dialogueTimer:10,bubble:null,patrolCenter:{x:1100,y:500},patrolRadius:80},
-      {id:'npc_beggar',x:500,y:700,emoji:'🧟',name:'乞丐',type:'beggar',state:'wander',stateTimer:3,tx:500,ty:700,dialogueTimer:6,bubble:null}
-    ];
+    this.npcs=[];
   },
   updateNPCs(dt){
     for(const npc of this.npcs){
@@ -2030,12 +2007,6 @@ const Lobby={
     for(const dp of this._dustParticles){dp.x+=dp.vx*dt;dp.y+=dp.vy*dt;if(dp.x<0)dp.x+=this.mapW;if(dp.x>this.mapW)dp.x-=this.mapW;if(dp.y<0)dp.y+=this.mapH;if(dp.y>this.mapH)dp.y-=this.mapH}
     // 喷泉粒子已移除
     this.fountainTime+=dt;
-    for(const crate of this.lootCrates){crate.sparkleTime+=dt*3;if(crate.cooldown>0){crate.cooldown-=dt;if(crate.cooldown<0)crate.cooldown=0}if(crate.openAnim>0){crate.openAnim-=dt*2;if(crate.openAnim<0)crate.openAnim=0}}
-    for(const b of this.barrels){
-      if(b.state==='rolling'){b.x+=b.vx*dt*60;b.y+=b.vy*dt*60;b.vx*=0.95;b.vy*=0.95;if(Math.sqrt(b.vx*b.vx+b.vy*b.vy)<10){b.state='explode';b.explodeAnim=1;this.doBarrelExplosion(b.x,b.y)}}
-      if(b.state==='explode'){b.explodeAnim-=dt;if(b.explodeAnim<=0){b.state='dead';b.respawnTimer=30}}
-      if(b.state==='dead'){b.respawnTimer-=dt;if(b.respawnTimer<=0){b.state='idle';b.x=50+Math.random()*(this.mapW-100);b.y=50+Math.random()*(this.mapH-100)}}
-    }
     for(const scrap of this.scraps){if(scrap.collected)continue;const sdx=this.me.x-scrap.x,sdy=this.me.y-scrap.y;if(Math.sqrt(sdx*sdx+sdy*sdy)<20){scrap.collected=true;this.scrapCount++;const chVal=CHARACTERS[selectedChar];const hasScrapValue=chVal&&chVal.skills&&chVal.skills.find(s=>s.effect==='scrapValue'&&s.unlocked);const val=hasScrapValue?2:1;G.chips+=val;Sound.chip();toast(`收集废金属 +${val} (${this.scrapCount})`);updateChips();}}
     if(this._screenShake>0){this._screenShake-=dt*5;if(this._screenShake<0)this._screenShake=0}
     if(this._transitionAlpha!==this._transitionTarget){const diff=this._transitionTarget-this._transitionAlpha;this._transitionAlpha+=diff*Math.min(1,dt*3)}
@@ -2044,71 +2015,26 @@ const Lobby={
   doAction(){
     // 检查附近的交互对象
     if(this.me.sitting){this.leaveTable();return}
-    // 检查NPC（优先）
-    for(const npc of this.npcs){
-      const dx=this.me.x-npc.x,dy=this.me.y-npc.y;
-      if(Math.sqrt(dx*dx+dy*dy)<40){
-        if(npc.type==='merchant'){this.openNPCShop(npc);return}
-        else if(npc.type==='beggar'){this.giveToBeggar(npc);return}
-        return;
-      }
-    }
     if(this._hoveredTable){this.joinTable(this._hoveredTable);return}
-    // 检查物资箱
-    for(const c of this.lootCrates){
-      const dx=c.x-this.me.x,dy=c.y-this.me.y;
-      if(Math.sqrt(dx*dx+dy*dy)<30&&c.cooldown<=0){this.openCrate(c);return}
-    }
-    // 检查油桶
-    for(const b of this.barrels){
-      if(b.state!=='idle')continue;
-      const dx=b.x-this.me.x,dy=b.y-this.me.y;
-      if(Math.sqrt(dx*dx+dy*dy)<30){this.kickBarrel(b);return}
-    }
-    // 检查长椅
-    for(const b of this.benches){
-      const dx=b.x-this.me.x,dy=b.y-this.me.y;
-      if(Math.sqrt(dx*dx+dy*dy)<40){sitOnBench();return}
-    }
   },
   checkTableInteraction(){
     const hint=$('interact-hint');if(!hint)return;
     let nearTable=null;let minDist=Infinity;
     for(const t of this.tables){const dx=t.x-this.me.x,dy=t.y-this.me.y;const dist=Math.sqrt(dx*dx+dy*dy);if(dist<70&&dist<minDist){minDist=dist;nearTable=t}}
     this._hoveredTable=nearTable;
-    // 检查物资箱
-    let nearCrate=null;for(const c of this.lootCrates){const dx=c.x-this.me.x,dy=c.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<30&&c.cooldown<=0){nearCrate=c;break}}
-    // 检查油桶
-    let nearBarrel=null;for(const b of this.barrels){if(b.state!=='idle')continue;const dx=b.x-this.me.x,dy=b.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<30){nearBarrel=b;break}}
-    // 检查长椅
-    let nearBench=null;for(const b of this.benches){const dx=b.x-this.me.x,dy=b.y-this.me.y;if(Math.sqrt(dx*dx+dy*dy)<40){nearBench=b;break}}
-    // 检查NPC
-    let nearNPC=null;
-    for(const npc of this.npcs){const dx=this.me.x-npc.x,dy=this.me.y-npc.y;if(Math.sqrt(dx*dx+dy*dy)<40){nearNPC=npc;break}}
     // 更新交互按钮
     const actionBtn=$('action-btn');
     if(actionBtn){
-      if(nearNPC||nearTable||nearCrate||nearBarrel||nearBench||this.me.sitting){
+      if(nearTable||this.me.sitting){
         actionBtn.style.display='block';
         if(this.me.sitting)actionBtn.textContent='🚪';
-        else if(nearNPC)actionBtn.textContent=nearNPC.type==='merchant'?'🛒':nearNPC.type==='beggar'?'🪙':'🛡️';
         else if(nearTable)actionBtn.textContent='🎮';
-        else if(nearCrate)actionBtn.textContent='📦';
-        else if(nearBarrel)actionBtn.textContent='⚽';
-        else actionBtn.textContent='🪑';
       }else{
         actionBtn.style.display='none';
       }
     }
     if(this.me.sitting){hint.textContent='点击退出桌子';hint.style.display='block';hint.style.fontSize='16px';return;}
-    if(nearNPC){
-      const npc=nearNPC;
-      if(npc.type==='merchant'){hint.textContent='🛒 点击交互 — 打开商店';hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;}
-      else if(npc.type==='beggar'){hint.textContent='🪙 点击交互 — 施舍物资';hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;}
-      else if(npc.type==='guard'){hint.textContent='🛡️ 守卫正在巡逻';hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;}
-      return;
-    }
-    if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else if(nearCrate){hint.textContent='📦 点击交互 — 打开物资箱';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.openCrate(nearCrate)}}else if(nearBarrel){hint.textContent='⚽ 点击交互 — 踢油桶';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.kickBarrel(nearBarrel)}}else if(nearBench){hint.textContent='🪑 点击交互 — 坐下';hint.style.display='block';hint.style.fontSize='13px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;sitOnBench()}}else{hint.style.display='none'}
+    if(nearTable){const status=nearTable.players>=nearTable.max?' (满员)':nearTable.code?` (${nearTable.players}/${nearTable.max})`:' (空桌)';hint.textContent=`${nearTable.label}${status} — 点击加入`;hint.style.display='block';hint.style.fontSize='14px';hint.style.opacity=1;if(this.keys['e']){this.keys['e']=false;this.joinTable(nearTable)}}else{hint.style.display='none'}
   },
 
   openCrate(crate){
@@ -2155,9 +2081,9 @@ const Lobby={
   },
 
   updateTablesFromState(){
-    this.tables.forEach(t=>{t.code='';t.players=0;t.host=''});const usedIdx=new Set();
-    for(const code in G.knownRooms){const r=G.knownRooms[code];if(Date.now()-r.ts>30000)continue;const idx=this.tables.findIndex((x,i)=>x.game===r.game&&x.code===''&&!usedIdx.has(i));if(idx!==-1){usedIdx.add(idx);const t=this.tables[idx];t.code=code;t.players=r.players||1;t.max=MAX_SEATS;t.host=r.name||''}}
-    if(G.isHost&&G.roomCode){const idx=this.tables.findIndex((x,i)=>x.game===G.gameType&&!usedIdx.has(i));if(idx!==-1){usedIdx.add(idx);const t=this.tables[idx];t.code=G.roomCode;t.players=G.roomPeers.length;t.max=MAX_SEATS;t.host=G.user}}
+    this.tables.forEach(t=>{t.code='';t.players=0});const usedIdx=new Set();
+    for(const code in G.knownRooms){const r=G.knownRooms[code];if(Date.now()-r.ts>30000)continue;const idx=this.tables.findIndex((x,i)=>x.code===''&&!usedIdx.has(i));if(idx!==-1){usedIdx.add(idx);const t=this.tables[idx];t.code=code;t.players=r.players||1;t.max=MAX_SEATS}}
+    if(G.isHost&&G.roomCode){const idx=this.tables.findIndex((x,i)=>x.code===''&&!usedIdx.has(i));if(idx!==-1){usedIdx.add(idx);const t=this.tables[idx];t.code=G.roomCode;t.players=G.roomPeers.length;t.max=MAX_SEATS}}
   },
 
   // ==================== 核心绘制 ====================
@@ -2175,17 +2101,9 @@ const Lobby={
     if(this._cachedDecor){ctx.drawImage(this._cachedDecor,0,0)}else{const dc=document.createElement('canvas');dc.width=this.mapW;dc.height=this.mapH;const dctx=dc.getContext('2d');dctx.imageSmoothingEnabled=false;_drawDecorFunc(dctx,this.mapW,this.mapH);this._cachedDecor=dc;ctx.drawImage(dc,0,0)}
     // 废金属
     this._drawScraps(ctx);
-    // 物资箱
-    for(const crate of this.lootCrates){this._drawCrate(ctx,crate)}
-    // 油桶
-    for(const b of this.barrels){if(b.state!=='dead')this._drawBarrel(ctx,b)}
-    // 长椅（像素风格）
-    for(const b of this.benches){const bx=Math.floor(b.x),by=Math.floor(b.y);ctx.fillStyle='#5a4a30';ctx.fillRect(bx-22,by-9,44,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=2;ctx.strokeRect(bx-22,by-9,44,18);ctx.fillStyle='#3a3020';ctx.fillRect(bx-18,by-14,36,5);ctx.fillRect(bx-18,by+9,36,5)}
     // 桌子
     for(const t of this.tables){const dx=t.x-this.me.x,dy=t.y-this.me.y;const dist=Math.sqrt(dx*dx+dy*dy);const isHovered=dist<50;const isFull=t.code&&t.players>=t.max;_drawTable(ctx,t,isHovered,isFull,this.time)}
     // 绿色轨迹已移除（辐射雨已移除）
-    // NPC
-    this.drawNPCs(ctx);
     // 其他玩家
     for(const[id,p]of this.others){
       const pdx=p.x-this.me.x,pdy=p.y-this.me.y;const pDist=Math.sqrt(pdx*pdx+pdy*pdy);
@@ -2268,25 +2186,18 @@ const Lobby={
   },
 
   getRegionAt(x,y){
-    // 室内布局：大厅、卧室、厨房、浴室
-    // 大厅(中央)
-    if(x>=400&&x<=1200&&y>=300&&y<=900)return'lobby';
-    // 卧室(左上)
     if(x>=50&&x<=400&&y>=50&&y<=400)return'bedroom';
-    // 厨房(右上)
     if(x>=1200&&x<=1550&&y>=50&&y<=400)return'kitchen';
-    // 浴室(左下)
+    if(x>=400&&x<=1200&&y>=300&&y<=900)return'lobby';
     if(x>=50&&x<=400&&y>=800&&y<=1150)return'bathroom';
-    // 走廊
+    if(x>=1200&&x<=1550&&y>=800&&y<=1150)return'storage';
     return'corridor';
   },
   getRegionName(r){
-    const names={lobby:'大厅',bedroom:'卧室',kitchen:'厨房',bathroom:'浴室',corridor:'走廊'};
-    return names[r]||'未知';
+    return{lobby:'大厅',bedroom:'卧室',kitchen:'厨房',bathroom:'浴室',storage:'储藏室',corridor:'走廊'}[r]||'未知';
   },
   getRegionColor(r){
-    const colors={lobby:'#4a3a2a',bedroom:'#3a2a4a',kitchen:'#4a4a2a',bathroom:'#2a3a4a',corridor:'#3a3a3a'};
-    return colors[r]||'#3a3a3a';
+    return{lobby:'#5a4a3a',bedroom:'#4a3a5a',kitchen:'#5a5a3a',bathroom:'#3a4a5a',storage:'#4a4a3a',corridor:'#3a3a3a'}[r]||'#3a3a3a';
   },
   _drawFloor(ctx){
     // 室内木地板
@@ -2308,6 +2219,7 @@ const Lobby={
           bedroom:'#4a3a5a',
           kitchen:'#5a5a3a',
           bathroom:'#3a4a5a',
+          storage:'#4a4a3a',
           corridor:'#4a4a4a'
         };
         ctx.fillStyle=colors[region]||'#4a4a4a';
@@ -2346,17 +2258,22 @@ const Lobby={
     ctx.fillRect(1200,50,wallThick,350);
     // 浴室右墙
     ctx.fillRect(400,800,wallThick,350);
+    // 储藏室左墙
+    ctx.fillRect(1200,800,wallThick,350);
     // 卧室下墙
     ctx.fillRect(50,400,380,wallThick);
     // 厨房下墙
     ctx.fillRect(1200,400,350,wallThick);
     // 浴室上墙
     ctx.fillRect(50,800,380,wallThick);
+    // 储藏室上墙
+    ctx.fillRect(1200,800,350,wallThick);
     
     // 大厅边界（开口连接走廊）
     ctx.fillRect(400,300,wallThick,wallThick); // 卧室门框
     ctx.fillRect(1200,300,wallThick,wallThick); // 厨房门框
     ctx.fillRect(400,900,wallThick,wallThick); // 浴室门框
+    ctx.fillRect(1200,900,wallThick,wallThick); // 储藏室门框
     
     // 如果有墙壁精灵图，覆盖墙壁区域
     if(wallImg&&wallImg.complete){
@@ -2550,29 +2467,6 @@ function bindLobbyCanvasClick(){
         break;
       }
     }
-    // 再检查是否点击了物资箱
-    if(!clickedTable){
-      for(const crate of Lobby.lootCrates){
-        const dx=crate.x-cx,dy=crate.y-cy;
-        if(Math.sqrt(dx*dx+dy*dy)<25){
-          Lobby.openCrate(crate);
-          clickedTable=true;
-          break;
-        }
-      }
-    }
-    // 再检查是否点击了油桶
-    if(!clickedTable){
-      for(const b of Lobby.barrels){
-        if(b.state==='dead')continue;
-        const dx=b.x-cx,dy=b.y-cy;
-        if(Math.sqrt(dx*dx+dy*dy)<20){
-          Lobby.kickBarrel(b);
-          clickedTable=true;
-          break;
-        }
-      }
-    }
     // 如果没有点击任何交互物，则移动到点击位置
     if(!clickedTable){
       Lobby.me.tx=cx;Lobby.me.ty=cy;Lobby.me.moving=true;
@@ -2583,63 +2477,46 @@ function bindLobbyCanvasClick(){
 // ==================== 辅助绘制函数 ====================
 function _drawDecorFunc(ctx,w,h){
   ctx.imageSmoothingEnabled=false;
-  // 室内家具布局
   const objs=Lobby.indoorSprites;
-  
-  // 大厅家具
-  // 0=双人沙发(绿), 10=三人沙发(棕), 8=单人椅(蓝)
-  if(objs[0]&&objs[0].complete){
-    ctx.drawImage(objs[0],500,500,120,60); // 绿色双人沙发
-  }
-  if(objs[10]&&objs[10].complete){
-    ctx.drawImage(objs[10],700,450,200,60); // 棕色三人沙发
-  }
-  if(objs[8]&&objs[8].complete){
-    ctx.drawImage(objs[8],650,550,60,60); // 蓝色单人椅
-  }
-  // 圆桌 11
-  if(objs[11]&&objs[11].complete){
-    ctx.drawImage(objs[11],620,500,80,80);
-  }
-  // 盆栽 13
-  if(objs[13]&&objs[13].complete){
-    ctx.drawImage(objs[13],450,350,40,40);
-    ctx.drawImage(objs[13],1150,350,40,40);
-  }
-  // 长桌/柜台 14
-  if(objs[14]&&objs[14].complete){
-    ctx.drawImage(objs[14],800,700,200,50);
-  }
-  
-  // 卧室
-  // 床 9
-  if(objs[9]&&objs[9].complete){
-    ctx.drawImage(objs[9],100,150,120,180);
-  }
-  // 柜子 10
-  if(objs[10]&&objs[10].complete){
-    ctx.drawImage(objs[10],300,100,60,80);
-  }
-  
-  // 厨房
-  // 柜门 10
-  if(objs[10]&&objs[10].complete){
-    ctx.drawImage(objs[10],1250,100,60,80);
-  }
-  // 电饭煲 7
-  if(objs[7]&&objs[7].complete){
-    ctx.drawImage(objs[7],1350,200,40,40);
-  }
-  // 洗衣机 6
-  if(objs[6]&&objs[6].complete){
-    ctx.drawImage(objs[6],1450,300,50,50);
-  }
-  
-  // 浴室
-  // 窗户 5
-  if(objs[5]&&objs[5].complete){
-    ctx.drawImage(objs[5],200,850,60,60);
-  }
+  const draw=(idx,x,y,w,h)=>{
+    const img=objs[idx];
+    if(img&&img.complete){
+      ctx.drawImage(img,x,y,w,h);
+    }
+  };
+
+  // === 卧室 (50-400, 50-400) ===
+  draw(33,80,80,130,190);    // 双人床
+  draw(17,230,100,75,52);    // 床头柜
+  draw(45,300,60,180,100);   // 大柜子
+  draw(14,50,200,60,65);     // 窗户
+  draw(36,250,250,65,184);   // 单人床
+
+  // === 厨房 (1200-1550, 50-400) ===
+  draw(58,1220,60,250,70);   // 超长柜台
+  draw(23,1280,150,64,66);   // 电饭煲
+  draw(20,1400,250,77,62);   // 洗衣机
+  draw(51,1300,300,95,94);   // 方桌
+
+  // === 大厅 (400-1200, 300-900) ===
+  draw(7,500,400,100,85);    // 三人沙发(上排)
+  draw(51,650,430,95,94);    // 方桌(茶几)
+  draw(0,800,400,180,85);    // 双人沙发(右侧)
+  draw(54,700,550,127,122);  // 圆桌(中央)
+  draw(39,500,650,200,70);   // 长桌
+  draw(56,450,350,100,110);  // 盆栽(左)
+  draw(57,1050,350,100,110); // 盆栽(右)
+  draw(3,500,800,180,85);    // 双人沙发(下排左)
+  draw(10,750,800,100,85);   // 三人沙发(下排中)
+
+  // === 浴室 (50-400, 800-1150) ===
+  draw(21,100,850,77,62);    // 洗衣机
+  draw(15,50,950,60,65);     // 窗户
+
+  // === 储藏室 (1200-1550, 800-1150) ===
+  draw(48,1250,850,120,100); // 滚轮柜
+  draw(46,1400,850,200,120); // 大柜子
+  draw(52,1300,1000,95,94);  // 方桌
 }
 
 function _drawNameTag(ctx,x,y,name,isMe){
