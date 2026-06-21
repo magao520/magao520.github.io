@@ -1719,15 +1719,17 @@ const Lobby={
     const loadSprite=(name,src)=>{
       const img=new Image();
       img.crossOrigin='anonymous';
-      img.onload=()=>{this.sprites[name]=img;console.log('Sprite loaded:',name,img.width,'x',img.height)};
-      img.onerror=()=>{console.warn('Sprite failed:',name)};
+      img.onload=()=>{this.sprites[name]=img;console.log('Loaded:',name,img.width,'x',img.height)};
+      img.onerror=()=>{console.warn('Failed:',name)};
       img.src=src;
     };
+    loadSprite('tilemap','assets/tilemap.png');
+    loadSprite('village_street','assets/tile_village_street.png');
+    loadSprite('village_objects','assets/tile_village_objects.png');
+    loadSprite('indoors','assets/obj_indoors.png');
+    loadSprite('room_tiles','assets/tile_room.png');
     loadSprite('knight','assets/knight_sprite.jpg');
     loadSprite('npcs','assets/npc_sprites.jpg');
-    loadSprite('tileset_brown','assets/tileset_brown.png');
-    loadSprite('tileset_gray','assets/tileset_gray.png');
-    loadSprite('tileset_green','assets/tileset_green.png');
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
     // 移除喷泉粒子（减少光污染）
     this.fountainParticles=[];
@@ -2242,52 +2244,55 @@ const Lobby={
   getRegionColor(r){return{slum:'#4a3828',black:'#6a2828',safe:'#3a4a2a'}[r]||'#4a4028'},
   getRegionName(r){return{slum:'贫民区',black:'黑市区',safe:'安全区'}[r]||''},
   _drawFloor(ctx){
-    const ts=this.sprites['tileset_brown'];
-    const tsGray=this.sprites['tileset_gray'];
-    const tsGreen=this.sprites['tileset_green'];
-
-    if(ts&&ts.complete&&ts.width>=16){
-      // 使用图块渲染
-      const tileSize=16; // 图块是16x16
-      const cols=Math.floor(ts.width/tileSize);
-      const rows=Math.floor(ts.height/tileSize);
+    const tm=this.sprites['tilemap'];
+    if(tm&&tm.complete&&tm.width>=16){
+      // Kenney tilemap: 203x186, 16x16格子
+      // 前2行是草地/泥土地板图块
+      const tileSize=16;
+      const cols=Math.floor(tm.width/tileSize); // ~12列
       const startX=Math.floor(this.camera.x/tileSize)*tileSize;
       const startY=Math.floor(this.camera.y/tileSize)*tileSize;
-      const endX=startX+this.w+tileSize;
-      const endY=startY+this.h+tileSize;
+      const endX=startX+this.w+tileSize*2;
+      const endY=startY+this.h+tileSize*2;
 
       for(let tx=startX;tx<endX;tx+=tileSize){
         for(let ty=startY;ty<endY;ty+=tileSize){
           if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
           const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);
-          // 根据区域选择不同图块集
-          let tileImg=ts; // 默认棕色（废土）
-          if(region==='safe')tileImg=tsGreen||ts;
-          else if(region==='black')tileImg=tsGray||ts;
 
-          // 根据位置选择图块帧（伪随机但稳定）
-          const tileCols=Math.floor(tileImg.width/tileSize);
-          const tileRows=Math.floor(tileImg.height/tileSize);
-          const txi=Math.abs(Math.floor(tx/tileSize))%tileCols;
-          const tyi=Math.abs(Math.floor(ty/tileSize))%tileRows;
-          const sx=txi*tileSize;
-          const sy=tyi*tileSize;
+          // 选择图块：根据区域和位置
+          let tileIdx=0;
+          if(region==='slum'){
+            // 贫民窟：用泥土/深色图块
+            tileIdx=((Math.abs(Math.floor(tx/tileSize))%3)*cols)+Math.abs(Math.floor(ty/tileSize))%2;
+          }else if(region==='black'){
+            // 黑市：用石头/深色图块
+            tileIdx=((Math.abs(Math.floor(tx/tileSize))%3)*cols)+2;
+          }else if(region==='safe'){
+            // 安全区：用草地/浅色图块
+            tileIdx=((Math.abs(Math.floor(tx/tileSize))%4)*cols)+Math.abs(Math.floor(ty/tileSize))%3;
+          }else{
+            // 中立区：混合
+            tileIdx=((Math.abs(Math.floor(tx/tileSize))+Math.abs(Math.floor(ty/tileSize)))%6)*cols+Math.abs(Math.floor(ty/tileSize))%3;
+          }
 
-          ctx.drawImage(tileImg,sx,sy,tileSize,tileSize,Math.floor(tx),Math.floor(ty),tileSize,tileSize);
+          const sx=(tileIdx%cols)*tileSize;
+          const sy=Math.floor(tileIdx/cols)*tileSize;
+
+          if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
+            ctx.drawImage(tm,sx,sy,tileSize,tileSize,Math.floor(tx),Math.floor(ty),tileSize,tileSize);
+          }
         }
       }
     }else{
-      // 后备：纯色方块
+      // 后备：纯色
       const tileSize=16;
       const startX=Math.floor(this.camera.x/tileSize)*tileSize;
       const startY=Math.floor(this.camera.y/tileSize)*tileSize;
-      const endX=startX+this.w+tileSize;
-      const endY=startY+this.h+tileSize;
-      for(let tx=startX;tx<endX;tx+=tileSize){
-        for(let ty=startY;ty<endY;ty+=tileSize){
+      for(let tx=startX;tx<startX+this.w+tileSize;tx+=tileSize){
+        for(let ty=startY;ty<startY+this.h+tileSize;ty+=tileSize){
           if(tx<0||ty<0||tx>=this.mapW||ty>=this.mapH)continue;
-          const region=this.getRegionAt(tx+tileSize/2,ty+tileSize/2);
-          ctx.fillStyle=this.getRegionColor(region);
+          ctx.fillStyle=this.getRegionColor(this.getRegionAt(tx+tileSize/2,ty+tileSize/2));
           ctx.fillRect(Math.floor(tx),Math.floor(ty),tileSize,tileSize);
         }
       }
@@ -2347,15 +2352,28 @@ const Lobby={
   },
 
   _drawCrate(ctx,crate){
-    const x=Math.floor(crate.x),y=Math.floor(crate.y);const size=26;
-    // 像素风格物资箱：无发光脉冲
-    ctx.fillStyle='#6a5a3a';
-    ctx.fillRect(x-size,y-size/2,size*2,size);
-    ctx.strokeStyle='#b8960f';
-    ctx.lineWidth=2;
-    ctx.strokeRect(x-size,y-size/2,size*2,size);
-    ctx.fillStyle=crate.opened?'#3a3020':'#5a4a30';
-    ctx.fillRect(x-size+2,y-size/2+2,size*2-4,size-4);
+    const x=Math.floor(crate.x),y=Math.floor(crate.y);
+    const tm=this.sprites['tilemap'];
+    if(tm&&tm.complete&&tm.width>=16){
+      // Kenney tilemap 宝箱在右下角区域（约第10-11行，第8-10列）
+      const tileSize=16;
+      const cols=Math.floor(tm.width/tileSize);
+      // 宝箱图块位置：第10行第8列
+      const sx=8*tileSize;
+      const sy=10*tileSize;
+      const drawSize=32;
+      if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
+        ctx.drawImage(tm,sx,sy,tileSize,tileSize,x-drawSize/2,y-drawSize/2,drawSize,drawSize);
+      }
+    }else{
+      // 后备：像素矩形
+      const size=26;
+      ctx.fillStyle='#6a5a3a';
+      ctx.fillRect(x-size,y-size/2,size*2,size);
+      ctx.strokeStyle='#b8960f';
+      ctx.lineWidth=2;
+      ctx.strokeRect(x-size,y-size/2,size*2,size);
+    }
     if(!crate.opened){
       ctx.fillStyle='#b8960f';
       ctx.font='14px monospace';
@@ -2370,41 +2388,61 @@ const Lobby={
     if(crate.cooldown>0){
       ctx.fillStyle='rgba(0,0,0,0.6)';
       ctx.font='10px monospace';
-      ctx.fillText(`${Math.ceil(crate.cooldown)}s`,x,y+size+8);
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText(`${Math.ceil(crate.cooldown)}s`,x,y+20);
     }
   },
   _drawBarrel(ctx,b){
-    const x=Math.floor(b.x),y=Math.floor(b.y);const r=16;
-    // 像素风格油桶：矩形代替圆形
-    ctx.fillStyle=b.state==='explode'?'#ff6622':'#c4463a';
-    ctx.fillRect(x-r,y-r,r*2,r*2);
-    ctx.strokeStyle='#8b2020';
-    ctx.lineWidth=2;
-    ctx.strokeRect(x-r,y-r,r*2,r*2);
-    ctx.fillStyle='#a03020';
-    ctx.font='14px monospace';
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.fillText('🛢️',x,y);
+    const x=Math.floor(b.x),y=Math.floor(b.y);
+    const tm=this.sprites['tilemap'];
+    if(tm&&tm.complete&&tm.width>=16){
+      // Kenney tilemap 桶图块在右下角区域（约第10-11行，第10-11列）
+      const tileSize=16;
+      const sx=10*tileSize;
+      const sy=10*tileSize;
+      const drawSize=28;
+      if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
+        ctx.drawImage(tm,sx,sy,tileSize,tileSize,x-drawSize/2,y-drawSize/2,drawSize,drawSize);
+      }
+    }else{
+      // 后备：像素矩形
+      const r=16;
+      ctx.fillStyle=b.state==='explode'?'#ff6622':'#c4463a';
+      ctx.fillRect(x-r,y-r,r*2,r*2);
+      ctx.strokeStyle='#8b2020';
+      ctx.lineWidth=2;
+      ctx.strokeRect(x-r,y-r,r*2,r*2);
+    }
     if(b.state==='explode'&&b.explodeAnim>0){
       ctx.fillStyle=`rgba(255,100,30,${b.explodeAnim})`;
-      ctx.fillRect(x-r-10,y-r-10,r*2+20,r*2+20);
+      ctx.fillRect(x-26,y-26,52,52);
     }
   },
   _drawPortal(ctx,portal){
     const x=Math.floor(portal.x),y=Math.floor(portal.y);
-    // 像素风格传送门：无发光渐变
-    ctx.fillStyle='#4a3a20';
-    ctx.fillRect(x-20,y-20,40,40);
-    ctx.strokeStyle='#b8960f';
-    ctx.lineWidth=2;
-    ctx.strokeRect(x-20,y-20,40,40);
+    const tm=this.sprites['tilemap'];
+    if(tm&&tm.complete&&tm.width>=16){
+      // Kenney tilemap 门/拱门图块在中间区域（约第6-7行，第6-8列）
+      const tileSize=16;
+      const sx=6*tileSize;
+      const sy=6*tileSize;
+      const drawSize=40;
+      if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
+        ctx.drawImage(tm,sx,sy,tileSize,tileSize,x-drawSize/2,y-drawSize/2,drawSize,drawSize);
+      }
+    }else{
+      // 后备：像素矩形
+      ctx.fillStyle='#4a3a20';
+      ctx.fillRect(x-20,y-20,40,40);
+      ctx.strokeStyle='#b8960f';
+      ctx.lineWidth=2;
+      ctx.strokeRect(x-20,y-20,40,40);
+    }
     ctx.fillStyle='#b8960f';
-    ctx.font='16px monospace';
+    ctx.font='9px monospace';
     ctx.textAlign='center';
     ctx.textBaseline='middle';
-    ctx.fillText('🌀',x,y);
-    ctx.font='9px monospace';
     ctx.fillText('传送门',x,y+28);
   },
 
@@ -2523,26 +2561,36 @@ function bindLobbyCanvasClick(){
 // ==================== 辅助绘制函数 ====================
 function _drawDecorFunc(ctx,w,h){
   ctx.imageSmoothingEnabled=false;
-  ctx.fillStyle='#4a3a20';ctx.fillRect(35,35,18,24);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,35,18,24);ctx.strokeStyle='#8a7a5a';ctx.beginPath();ctx.moveTo(35,42);ctx.lineTo(53,42);ctx.stroke();ctx.beginPath();ctx.moveTo(35,50);ctx.lineTo(53,50);ctx.stroke();
-  ctx.fillStyle='#5a4a30';ctx.fillRect(w-55,35,22,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=1;ctx.strokeRect(w-55,35,22,18);ctx.beginPath();ctx.moveTo(w-55,44);ctx.lineTo(w-33,44);ctx.stroke();
-  ctx.fillStyle='#4a3a25';ctx.fillRect(35,h-55,20,20);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,h-55,20,20);
-  ctx.fillStyle='#3a2a18';ctx.fillRect(w-50,h-58,16,26);ctx.strokeStyle='#5a4a3a';ctx.lineWidth=1;ctx.strokeRect(w-50,h-58,16,26);
-  ctx.fillStyle='#4a3a20';ctx.fillRect(300,300,20,28);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(300,300,20,28);
-  ctx.fillStyle='#5a4a30';ctx.fillRect(w-300,h-300,24,20);ctx.strokeStyle='#7a6a4a';ctx.strokeRect(w-300,h-300,24,20);
-  ctx.fillStyle='#3a2a18';ctx.fillRect(w-300,300,18,22);ctx.strokeStyle='#5a4a3a';ctx.strokeRect(w-300,300,18,22);
-  ctx.fillStyle='#4a3a25';ctx.fillRect(300,h-300,22,22);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(300,h-300,22,22);
-  ctx.fillStyle='#4a3a20';ctx.fillRect(w/2-40,h/2-30,18,24);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(w/2-40,h/2-30,18,24);
-  ctx.fillStyle='#5a4a30';ctx.fillRect(w/2+30,h/2+20,20,18);ctx.strokeStyle='#7a6a4a';ctx.strokeRect(w/2+30,h/2+20,20,18);
-  ctx.fillStyle='#2a2a2a';ctx.fillRect(120,80,70,35);ctx.strokeStyle='#444';ctx.lineWidth=1;ctx.strokeRect(120,80,70,35);
-  ctx.fillStyle='#1a1a1a';ctx.fillRect(132,107,16,16);ctx.fillRect(162,107,16,16);
-  ctx.fillStyle='#333';ctx.fillRect(125,85,60,20);ctx.fillStyle='#c4463a';ctx.font='10px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🚗',155,100);
-  ctx.fillStyle='#3a3020';ctx.fillRect(w-160,60,80,70);ctx.strokeStyle='#5a4a30';ctx.lineWidth=1;ctx.strokeRect(w-160,60,80,70);
-  ctx.fillStyle='#2a2010';ctx.fillRect(w-140,70,15,20);ctx.fillRect(w-110,75,15,18);
-  ctx.fillStyle='#3a2a18';ctx.fillRect(90,h-140,22,28);ctx.strokeStyle='#5a4a3a';ctx.strokeRect(90,h-140,22,28);
-  ctx.fillStyle='#4a3a20';ctx.fillRect(118,h-135,20,24);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(118,h-135,20,24);
-  ctx.fillStyle='#2a1a0a';ctx.fillRect(108,h-150,18,22);ctx.strokeStyle='#4a3a2a';ctx.strokeRect(108,h-150,18,22);
-  ctx.fillStyle='#4a3a25';ctx.fillRect(w-120,h-190,60,50);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(w-120,h-190,60,50);
-  ctx.fillStyle='#2a2010';ctx.fillRect(w-100,h-140,4,25);ctx.fillRect(w-80,h-140,4,25);
+  const tm=Lobby.sprites['tilemap'];
+  const tileSize=16;
+  const cols=tm&&tm.complete?Math.floor(tm.width/tileSize):12;
+  // 装饰位置列表：[x, y, 图块列, 图块行]
+  // Kenney tilemap 树木大约在第3-5行，灌木在第2-3行
+  const decorItems=[
+    [35,35,3,3],[w-55,35,4,3],[35,h-55,3,4],[w-50,h-58,4,4],
+    [300,300,5,3],[w-300,h-300,3,5],[w-300,300,4,3],[300,h-300,5,4],
+    [w/2-40,h/2-30,3,3],[w/2+30,h/2+20,4,4],
+    [120,80,5,3],[w-160,60,4,3],
+    [90,h-140,3,4],[118,h-135,4,3],[108,h-150,5,4],
+    [w-120,h-190,3,5]
+  ];
+  for(const[dx,dy,tc,tr]of decorItems){
+    if(tm&&tm.complete&&tm.width>=16){
+      const sx=tc*tileSize;
+      const sy=tr*tileSize;
+      const drawSize=32;
+      if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
+        ctx.drawImage(tm,sx,sy,tileSize,tileSize,dx-drawSize/2,dy-drawSize/2,drawSize,drawSize);
+      }
+    }else{
+      // 后备：纯色方块
+      ctx.fillStyle='#4a3a20';
+      ctx.fillRect(dx,dy,18,24);
+      ctx.strokeStyle='#6a5a3a';
+      ctx.lineWidth=1;
+      ctx.strokeRect(dx,dy,18,24);
+    }
+  }
 }
 
 function _drawNameTag(ctx,x,y,name,isMe){
@@ -2660,75 +2708,59 @@ function _drawDustParticles(ctx,dustParticles){for(const dp of dustParticles){ct
 
 function _drawTable(ctx,t,isHovered,isFull,time){
   const x=Math.floor(t.x),y=Math.floor(t.y);
-  const tw=64,th=40;
-  const isBlackMarket=t.region==='black';
-  // 像素风格桌子：矩形+纯色+1px边框
-  ctx.fillStyle=isFull?'#5a2020':(t.code?'#3a4a2a':'#3a3020');
-  ctx.fillRect(x-tw/2,y-th/2,tw,th);
-  ctx.strokeStyle=isFull?'#8b2020':(t.code?'#4a7a3a':'#5a4a30');
-  ctx.lineWidth=2;
-  ctx.strokeRect(x-tw/2,y-th/2,tw,th);
-  if(isBlackMarket){
-    ctx.strokeStyle='#8b2020';
+  const sprite=Lobby.sprites['village_objects'];
+  if(sprite&&sprite.complete&&sprite.width>64){
+    // village_objects 包含市场摊位，用第一个摊位作为桌子
+    // 摊位大约在图片左上角区域
+    const tw=48,th=32;
+    ctx.drawImage(sprite,0,0,tw,th,x-tw/2,y-th/2,tw,th);
+  }else{
+    // 后备：像素矩形
+    ctx.fillStyle=isFull?'#5a2020':(t.code?'#3a4a2a':'#3a3020');
+    ctx.fillRect(x-32,y-16,64,32);
+    ctx.strokeStyle=isFull?'#8b2020':(t.code?'#4a7a3a':'#5a4a30');
     ctx.lineWidth=2;
-    ctx.strokeRect(x-tw/2-2,y-th/2-2,tw+4,th+4);
+    ctx.strokeRect(x-32,y-16,64,32);
   }
-  // 简单的椅子标记
-  ctx.fillStyle='#4a3828';
-  ctx.fillRect(x-tw/2-10,y-6,10,12);
-  ctx.fillRect(x+tw/2,y-6,10,12);
-  ctx.fillRect(x-6,y-th/2-10,12,10);
-  ctx.fillRect(x-6,y+th/2,12,10);
-  // 蜡烛标记（无发光）
-  ctx.fillStyle='#b8960f';
-  ctx.fillRect(x+18,y-20,4,6);
-  if(t.code&&t.players>0){
-    ctx.fillStyle='#d4c8a8';
-    ctx.font='9px monospace';
-    ctx.textAlign='center';
-    for(let i=0;i<Math.min(t.players,3);i++){
-      ctx.fillRect(x-tw/2+10+i*18,y-8,12,10);
-      ctx.fillStyle='#1a1610';
-      ctx.fillText('P',x-tw/2+16+i*18,y-2);
-      ctx.fillStyle='#d4c8a8';
-    }
-  }
-  if(isFull){
-    ctx.fillStyle='#8b2020';
-    ctx.font='bold 9px monospace';
-    ctx.textAlign='center';
-    ctx.fillText('FULL',x,y+3);
-  }
-  ctx.fillStyle=isFull?'#8b2020':(isBlackMarket?'#8b2020':'#b8960f');
-  ctx.font='11px monospace';
+  // 桌子标签
+  ctx.fillStyle='rgba(0,0,0,0.7)';
+  ctx.fillRect(x-20,y+18,40,12);
+  ctx.fillStyle='#d4c8a8';
+  ctx.font='8px monospace';
   ctx.textAlign='center';
-  ctx.fillText(t.label,x,y+th/2+16);
-  ctx.fillStyle='#7a7060';
-  ctx.font='10px monospace';
-  ctx.fillText(t.code?`${t.players}/${t.max}`:'空桌',x,y+th/2+28);
+  ctx.textBaseline='middle';
+  ctx.fillText(t.label||'',x,y+24);
 }
 
 function _drawDecorOn(ctx,w,h){
-    ctx.fillStyle='#4a3a20';ctx.fillRect(35,35,18,24);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,35,18,24);ctx.strokeStyle='#8a7a5a';ctx.beginPath();ctx.moveTo(35,42);ctx.lineTo(53,42);ctx.stroke();ctx.beginPath();ctx.moveTo(35,50);ctx.lineTo(53,50);ctx.stroke();
-    ctx.fillStyle='#5a4a30';ctx.fillRect(w-55,35,22,18);ctx.strokeStyle='#7a6a4a';ctx.lineWidth=1;ctx.strokeRect(w-55,35,22,18);ctx.beginPath();ctx.moveTo(w-55,44);ctx.lineTo(w-33,44);ctx.stroke();
-    ctx.fillStyle='#4a3a25';ctx.fillRect(35,h-55,20,20);ctx.strokeStyle='#6a5a3a';ctx.lineWidth=1;ctx.strokeRect(35,h-55,20,20);
-    ctx.fillStyle='#3a2a18';ctx.fillRect(w-50,h-58,16,26);ctx.strokeStyle='#5a4a3a';ctx.lineWidth=1;ctx.strokeRect(w-50,h-58,16,26);
-    ctx.fillStyle='#4a3a20';ctx.fillRect(300,300,20,28);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(300,300,20,28);
-    ctx.fillStyle='#5a4a30';ctx.fillRect(w-300,h-300,24,20);ctx.strokeStyle='#7a6a4a';ctx.strokeRect(w-300,h-300,24,20);
-    ctx.fillStyle='#3a2a18';ctx.fillRect(w-300,300,18,22);ctx.strokeStyle='#5a4a3a';ctx.strokeRect(w-300,300,18,22);
-    ctx.fillStyle='#4a3a25';ctx.fillRect(300,h-300,22,22);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(300,h-300,22,22);
-    ctx.fillStyle='#4a3a20';ctx.fillRect(w/2-40,h/2-30,18,24);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(w/2-40,h/2-30,18,24);
-    ctx.fillStyle='#5a4a30';ctx.fillRect(w/2+30,h/2+20,20,18);ctx.strokeStyle='#7a6a4a';ctx.strokeRect(w/2+30,h/2+20,20,18);
-    ctx.fillStyle='#2a2a2a';ctx.fillRect(120,80,70,35);ctx.strokeStyle='#444';ctx.lineWidth=1;ctx.strokeRect(120,80,70,35);
-    ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(140,115,8,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(170,115,8,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#333';ctx.fillRect(125,85,60,20);ctx.fillStyle='#c4463a';ctx.font='10px sans-serif';ctx.fillText('🚗',155,100);
-    ctx.fillStyle='#3a3020';ctx.beginPath();ctx.moveTo(w-150,60);ctx.lineTo(w-80,60);ctx.lineTo(w-90,130);ctx.lineTo(w-160,120);ctx.closePath();ctx.fill();ctx.strokeStyle='#5a4a30';ctx.stroke();
-    ctx.fillStyle='#2a2010';ctx.fillRect(w-140,70,15,20);ctx.fillRect(w-110,75,15,18);
-    ctx.fillStyle='#3a2a18';ctx.fillRect(90,h-140,22,28);ctx.strokeStyle='#5a4a3a';ctx.strokeRect(90,h-140,22,28);
-    ctx.fillStyle='#4a3a20';ctx.fillRect(118,h-135,20,24);ctx.strokeStyle='#6a5a3a';ctx.strokeRect(118,h-135,20,24);
-    ctx.fillStyle='#2a1a0a';ctx.fillRect(108,h-150,18,22);ctx.strokeStyle='#4a3a2a';ctx.strokeRect(108,h-150,18,22);
-    ctx.fillStyle='#4a3a25';ctx.beginPath();ctx.moveTo(w-120,h-140);ctx.lineTo(w-60,h-140);ctx.lineTo(w-90,h-190);ctx.closePath();ctx.fill();ctx.strokeStyle='#6a5a3a';ctx.stroke();
-    ctx.fillStyle='#2a2010';ctx.fillRect(w-100,h-140,4,25);ctx.fillRect(w-80,h-140,4,25);
+    ctx.imageSmoothingEnabled=false;
+    const tm=Lobby.sprites['tilemap'];
+    const tileSize=16;
+    // 装饰位置列表：[x, y, 图块列, 图块行]
+    const decorItems=[
+      [35,35,3,3],[w-55,35,4,3],[35,h-55,3,4],[w-50,h-58,4,4],
+      [300,300,5,3],[w-300,h-300,3,5],[w-300,300,4,3],[300,h-300,5,4],
+      [w/2-40,h/2-30,3,3],[w/2+30,h/2+20,4,4],
+      [120,80,5,3],[w-160,60,4,3],
+      [90,h-140,3,4],[118,h-135,4,3],[108,h-150,5,4],
+      [w-120,h-190,3,5]
+    ];
+    for(const[dx,dy,tc,tr]of decorItems){
+      if(tm&&tm.complete&&tm.width>=16){
+        const sx=tc*tileSize;
+        const sy=tr*tileSize;
+        const drawSize=32;
+        if(sx+tileSize<=tm.width&&sy+tileSize<=tm.height){
+          ctx.drawImage(tm,sx,sy,tileSize,tileSize,dx-drawSize/2,dy-drawSize/2,drawSize,drawSize);
+        }
+      }else{
+        ctx.fillStyle='#4a3a20';
+        ctx.fillRect(dx,dy,18,24);
+        ctx.strokeStyle='#6a5a3a';
+        ctx.lineWidth=1;
+        ctx.strokeRect(dx,dy,18,24);
+      }
+    }
   }
 
 Lobby._drawMinimap = function(ctx){
