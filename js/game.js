@@ -1728,7 +1728,7 @@ const Lobby={
     loadSprite('village_objects','assets/tile_village_objects.png');
     loadSprite('indoors','assets/obj_indoors.png');
     loadSprite('room_tiles','assets/tile_room.png');
-    loadSprite('knight','assets/knight_sprite.jpg');
+    loadSprite('knight','assets/raccoon_sheet.png');
     loadSprite('npcs','assets/npc_sprites.jpg');
     if(!localStorage.getItem('wl_tutorial')){setTimeout(()=>this.showTutorial(),2000)}
     // 移除喷泉粒子（减少光污染）
@@ -2614,39 +2614,33 @@ function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
   const px=Math.floor(x),py=Math.floor(y);
   const p=playerObj||{};
 
-  // 确定方向: 0=下, 1=上, 2=左, 3=右
-  let dir=0;
-  if(p.lastDir){
-    const lx=p.lastDir.x||0,ly=p.lastDir.y||0;
-    if(Math.abs(ly)>Math.abs(lx)){dir=ly>0?0:1}
-    else{dir=lx>0?3:2}
-  }
+  // 确定动画类型: 0=idle, 1=walk, 2=run, 3=hurt
+  let animRow=0;
+  if(p.animState==='walk')animRow=1;
+  else if(p.animState==='sit')animRow=0;
+  else if(p.animState==='interact')animRow=0;
+  else animRow=0;
 
   // 确定动画帧
   let frame=0;
   if(p.animState==='walk'){
-    frame=Math.floor(time*6)%4;
+    frame=Math.floor(time*6)%12; // 12帧行走
   }else if(p.animState==='sit'){
-    frame=0;
+    frame=Math.floor(time*2)%12; // 12帧idle
   }else if(p.animState==='interact'){
-    frame=Math.floor(time*4)%2;
+    frame=Math.floor(time*4)%12;
   }else{
-    frame=Math.floor(time*2)%2;
+    frame=Math.floor(time*3)%12; // 12帧idle呼吸
   }
 
   const sprite=Lobby.sprites['knight'];
-  if(sprite&&sprite.complete&&sprite.width>32&&sprite.height>32){
-    // AI生成的精灵图，假设布局：4列(方向) x 4行(帧)
-    const spriteW=sprite.width;
-    const spriteH=sprite.height;
-    const cols=4;
-    const rows=4;
-    const cellW=Math.floor(spriteW/cols);
-    const cellH=Math.floor(spriteH/rows);
-    const sx=dir*cellW;
-    const sy=frame*cellH;
+  if(sprite&&sprite.complete&&sprite.width>48){
+    // 小浣熊精灵图: 576x192, 4行(动画) x 12列(帧), 每帧48x48
+    const cellW=48,cellH=48;
+    const sx=frame*cellW;
+    const sy=animRow*cellH;
 
-    // 绘制放大到合适大小（32x32显示）
+    // 绘制到32x32显示区域
     const drawSize=32;
     ctx.drawImage(sprite,sx,sy,cellW,cellH,px-drawSize/2,py-drawSize/2,drawSize,drawSize);
   }else{
