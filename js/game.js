@@ -2614,47 +2614,58 @@ function _drawAnimatedPlayer(ctx,x,y,emoji,playerObj,isMe,time){
   const px=Math.floor(x),py=Math.floor(y);
   const p=playerObj||{};
 
-  // 确定动画类型: 0=idle, 1=walk, 2=run, 3=hurt
-  let animRow=0;
-  if(p.animState==='walk')animRow=1;
-  else if(p.animState==='sit')animRow=0;
-  else if(p.animState==='interact')animRow=0;
-  else animRow=0;
+  // 精灵图布局: 576x432, 9行 x 最多12列, 每帧48x48
+  // 行0=idle(12), 行1=walk(12), 行2=walk_happy(12), 行3=run(10),
+  // 行4=throw(8), 行5=jump_up(5), 行6=jump_fall(5), 行7=hurt(6), 行8=dead(10)
+  const ROW_IDLE=0, ROW_WALK=1, ROW_WALK_HAPPY=2, ROW_RUN=3;
+  const ROW_THROW=4, ROW_JUMP_UP=5, ROW_JUMP_FALL=6, ROW_HURT=7, ROW_DEAD=8;
+  const MAX_COLS=12;
+
+  // 确定动画行
+  let animRow=ROW_IDLE;
+  let maxFrame=12;
+  if(p.animState==='walk'){animRow=ROW_WALK;maxFrame=12}
+  else if(p.animState==='run'){animRow=ROW_RUN;maxFrame=10}
+  else if(p.animState==='sit'){animRow=ROW_IDLE;maxFrame=12}
+  else if(p.animState==='interact'){animRow=ROW_THROW;maxFrame=8}
+  else if(p.animState==='hurt'){animRow=ROW_HURT;maxFrame=6}
+  else if(p.animState==='dead'){animRow=ROW_DEAD;maxFrame=10}
 
   // 确定动画帧
   let frame=0;
   if(p.animState==='walk'){
-    frame=Math.floor(time*6)%12; // 12帧行走
-  }else if(p.animState==='sit'){
-    frame=Math.floor(time*2)%12; // 12帧idle
+    frame=Math.floor(time*8)%maxFrame;
+  }else if(p.animState==='run'){
+    frame=Math.floor(time*10)%maxFrame;
   }else if(p.animState==='interact'){
-    frame=Math.floor(time*4)%12;
+    frame=Math.floor(time*6)%maxFrame;
+  }else if(p.animState==='hurt'){
+    frame=Math.floor(time*4)%maxFrame;
+  }else if(p.animState==='dead'){
+    frame=Math.floor(time*3)%maxFrame;
   }else{
-    frame=Math.floor(time*3)%12; // 12帧idle呼吸
+    frame=Math.floor(time*3)%maxFrame; // idle呼吸
   }
 
   const sprite=Lobby.sprites['knight'];
   if(sprite&&sprite.complete&&sprite.width>48){
-    // 小浣熊精灵图: 576x192, 4行(动画) x 12列(帧), 每帧48x48
     const cellW=48,cellH=48;
     const sx=frame*cellW;
     const sy=animRow*cellH;
 
-    // 确定朝向: faceDir<0 向左, 需要水平翻转
+    // 方向修复: faceDir<0 表示向左移动,脸应该朝左
+    // 素材默认脸朝右,所以 faceDir<0(左移)时不翻转,faceDir>0(右移)时翻转
     const faceDir=p.faceDir||1;
     const drawSize=32;
     const half=drawSize/2;
 
     ctx.save();
     ctx.translate(px,py);
-    if(faceDir<0){
-      // 向左: 水平翻转
+    if(faceDir>0){
+      // 向右移动: 素材默认脸朝右,需要翻转让脸朝左
       ctx.scale(-1,1);
-      ctx.drawImage(sprite,sx,sy,cellW,cellH,-half,-half,drawSize,drawSize);
-    }else{
-      // 向右: 正常
-      ctx.drawImage(sprite,sx,sy,cellW,cellH,-half,-half,drawSize,drawSize);
     }
+    ctx.drawImage(sprite,sx,sy,cellW,cellH,-half,-half,drawSize,drawSize);
     ctx.restore();
   }else{
     _drawPixelCharFallback(ctx,px,py,isMe);
