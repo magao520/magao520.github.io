@@ -1707,6 +1707,7 @@ const Lobby={
       'Tiles/PNG/Walls/walls_0051_Layer-0.png',  // 大竖板
     ];
     this.wallSprites=[];
+    const indoorBase='assets/indoor/';
     wallFiles.forEach((rel,i)=>{
       const img=new Image();
       img.crossOrigin='anonymous';
