@@ -210,24 +210,27 @@ class LobbyScene extends Phaser.Scene {
     rt.setDepth(0);
     rt.setOrigin(0);
 
+    // 地面层 - 纯色+随机噪点（避免drawImage兼容问题）
     const g = this.make.graphics({ add: false });
-    // 地面层 - 用瓦片图集的不同区域
     for (let x = 0; x < this.mapW; x += ts * scale) {
       for (let y = 0; y < this.mapH; y += ts * scale) {
-        // 从 tilemap 中随机取一个地面瓦片区域
-        const srcX = Phaser.Math.Between(0, 11) * ts;
-        const srcY = Phaser.Math.Between(0, 2) * ts; // 前3行是地面
-        g.drawImage(tilemap, srcX, srcY, ts, ts, x, y, ts * scale, ts * scale);
+        const isStreet = (x > 150 && x < 650 && y > 100 && y < 500);
+        g.fillStyle(isStreet ? 0x3a3a3a : 0x2a2a1a);
+        g.fillRect(x, y, ts * scale, ts * scale);
+        // 添加噪点
+        if (Math.random() > 0.7) {
+          g.fillStyle(isStreet ? 0x4a4a4a : 0x3a3a2a);
+          g.fillRect(x + 4, y + 4, 8, 8);
+        }
       }
     }
     // 添加一些装饰（树、石头等）
+    const decoColors = [0x4a4a3a, 0x3a3a2a, 0x5a5a4a, 0x2a3a2a];
     for (let i = 0; i < 30; i++) {
       const x = Phaser.Math.Between(50, this.mapW - 50);
       const y = Phaser.Math.Between(50, this.mapH - 50);
-      // 树（第4-5行）
-      const srcX = Phaser.Math.Between(0, 11) * ts;
-      const srcY = Phaser.Math.Between(3, 5) * ts;
-      g.drawImage(tilemap, srcX, srcY, ts, ts, x, y, ts * scale, ts * scale);
+      g.fillStyle(Phaser.Utils.Array.GetRandom(decoColors));
+      g.fillRect(x - 10, y - 10, 20, 20);
     }
     rt.draw(g);
     g.destroy();
