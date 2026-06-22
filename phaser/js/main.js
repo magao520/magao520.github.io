@@ -73,6 +73,9 @@ class LobbyScene extends Phaser.Scene {
     // 生成粒子纹理
     this.generateTextures();
 
+    // 创建着色器
+    this.createShaders();
+
     // 创建动画
     this.createAnimations();
 
@@ -126,8 +129,8 @@ class LobbyScene extends Phaser.Scene {
   }
 
   generateTextures() {
-    // 子弹纹理
     const g = this.make.graphics({ add: false });
+    // 子弹纹理
     g.fillStyle(0xffdd44);
     g.fillCircle(4, 4, 4);
     g.generateTexture('bullet', 8, 8);
@@ -148,7 +151,61 @@ class LobbyScene extends Phaser.Scene {
     g.fillStyle(0xccaa44);
     g.fillRect(0, 0, 4, 6);
     g.generateTexture('casing', 4, 6);
+    g.clear();
+    // 击中闪光
+    g.fillStyle(0xffffff);
+    g.fillCircle(8, 8, 8);
+    g.generateTexture('hitflash', 16, 16);
+    g.clear();
+    // 爆炸
+    g.fillStyle(0xff4400);
+    g.fillCircle(16, 16, 16);
+    g.fillStyle(0xffaa00);
+    g.fillCircle(16, 16, 10);
+    g.generateTexture('explosion', 32, 32);
     g.destroy();
+  }
+
+  createShaders() {
+    // 受伤闪白着色器
+    this.flashPipeline = this.renderer.pipelines.add('FlashWhite', new Phaser.Renderer.WebGL.Pipelines.SinglePipeline({
+      game: this.game,
+      fragShader: `
+        precision mediump float;
+        uniform sampler2D uMainSampler;
+        uniform float uFlash;
+        varying vec2 outTexCoord;
+        void main() {
+          vec4 color = texture2D(uMainSampler, outTexCoord);
+          gl_FragColor = mix(color, vec4(1.0, 1.0, 1.0, color.a), uFlash);
+        }
+      `,
+      uniforms: ['uProjectionMatrix', 'uViewMatrix', 'uModelMatrix', 'uMainSampler', 'uFlash']
+    }));
+  }
+
+  flashPlayer(player, duration = 150) {
+    if (!player || !player.sprite) return;
+    player.sprite.setTint(0xffffff);
+    player.sprite.setAlpha(0.8);
+    this.tweens.add({
+      targets: player.sprite,
+      alpha: 1,
+      duration: duration,
+      onComplete: () => { player.sprite.clearTint(); }
+    });
+  }
+
+  shakePlayer(player, duration = 200) {
+    if (!player || !player.container) return;
+    this.tweens.add({
+      targets: player.container,
+      x: player.container.x + Phaser.Math.Between(-5, 5),
+      y: player.container.y + Phaser.Math.Between(-5, 5),
+      duration: 50,
+      yoyo: true,
+      repeat: duration / 50
+    });
   }
 
   createAnimations() {
@@ -191,33 +248,74 @@ class LobbyScene extends Phaser.Scene {
     rt.draw(g);
     g.destroy();
 
-    // 墙壁碰撞体（用真实瓦片显示）
+    // 墙壁碰撞体
     this.walls = this.physics.add.staticGroup();
+
+    // 创建房屋（用瓦片纹理）
+    this.houses = [];
+    const housePositions = [
+      { x: 150, y: 120, w: 120, h: 80, color: 0x8B4513, roofColor: 0x8B0000 },
+      { x: 600, y: 100, w: 100, h: 90, color: 0xA0522D, roofColor: 0x654321 },
+      { x: 400, y: 350, w: 140, h: 70, color: 0x8B4513, roofColor: 0x8B0000 },
+    ];
+    for (const h of housePositions) {
+      // 房屋主体
+      const house = this.add.rectangle(h.x, h.y, h.w, h.h, h.color);
+      house.setDepth(2);
+      this.walls.add(house);
+      house.body.setSize(h.w, h.h);
+
+      // 屋顶（三角形）
+      const roof = this.add.triangle(h.x, h.y - h.h/2 - 20, 0, 0, h.w/2 + 10, -30, h.w + 20, 0, h.roofColor);
+      roof.setDepth(3);
+
+      // 门（可交互区域）
+      const door = this.add.rectangle(h.x, h.y + h.h/2 - 10, 24, 20, 0x4a2a0a);
+      door.setDepth(3);
+
+      this.houses.push({ body: house, roof, door, x: h.x, y: h.y, w: h.w, h: h.h });
+    }
+
+    // 牌桌
+    this.tables = [];
+    const tablePositions = [
+      { x: 300, y: 200, label: '骰子桌' },
+      { x: 550, y: 250, label: '炸金花桌' },
+      { x: 200, y: 450, label: '21点桌' },
+      { x: 500, y: 500, label: '骰子桌' },
+    ];
+    for (const t of tablePositions) {
+      // 桌子
+      const table = this.add.rectangle(t.x, t.y, 60, 40, 0x5a3a1a);
+      table.setDepth(2);
+      table.setStrokeStyle(2, 0x8a6a3a);
+
+      // 椅子
+      this.add.rectangle(t.x - 35, t.y, 16, 16, 0x4a2a0a).setDepth(2);
+      this.add.rectangle(t.x + 35, t.y, 16, 16, 0x4a2a0a).setDepth(2);
+      this.add.rectangle(t.x, t.y - 30, 16, 16, 0x4a2a0a).setDepth(2);
+      this.add.rectangle(t.x, t.y + 30, 16, 16, 0x4a2a0a).setDepth(2);
+
+      // 标签
+      const label = this.add.text(t.x, t.y - 25, t.label, {
+        fontSize: '9px', fontFamily: 'monospace', color: '#b8960f',
+        stroke: '#000', strokeThickness: 2
+      }).setOrigin(0.5).setDepth(4);
+
+      this.tables.push({ x: t.x, y: t.y, label: t.label, body: table, labelText: label, code: null, players: 0, max: 4 });
+    }
+
+    // 简单墙壁
     const wallPositions = [
       { x: 200, y: 150, w: 120, h: 16 },
       { x: 500, y: 300, w: 16, h: 120 },
       { x: 350, y: 450, w: 160, h: 16 },
-      { x: 650, y: 200, w: 16, h: 100 },
-      { x: 100, y: 400, w: 100, h: 16 },
     ];
     for (const wp of wallPositions) {
-      // 从瓦片图集取墙壁纹理
-      const wallG = this.make.graphics({ add: false });
-      const srcX = 6 * ts; // 石墙区域
-      const srcY = 6 * ts;
-      for (let wx = 0; wx < wp.w; wx += ts * scale) {
-        for (let wy = 0; wy < wp.h; wy += ts * scale) {
-          wallG.drawImage(tilemap, srcX, srcY, ts, ts, wx, wy, ts * scale, ts * scale);
-        }
-      }
-      wallG.generateTexture('wall_' + wp.x + '_' + wp.y, wp.w, wp.h);
-      wallG.destroy();
-
-      const wall = this.add.image(wp.x, wp.y, 'wall_' + wp.x + '_' + wp.y);
+      const wall = this.add.rectangle(wp.x, wp.y, wp.w, wp.h, 0x6a6a6a);
       wall.setDepth(2);
       this.walls.add(wall);
       wall.body.setSize(wp.w, wp.h);
-      wall.body.setOffset(wp.w / 2, wp.h / 2);
     }
   }
 
@@ -412,8 +510,42 @@ class LobbyScene extends Phaser.Scene {
       this.me.sprite.anims.play('dead');
       this.me.state = 'dead';
       this.me.body.setVelocity(0);
+      // 死亡特效：屏幕震动 + 闪白 + 爆炸粒子
+      this.cameras.main.shake(300, 0.015);
+      this.cameras.main.flash(500, 0.3, 0, 0);
+      this.flashPlayer(this.me, 300);
+      // 死亡爆炸粒子
+      const deathExplosion = this.add.particles(this.me.container.x, this.me.container.y, 'explosion', {
+        speed: { min: 50, max: 150 },
+        scale: { start: 0.8, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 500,
+        blendMode: 'ADD',
+        emitting: false,
+        quantity: 15
+      });
+      deathExplosion.explode();
+      this.time.delayedCall(600, () => deathExplosion.destroy());
       toast('你阵亡了！5秒后复活');
     }
+
+    // 受伤闪白（hp下降时触发）
+    if (this.me._lastHp !== undefined && this.me.hp < this.me._lastHp && !this.me.dead) {
+      this.flashPlayer(this.me, 100);
+      this.shakePlayer(this.me, 150);
+      // 血液粒子
+      const blood = this.add.particles(this.me.container.x, this.me.container.y, 'blood', {
+        speed: { min: 30, max: 80 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.8, end: 0 },
+        lifespan: 400,
+        emitting: false,
+        quantity: 8
+      });
+      blood.explode();
+      this.time.delayedCall(500, () => blood.destroy());
+    }
+    this.me._lastHp = this.me.hp;
 
     // 更新血条
     const hpRatio = Math.max(0, this.me.hp) / this.me.maxHp;
@@ -443,12 +575,82 @@ class LobbyScene extends Phaser.Scene {
 
     // HUD（每10帧更新一次减少开销）
     if (time % 10 < 2) this.updateHUD();
+
+    // 检查牌桌交互
+    this.checkTableInteraction();
+
+    // 检查房屋交互
+    this.checkHouseInteraction();
+  }
+
+  checkTableInteraction() {
+    const hint = $('interaction-hint') || this._createHint();
+    let nearTable = null;
+    for (const t of this.tables) {
+      const dx = t.x - this.me.container.x;
+      const dy = t.y - this.me.container.y;
+      if (Math.sqrt(dx * dx + dy * dy) < 50) {
+        nearTable = t;
+        break;
+      }
+    }
+    if (nearTable) {
+      const status = nearTable.players >= nearTable.max ? ' (满员)' :
+        nearTable.code ? ` (${nearTable.players}/${nearTable.max})` : ' (空桌)';
+      hint.textContent = `${nearTable.label}${status} — 点击🎮加入`;
+      hint.style.display = 'block';
+      this._nearTable = nearTable;
+    } else {
+      hint.style.display = 'none';
+      this._nearTable = null;
+    }
+  }
+
+  checkHouseInteraction() {
+    let nearHouse = null;
+    for (const h of this.houses) {
+      const dx = h.x - this.me.container.x;
+      const dy = h.y - this.me.container.y;
+      if (Math.sqrt(dx * dx + dy * dy) < 40) {
+        nearHouse = h;
+        break;
+      }
+    }
+    if (nearHouse && !this._houseHintShown) {
+      toast('靠近房屋，点击👆进入');
+      this._houseHintShown = true;
+    } else if (!nearHouse) {
+      this._houseHintShown = false;
+    }
+  }
+
+  _createHint() {
+    const hint = document.createElement('div');
+    hint.id = 'interaction-hint';
+    hint.style.cssText = 'position:fixed;bottom:140px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(42,32,16,.95);border:1px solid var(--gold);color:var(--gold);border-radius:2px;font-size:12px;z-index:50;display:none;pointer-events:none;';
+    document.body.appendChild(hint);
+    return hint;
   }
 
   checkWallHit(x, y) {
     for (const wall of this.walls.getChildren()) {
       const wb = wall.body;
-      if (wb && Phaser.Geom.Rectangle.Contains(wb, x, y)) return true;
+      if (wb && Phaser.Geom.Rectangle.Contains(wb, x, y)) {
+        // 击中墙壁产生火花
+        const spark = this.add.particles(x, y, 'hitflash', {
+          speed: { min: 40, max: 100 },
+          angle: { min: 0, max: 360 },
+          scale: { start: 0.6, end: 0 },
+          alpha: { start: 1, end: 0 },
+          lifespan: 200,
+          blendMode: 'ADD',
+          emitting: false,
+          quantity: 6
+        });
+        spark.explode();
+        this.time.delayedCall(250, () => spark.destroy());
+        return true;
+      }
     }
     return false;
   }
@@ -518,7 +720,28 @@ class LobbyScene extends Phaser.Scene {
     toast(`切换: ${gun.name}`);
   }
 
-  doAction() { toast('交互功能待实现'); }
+  doAction() {
+    // 检查牌桌
+    if (this._nearTable) {
+      if (this._nearTable.code) {
+        toast(`加入 ${this._nearTable.label}`);
+        // TODO: 发送加入房间请求
+      } else {
+        toast('空桌子，点击右上角🎮搭新桌');
+      }
+      return;
+    }
+    // 检查房屋
+    for (const h of this.houses) {
+      const dx = h.x - this.me.container.x;
+      const dy = h.y - this.me.container.y;
+      if (Math.sqrt(dx * dx + dy * dy) < 40) {
+        toast('进入房屋...');
+        // TODO: 切换到室内场景
+        return;
+      }
+    }
+  }
 
   _fireDown() {
     this._firing = true;
