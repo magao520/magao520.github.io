@@ -14,12 +14,14 @@ function toast(msg) {
 
 // ========== Phaser 游戏配置 ==========
 const config = {
-  type: Phaser.AUTO,
+  type: Phaser.WEBGL,
   parent: 'game-container',
   width: window.innerWidth,
   height: window.innerHeight,
   backgroundColor: '#1a1610',
   pixelArt: true,
+  antialias: false,
+  roundPixels: true,
   physics: {
     default: 'arcade',
     arcade: {
@@ -31,6 +33,15 @@ const config = {
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+  render: {
+    batchSize: 4096,
+    maxLights: 0,
+    packFrames: true
+  },
+  fps: {
+    target: 30,
+    forceSetTimeOut: false
   }
 };
 
@@ -61,9 +72,9 @@ class LobbyScene extends Phaser.Scene {
     g.generateTexture('particle', 8, 8);
     g.destroy();
     
-    // 地图尺寸
-    this.mapW = 1600;
-    this.mapH = 1200;
+    // 地图尺寸（缩小到合理范围）
+    this.mapW = 800;
+    this.mapH = 600;
     
     // 摄像机
     this.cameras.main.setBounds(0, 0, this.mapW, this.mapH);
@@ -128,10 +139,10 @@ class LobbyScene extends Phaser.Scene {
     // 日夜循环
     this.dayNightCycle = 0;
     
-    // 创建日夜遮罩
-    this.nightOverlay = this.add.rectangle(0, 0, this.mapW, this.mapH, 0x000033, 0.6);
-    this.nightOverlay.setOrigin(0);
+    // 创建日夜遮罩（用小尺寸覆盖视口即可）
+    this.nightOverlay = this.add.rectangle(400, 300, 800, 600, 0x000033, 0.6);
     this.nightOverlay.setDepth(100);
+    this.nightOverlay.setScrollFactor(0);
     this.nightOverlay.setBlendMode(Phaser.BlendModes.MULTIPLY);
   }
 
