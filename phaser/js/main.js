@@ -13,7 +13,7 @@ function toast(msg) {
 
 // ========== Phaser 配置 ==========
 const config = {
-  type: Phaser.WEBGL,
+  type: Phaser.AUTO,
   parent: 'game-container',
   width: window.innerWidth,
   height: window.innerHeight,
