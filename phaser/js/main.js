@@ -41,18 +41,6 @@ class LobbyScene extends Phaser.Scene {
   }
 
   preload() {
-    // 加载图块素材
-    this.load.image('tilemap', '../assets/tilemap.png');
-    this.load.image('street', '../assets/tile_village_street.png');
-    this.load.image('objects', '../assets/tile_village_objects.png');
-    this.load.image('indoors', '../assets/obj_indoors.png');
-    this.load.image('room_tiles', '../assets/tile_room.png');
-    
-    // 加载角色精灵图（使用新的狸猫素材）
-    this.load.spritesheet('raccoon_idle', '../assets/raccoon/FAT_ANIMAL_TANUKI/FAT ANIMAL TANUKI/Animation PNG/TANUKI/NUDE/01-Idle/', {
-      frameWidth: 64, frameHeight: 64
-    });
-    
     // 枪械素材
     this.load.image('pistol', '../assets/guns/Pistol.png');
     this.load.image('ak47', '../assets/guns/AK47.png');
@@ -60,16 +48,18 @@ class LobbyScene extends Phaser.Scene {
     this.load.image('sniper', '../assets/guns/SniperRifle.png');
     this.load.image('minigun', '../assets/guns/Minigun.png');
     
-    // 粒子纹理
+    // 粒子纹理（代码生成，不需要加载）
+  }
+
+  create() {
+    window.gameScene = this;
+    
+    // 生成粒子纹理
     const g = this.make.graphics({ x: 0, y: 0, add: false });
     g.fillStyle(0xffdd44);
     g.fillCircle(4, 4, 4);
     g.generateTexture('particle', 8, 8);
     g.destroy();
-  }
-
-  create() {
-    window.gameScene = this;
     
     // 地图尺寸
     this.mapW = 1600;
