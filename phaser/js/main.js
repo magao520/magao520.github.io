@@ -117,7 +117,7 @@ class LobbyScene extends Phaser.Scene {
     this.nightOverlay = this.add.rectangle(400, 300, 800, 600, 0x000033, 0.6);
     this.nightOverlay.setDepth(100);
     this.nightOverlay.setScrollFactor(0);
-    this.nightOverlay.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.nightOverlay.setAlpha(0);
 
     // 广播
     this.time.addEvent({ delay: 100, callback: this.broadcastPos, callbackScope: this, loop: true });
@@ -507,7 +507,6 @@ class LobbyScene extends Phaser.Scene {
         scale: { start: 0.8, end: 0 },
         alpha: { start: 1, end: 0 },
         lifespan: 500,
-        blendMode: 'ADD',
         emitting: false,
         quantity: 15
       });
@@ -630,7 +629,6 @@ class LobbyScene extends Phaser.Scene {
           scale: { start: 0.6, end: 0 },
           alpha: { start: 1, end: 0 },
           lifespan: 200,
-          blendMode: 'ADD',
           emitting: false,
           quantity: 6
         });
@@ -676,7 +674,6 @@ class LobbyScene extends Phaser.Scene {
       scale: { start: 0.8, end: 0 },
       alpha: { start: 1, end: 0 },
       lifespan: 150,
-      blendMode: 'ADD',
       emitting: false,
       quantity: 5
     });
@@ -782,14 +779,8 @@ class LobbyScene extends Phaser.Scene {
 // ========== 启动 ==========
 window.addEventListener('load', () => {
   try {
-    // 检测 WebGL 支持
-    const testCanvas = document.createElement('canvas');
-    const gl = testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl');
-    if (gl) {
-      config.type = Phaser.WEBGL;
-    } else {
-      config.type = Phaser.CANVAS;
-    }
+    // 强制使用 Canvas 渲染器（部分手机 WebGL 着色器不兼容）
+    config.type = Phaser.CANVAS;
     config.scene = [LobbyScene];
     window.game = new Phaser.Game(config);
   } catch(e) {
