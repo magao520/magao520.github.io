@@ -13,6 +13,7 @@
 body{background:var(--bg);color:var(--text);font-family:'Press Start 2P','Courier New',monospace;min-height:100vh;overflow:hidden;font-size:10px}
 body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 4px,rgba(0,0,0,.06) 4px,rgba(0,0,0,.06) 8px);pointer-events:none;z-index:2}
 #game-container{position:fixed;inset:0;z-index:1}
+#game-container canvas{display:block!important}
 #ui-layer{position:fixed;inset:0;z-index:10;pointer-events:none}
 #ui-layer>*{pointer-events:auto}
 .top-bar{position:fixed;top:0;left:0;right:0;height:40px;display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:rgba(26,22,16,.95);border-bottom:1px solid var(--border);z-index:50}
@@ -28,9 +29,28 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 20px;background:rgba(42,32,16,.95);border:1px solid var(--gold);color:var(--gold);border-radius:2px;font-size:13px;font-weight:700;z-index:999;animation:toastIn .3s ease-out,toastOut .3s ease-in 2.7s forwards;pointer-events:none}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @keyframes toastOut{from{opacity:1}to{opacity:0}}
+#loading-overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;font-family:'Press Start 2P',monospace}
+#loading-overlay h2{color:var(--gold);font-size:14px;margin-bottom:20px}
+#loading-bar-wrap{width:200px;height:8px;background:rgba(255,255,255,.1);border:1px solid var(--border)}
+#loading-bar{width:0%;height:100%;background:var(--gold);transition:width .3s}
+#loading-text{color:var(--dim);font-size:9px;margin-top:8px}
+#error-box{display:none;position:fixed;inset:0;background:var(--bg);z-index:300;flex-direction:column;align-items:center;justify-content:center;font-family:'Press Start 2P',monospace;padding:20px;text-align:center}
+#error-box h2{color:#c4463a;font-size:12px;margin-bottom:12px}
+#error-box p{color:var(--dim);font-size:9px;line-height:1.8;max-width:300px}
+#error-box button{margin-top:20px;padding:10px 20px;background:var(--gold);color:#1a1610;border:none;font-family:inherit;font-size:10px;cursor:pointer}
 </style>
 </head>
 <body>
+<div id="loading-overlay">
+  <h2>废土交易所</h2>
+  <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+  <div id="loading-text">初始化中...</div>
+</div>
+<div id="error-box">
+  <h2>加载失败</h2>
+  <p id="error-msg">游戏引擎初始化失败，请刷新重试</p>
+  <button onclick="location.reload()">刷新页面</button>
+</div>
 <div id="game-container"></div>
 <div id="ui-layer">
   <div class="top-bar">
@@ -51,6 +71,16 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <button onclick="toggleChat()"><span>💬</span><span>聊天</span></button>
   </div>
 </div>
+<script>
+// 错误捕获
+window.onerror = function(msg, url, line, col, err) {
+  document.getElementById('loading-overlay').style.display = 'none';
+  var eb = document.getElementById('error-box');
+  eb.style.display = 'flex';
+  document.getElementById('error-msg').textContent = '错误: ' + msg + ' (行' + line + ')';
+  return true;
+};
+</script>
 <script src="js/main.js"></script>
 </body>
 </html>

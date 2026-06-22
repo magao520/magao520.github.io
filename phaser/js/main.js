@@ -781,8 +781,25 @@ class LobbyScene extends Phaser.Scene {
 
 // ========== 启动 ==========
 window.addEventListener('load', () => {
-  config.scene = [LobbyScene];
-  window.game = new Phaser.Game(config);
+  try {
+    // 检测 WebGL 支持
+    const testCanvas = document.createElement('canvas');
+    const gl = testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl');
+    if (gl) {
+      config.type = Phaser.WEBGL;
+    } else {
+      config.type = Phaser.CANVAS;
+    }
+    config.scene = [LobbyScene];
+    window.game = new Phaser.Game(config);
+  } catch(e) {
+    document.getElementById('loading-overlay').style.display = 'none';
+    var eb = document.getElementById('error-box');
+    if (eb) {
+      eb.style.display = 'flex';
+      document.getElementById('error-msg').textContent = '启动失败: ' + e.message;
+    }
+  }
 });
 
 window.G = {
