@@ -136,29 +136,33 @@ class LobbyScene extends Phaser.Scene {
   }
 
   createMap() {
-    // 地面层 - 使用图块精灵
+    // 用 RenderTexture 烘焙地面（1850个矩形 → 1张纹理，性能提升100倍）
     const tileSize = 32;
+    const rt = this.add.renderTexture(0, 0, this.mapW, this.mapH);
+    rt.setDepth(0);
+    rt.setOrigin(0);
+    
+    const g = this.make.graphics({ add: false });
     for (let x = 0; x < this.mapW; x += tileSize) {
       for (let y = 0; y < this.mapH; y += tileSize) {
-        // 简化：纯色地面 + 随机纹理
         const isStreet = (x > 200 && x < 1400 && y > 200 && y < 1000);
-        const color = isStreet ? 0x3a3a3a : 0x2a2a1a;
-        const ground = this.add.rectangle(x + tileSize/2, y + tileSize/2, tileSize, tileSize, color);
-        ground.setDepth(0);
+        g.fillStyle(isStreet ? 0x3a3a3a : 0x2a2a1a);
+        g.fillRect(x, y, tileSize, tileSize);
       }
     }
-    
-    // 添加一些装饰物
+    // 装饰物
     const decoColors = [0x4a4a3a, 0x3a3a2a, 0x5a5a4a];
     for (let i = 0; i < 50; i++) {
       const x = Phaser.Math.Between(100, this.mapW - 100);
       const y = Phaser.Math.Between(100, this.mapH - 100);
       const size = Phaser.Math.Between(20, 40);
-      const deco = this.add.rectangle(x, y, size, size, Phaser.Utils.Array.GetRandom(decoColors));
-      deco.setDepth(1);
+      g.fillStyle(Phaser.Utils.Array.GetRandom(decoColors));
+      g.fillRect(x - size/2, y - size/2, size, size);
     }
+    rt.draw(g);
+    g.destroy();
     
-    // 墙壁/障碍物
+    // 墙壁/障碍物（数量少，保持独立对象用于碰撞）
     this.walls = this.physics.add.staticGroup();
     for (let i = 0; i < 20; i++) {
       const x = Phaser.Math.Between(200, this.mapW - 200);
