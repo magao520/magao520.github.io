@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>废土交易所 - Phaser 3 版</title>
 <script src="https://unpkg.com/mqtt@5.10.4/dist/mqtt.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js" crossorigin="anonymous"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+SC:wght@400;700;900&family=Special+Elite&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
@@ -77,7 +77,8 @@ window.onerror = function(msg, url, line, col, err) {
   document.getElementById('loading-overlay').style.display = 'none';
   var eb = document.getElementById('error-box');
   eb.style.display = 'flex';
-  document.getElementById('error-msg').textContent = '错误: ' + msg + ' (行' + line + ')';
+  var shortUrl = url ? url.split('/').pop() : '';
+  document.getElementById('error-msg').textContent = shortUrl + ': ' + msg + ' (行' + line + ')';
   return true;
 };
 </script>
