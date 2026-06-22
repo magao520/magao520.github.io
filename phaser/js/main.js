@@ -73,9 +73,6 @@ class LobbyScene extends Phaser.Scene {
     // 生成粒子纹理
     this.generateTextures();
 
-    // 创建着色器
-    this.createShaders();
-
     // 创建动画
     this.createAnimations();
 
@@ -166,45 +163,32 @@ class LobbyScene extends Phaser.Scene {
     g.destroy();
   }
 
-  createShaders() {
-    // 受伤闪白着色器
-    this.flashPipeline = this.renderer.pipelines.add('FlashWhite', new Phaser.Renderer.WebGL.Pipelines.SinglePipeline({
-      game: this.game,
-      fragShader: `
-        precision mediump float;
-        uniform sampler2D uMainSampler;
-        uniform float uFlash;
-        varying vec2 outTexCoord;
-        void main() {
-          vec4 color = texture2D(uMainSampler, outTexCoord);
-          gl_FragColor = mix(color, vec4(1.0, 1.0, 1.0, color.a), uFlash);
-        }
-      `,
-      uniforms: ['uProjectionMatrix', 'uViewMatrix', 'uModelMatrix', 'uMainSampler', 'uFlash']
-    }));
-  }
-
   flashPlayer(player, duration = 150) {
     if (!player || !player.sprite) return;
     player.sprite.setTint(0xffffff);
-    player.sprite.setAlpha(0.8);
     this.tweens.add({
       targets: player.sprite,
-      alpha: 1,
+      alpha: { from: 0.7, to: 1 },
       duration: duration,
-      onComplete: () => { player.sprite.clearTint(); }
+      onComplete: () => { player.sprite.clearTint(); player.sprite.setAlpha(1); }
     });
   }
 
   shakePlayer(player, duration = 200) {
     if (!player || !player.container) return;
+    const origX = player.container.x;
+    const origY = player.container.y;
     this.tweens.add({
       targets: player.container,
-      x: player.container.x + Phaser.Math.Between(-5, 5),
-      y: player.container.y + Phaser.Math.Between(-5, 5),
-      duration: 50,
+      x: origX + Phaser.Math.Between(-4, 4),
+      y: origY + Phaser.Math.Between(-4, 4),
+      duration: 40,
       yoyo: true,
-      repeat: duration / 50
+      repeat: Math.floor(duration / 40),
+      onComplete: () => {
+        player.container.x = origX;
+        player.container.y = origY;
+      }
     });
   }
 
