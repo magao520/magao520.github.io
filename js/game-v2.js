@@ -302,8 +302,8 @@ class MapGenerator {
 
     for (const tile of this.tiles) {
       if (tile.x < viewLeft || tile.x > viewRight || tile.y < viewTop || tile.y > viewBottom) continue;
-      ctx.fillStyle = tile.color;
-      ctx.fillRect(tile.x, tile.y, 32, 32);
+      // 绘制带纹理的瓦片
+      this.drawTile(ctx, tile);
     }
 
     for (const obj of this.objects) {
@@ -312,60 +312,293 @@ class MapGenerator {
     }
   }
 
+  drawTile(ctx, tile) {
+    const x = tile.x;
+    const y = tile.y;
+
+    if (tile.type === 'road') {
+      // 道路 - 沥青质感
+      ctx.fillStyle = tile.color;
+      ctx.fillRect(x, y, 32, 32);
+      // 沥青颗粒
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      for (let i = 0; i < 8; i++) {
+        ctx.fillRect(x + Math.random() * 30, y + Math.random() * 30, 1, 1);
+      }
+      // 道路标线
+      if ((x + y) % 128 < 64) {
+        ctx.fillStyle = 'rgba(200,180,100,0.3)';
+        ctx.fillRect(x + 14, y, 4, 32);
+      }
+    } else {
+      // 草地 - 自然纹理
+      ctx.fillStyle = tile.color;
+      ctx.fillRect(x, y, 32, 32);
+      // 草叶纹理
+      ctx.fillStyle = 'rgba(100,160,60,0.1)';
+      for (let i = 0; i < 5; i++) {
+        const gx = x + 4 + (i * 6) % 28;
+        const gy = y + 4 + ((i * 7) % 28);
+        ctx.fillRect(gx, gy, 2, 3);
+      }
+      // 随机小花
+      if (Math.abs(Math.sin(x * 0.1 + y * 0.2) * Math.cos(x * 0.2 - y * 0.1)) > 0.85) {
+        const flowerColors = ['#ff6b6b', '#ffd93d', '#6bcf7f', '#4d96ff'];
+        ctx.fillStyle = flowerColors[Math.floor(Math.abs(x * y) % 4)];
+        ctx.fillRect(x + 12, y + 12, 3, 3);
+        ctx.fillRect(x + 17, y + 12, 3, 3);
+        ctx.fillRect(x + 12, y + 17, 3, 3);
+        ctx.fillRect(x + 17, y + 17, 3, 3);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x + 14, y + 14, 4, 4);
+      }
+    }
+  }
+
   drawObject(ctx, obj) {
     switch (obj.type) {
       case 'house':
-        // 房屋主体
-        ctx.fillStyle = obj.color;
-        ctx.fillRect(obj.x - obj.w / 2, obj.y - obj.h / 2, obj.w, obj.h);
-        // 屋顶
-        ctx.fillStyle = obj.roofColor;
-        ctx.beginPath();
-        ctx.moveTo(obj.x - obj.w / 2 - 10, obj.y - obj.h / 2);
-        ctx.lineTo(obj.x, obj.y - obj.h / 2 - 25);
-        ctx.lineTo(obj.x + obj.w / 2 + 10, obj.y - obj.h / 2);
-        ctx.closePath();
-        ctx.fill();
-        // 门
-        ctx.fillStyle = '#3a2a0a';
-        ctx.fillRect(obj.x - 10, obj.y + obj.h / 2 - 20, 20, 20);
+        this.drawPixelHouse(ctx, obj);
         break;
       case 'tree':
-        // 树干
-        ctx.fillStyle = '#4a3a2a';
-        ctx.fillRect(obj.x - 3, obj.y, 6, obj.size);
-        // 树冠
-        ctx.fillStyle = obj.color;
-        ctx.beginPath();
-        ctx.arc(obj.x, obj.y - obj.size * 0.3, obj.size * 0.8, 0, Math.PI * 2);
-        ctx.fill();
+        this.drawPixelTree(ctx, obj);
         break;
       case 'rock':
-        ctx.fillStyle = obj.color;
-        ctx.beginPath();
-        ctx.arc(obj.x, obj.y, obj.size, 0, Math.PI * 2);
-        ctx.fill();
+        this.drawPixelRock(ctx, obj);
         break;
       case 'table':
-        // 桌子
-        ctx.fillStyle = '#5a3a1a';
-        ctx.fillRect(obj.x - 30, obj.y - 20, 60, 40);
-        ctx.strokeStyle = '#8a6a3a';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(obj.x - 30, obj.y - 20, 60, 40);
-        // 椅子
-        ctx.fillStyle = '#4a2a0a';
-        ctx.fillRect(obj.x - 40, obj.y - 8, 12, 16);
-        ctx.fillRect(obj.x + 28, obj.y - 8, 12, 16);
-        ctx.fillRect(obj.x - 8, obj.y - 32, 16, 12);
-        ctx.fillRect(obj.x - 8, obj.y + 20, 16, 12);
-        // 标签
-        ctx.fillStyle = '#b8960f';
-        ctx.font = '9px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(obj.label, obj.x, obj.y - 28);
+        this.drawPixelTable(ctx, obj);
         break;
     }
+  }
+
+  drawPixelHouse(ctx, obj) {
+    const x = obj.x - obj.w / 2;
+    const y = obj.y - obj.h / 2;
+    const w = obj.w;
+    const h = obj.h;
+
+    // 墙壁纹理 - 砖块效果
+    ctx.fillStyle = obj.color;
+    ctx.fillRect(x, y, w, h);
+    // 砖块线条
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    for (let by = y + 8; by < y + h; by += 16) {
+      ctx.fillRect(x, by, w, 1);
+      const offset = ((by - y) / 16 % 2) * 16;
+      for (let bx = x + offset; bx < x + w; bx += 32) {
+        ctx.fillRect(bx, by - 8, 1, 16);
+      }
+    }
+
+    // 屋顶 - 瓦片效果
+    ctx.fillStyle = obj.roofColor;
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y);
+    ctx.lineTo(obj.x, y - 30);
+    ctx.lineTo(x + w + 8, y);
+    ctx.closePath();
+    ctx.fill();
+    // 屋顶瓦片线条
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const ry = y - 25 + i * 6;
+      const rw = (w + 16) * (1 - i * 0.15);
+      ctx.beginPath();
+      ctx.moveTo(obj.x - rw / 2, ry);
+      ctx.lineTo(obj.x + rw / 2, ry);
+      ctx.stroke();
+    }
+
+    // 窗户
+    ctx.fillStyle = '#2a3a4a';
+    ctx.fillRect(x + 8, y + 10, 14, 14);
+    ctx.fillRect(x + w - 22, y + 10, 14, 14);
+    // 窗框
+    ctx.strokeStyle = '#5a4a3a';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 8, y + 10, 14, 14);
+    ctx.strokeRect(x + w - 22, y + 10, 14, 14);
+    // 窗户反光
+    ctx.fillStyle = 'rgba(200,220,255,0.3)';
+    ctx.fillRect(x + 10, y + 12, 4, 4);
+    ctx.fillRect(x + w - 20, y + 12, 4, 4);
+
+    // 门
+    ctx.fillStyle = '#3a2a0a';
+    ctx.fillRect(obj.x - 10, y + h - 28, 20, 28);
+    // 门框
+    ctx.strokeStyle = '#5a4a2a';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(obj.x - 10, y + h - 28, 20, 28);
+    // 门把手
+    ctx.fillStyle = '#b8960f';
+    ctx.beginPath();
+    ctx.arc(obj.x + 6, y + h - 14, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 烟囱
+    ctx.fillStyle = '#4a4a4a';
+    ctx.fillRect(x + w - 20, y - 25, 12, 20);
+    // 烟雾
+    if (Math.random() > 0.95) {
+      ctx.fillStyle = 'rgba(150,150,150,0.3)';
+      ctx.beginPath();
+      ctx.arc(x + w - 14, y - 30, 4 + Math.random() * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  drawPixelTree(ctx, obj) {
+    const x = obj.x;
+    const y = obj.y;
+    const s = obj.size;
+
+    // 树干 - 更粗的像素风格
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(x - 4, y, 8, s);
+    // 树皮纹理
+    ctx.fillStyle = '#4a3a2a';
+    ctx.fillRect(x - 2, y + 4, 4, s - 8);
+
+    // 树冠 - 多层圆形营造立体感
+    const cy = y - s * 0.3;
+    // 阴影层
+    ctx.fillStyle = '#1a3a1a';
+    ctx.beginPath();
+    ctx.arc(x + 3, cy + 3, s * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    // 主层
+    ctx.fillStyle = obj.color;
+    ctx.beginPath();
+    ctx.arc(x, cy, s * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    // 高光层
+    ctx.fillStyle = 'rgba(100,180,80,0.3)';
+    ctx.beginPath();
+    ctx.arc(x - 3, cy - 3, s * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 树叶细节
+    ctx.fillStyle = 'rgba(80,160,60,0.5)';
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2;
+      const lx = x + Math.cos(angle) * s * 0.5;
+      const ly = cy + Math.sin(angle) * s * 0.4;
+      ctx.fillRect(lx - 2, ly - 2, 4, 4);
+    }
+  }
+
+  drawPixelRock(ctx, obj) {
+    const x = obj.x;
+    const y = obj.y;
+    const s = obj.size;
+
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(x + 2, y + s * 0.3, s * 0.9, s * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 石头主体 - 不规则形状
+    ctx.fillStyle = obj.color;
+    ctx.beginPath();
+    ctx.moveTo(x - s, y);
+    ctx.lineTo(x - s * 0.6, y - s * 0.8);
+    ctx.lineTo(x + s * 0.3, y - s);
+    ctx.lineTo(x + s * 0.9, y - s * 0.4);
+    ctx.lineTo(x + s, y + s * 0.3);
+    ctx.lineTo(x + s * 0.4, y + s * 0.6);
+    ctx.lineTo(x - s * 0.4, y + s * 0.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // 高光
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath();
+    ctx.moveTo(x - s * 0.6, y - s * 0.8);
+    ctx.lineTo(x + s * 0.3, y - s);
+    ctx.lineTo(x + s * 0.1, y - s * 0.5);
+    ctx.lineTo(x - s * 0.4, y - s * 0.4);
+    ctx.closePath();
+    ctx.fill();
+
+    // 裂缝
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - s * 0.3, y - s * 0.3);
+    ctx.lineTo(x + s * 0.2, y + s * 0.1);
+    ctx.stroke();
+  }
+
+  drawPixelTable(ctx, obj) {
+    const x = obj.x;
+    const y = obj.y;
+
+    // 桌子阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(x - 32, y + 18, 64, 8);
+
+    // 桌腿
+    ctx.fillStyle = '#3a2a0a';
+    ctx.fillRect(x - 25, y - 5, 6, 25);
+    ctx.fillRect(x + 19, y - 5, 6, 25);
+    ctx.fillRect(x - 25, y - 20, 6, 15);
+    ctx.fillRect(x + 19, y - 20, 6, 15);
+
+    // 桌面
+    ctx.fillStyle = '#6a4a2a';
+    ctx.fillRect(x - 32, y - 22, 64, 20);
+    // 桌面纹理
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(x - 30, y - 20, 60, 2);
+    ctx.fillRect(x - 30, y - 14, 60, 1);
+    ctx.fillRect(x - 30, y - 8, 60, 2);
+
+    // 桌边
+    ctx.strokeStyle = '#8a6a3a';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - 32, y - 22, 64, 20);
+
+    // 椅子
+    const chairPositions = [
+      { x: x - 42, y: y - 8 },
+      { x: x + 30, y: y - 8 },
+      { x: x - 8, y: y - 38 },
+      { x: x - 8, y: y + 18 }
+    ];
+    for (const cp of chairPositions) {
+      // 椅腿
+      ctx.fillStyle = '#3a2a0a';
+      ctx.fillRect(cp.x + 2, cp.y + 2, 2, 10);
+      ctx.fillRect(cp.x + 10, cp.y + 2, 2, 10);
+      // 椅面
+      ctx.fillStyle = '#4a3a2a';
+      ctx.fillRect(cp.x, cp.y, 14, 4);
+      // 椅背
+      ctx.fillStyle = '#5a4a3a';
+      ctx.fillRect(cp.x, cp.y - 8, 14, 8);
+    }
+
+    // 标签背景
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(x - 35, y - 42, 70, 14);
+    // 标签文字
+    ctx.fillStyle = '#b8960f';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(obj.label, x, y - 32);
+
+    // 扑克牌装饰
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - 8, y - 18, 6, 8);
+    ctx.fillRect(x + 2, y - 18, 6, 8);
+    ctx.strokeStyle = '#c4463a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 8, y - 18, 6, 8);
+    ctx.strokeRect(x + 2, y - 18, 6, 8);
   }
 }
 
