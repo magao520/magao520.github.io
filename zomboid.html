@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>废土交易所 - 丧尸毁灭工程风格</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#c4b896;font-family:'Courier New',monospace;overflow:hidden;font-size:10px}
+#gameCanvas{position:fixed;inset:0;cursor:crosshair}
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(0,0,0,.9);border:1px solid #b8960f;color:#b8960f;border-radius:2px;font-size:12px;z-index:100;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script src="js/project-zomboid.js"></script>
+<script>
+const game = new ProjectZomboidGame();
+game.start();
+</script>
+</body>
+</html>
