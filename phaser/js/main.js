@@ -384,11 +384,7 @@ class LobbyScene extends Phaser.Scene {
   }
 
   createHUD() {
-    // 枪械信息（固定在屏幕上）
-    this.hudGroup = this.add.group();
-    this.hudGroup.setScrollFactor(0);
-
-    // 当前枪械名称
+    // 当前枪械名称（固定在屏幕上）
     this.gunNameText = this.add.text(10, 50, '', {
       fontSize: '12px', fontFamily: 'monospace', color: '#b8960f',
       stroke: '#000', strokeThickness: 2
@@ -407,7 +403,6 @@ class LobbyScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(201);
     // 其他玩家点
     this.minimapOthers = this.add.group();
-    this.minimapOthers.setScrollFactor(0);
   }
 
   updateHUD() {
