@@ -293,16 +293,38 @@ class MapGenerator {
     };
   }
 
+  async loadImages() {
+    const imageUrls = {
+      house: 'assets/pixel/house.jpg',
+      tree: 'assets/pixel/tree.jpg',
+      rock: 'assets/pixel/rock.jpg',
+      table: 'assets/pixel/table.jpg'
+    };
+
+    this.images = {};
+    for (const [key, url] of Object.entries(imageUrls)) {
+      this.images[key] = await this.loadImage(url);
+    }
+  }
+
+  loadImage(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+
   draw(ctx, camera) {
     // 只绘制视口内的瓦片
-    const viewLeft = camera.x - camera.width / 2 - 32;
-    const viewRight = camera.x + camera.width / 2 + 32;
-    const viewTop = camera.y - camera.height / 2 - 32;
-    const viewBottom = camera.y + camera.height / 2 + 32;
+    const viewLeft = camera.x - camera.width / 2 - 64;
+    const viewRight = camera.x + camera.width / 2 + 64;
+    const viewTop = camera.y - camera.height / 2 - 64;
+    const viewBottom = camera.y + camera.height / 2 + 64;
 
     for (const tile of this.tiles) {
       if (tile.x < viewLeft || tile.x > viewRight || tile.y < viewTop || tile.y > viewBottom) continue;
-      // 绘制带纹理的瓦片
       this.drawTile(ctx, tile);
     }
 
@@ -356,19 +378,19 @@ class MapGenerator {
   }
 
   drawObject(ctx, obj) {
-    switch (obj.type) {
-      case 'house':
-        this.drawPixelHouse(ctx, obj);
-        break;
-      case 'tree':
-        this.drawPixelTree(ctx, obj);
-        break;
-      case 'rock':
-        this.drawPixelRock(ctx, obj);
-        break;
-      case 'table':
-        this.drawPixelTable(ctx, obj);
-        break;
+    const img = this.images ? this.images[obj.type] : null;
+    if (img) {
+      // 使用真实图片
+      const size = obj.type === 'house' ? 80 : obj.type === 'tree' ? 60 : obj.type === 'table' ? 70 : 40;
+      ctx.drawImage(img, obj.x - size / 2, obj.y - size / 2, size, size);
+    } else {
+      // 备用：像素绘制
+      switch (obj.type) {
+        case 'house': this.drawPixelHouse(ctx, obj); break;
+        case 'tree': this.drawPixelTree(ctx, obj); break;
+        case 'rock': this.drawPixelRock(ctx, obj); break;
+        case 'table': this.drawPixelTable(ctx, obj); break;
+      }
     }
   }
 
@@ -613,55 +635,63 @@ class PlayerAnimator {
   }
 
   async load() {
-    // 加载狸猫精灵图
-    const animNames = ['idle', 'walk', 'run', 'hurt', 'dead'];
-    for (const name of animNames) {
-      try {
-        const img = new Image();
-        img.src = `assets/spritesheets/tanuki-${name}.png`;
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-        });
-        this.frames[name] = img;
-      } catch (e) {
-        console.warn(`Failed to load ${name} animation`);
-      }
+    // 加载生成的角色图片
+    try {
+      const img = new Image();
+      img.src = 'assets/pixel/player.jpg';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+      this.playerImg = img;
+    } catch (e) {
+      console.warn('Failed to load player image');
     }
+
+    // 加载枪械图片
+    try {
+      const img = new Image();
+      img.src = 'assets/pixel/gun_pistol.jpg';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+      this.gunImg = img;
+    } catch (e) {
+      console.warn('Failed to load gun image');
+    }
+
     this.loaded = true;
   }
 
   draw(ctx, x, y, anim, frameTime, faceDir, scale = 0.5) {
-    const img = this.frames[anim] || this.frames['idle'];
-    if (!img) {
+    if (this.playerImg) {
+      // 使用生成的角色图片
+      const size = 48;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(faceDir * 0.8, 0.8);
+      ctx.drawImage(this.playerImg, -size / 2, -size, size, size * 1.5);
+      ctx.restore();
+    } else {
       // 备用：绘制简单矩形
       ctx.fillStyle = '#4a7a3a';
       ctx.fillRect(x - 15, y - 15, 30, 30);
-      return;
     }
+  }
 
-    const frameWidths = { idle: 128, walk: 128, run: 128, hurt: 128, dead: 128 };
-    const frameCounts = { idle: 12, walk: 12, run: 10, hurt: 6, dead: 10 };
-    const frameRates = { idle: 8, walk: 8, run: 10, hurt: 12, dead: 6 };
-
-    const fw = frameWidths[anim] || 128;
-    const fc = frameCounts[anim] || 1;
-    const fr = frameRates[anim] || 8;
-
-    this.frameTime += frameTime;
-    if (this.frameTime >= 1 / fr) {
-      this.frameTime = 0;
-      this.frameIndex = (this.frameIndex + 1) % fc;
+  drawGun(ctx, x, y, faceDir) {
+    if (this.gunImg) {
+      const size = 24;
+      ctx.save();
+      ctx.translate(x + faceDir * 20, y + 5);
+      ctx.scale(faceDir * 0.3, 0.3);
+      ctx.drawImage(this.gunImg, -size, -size / 2, size * 2, size);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#6a6a6a';
+      ctx.fillRect(x + faceDir * 15, y, 20, 6);
     }
-
-    const sx = this.frameIndex * fw;
-    const sy = 0;
-
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(faceDir * scale, scale);
-    ctx.drawImage(img, sx, sy, fw, 128, -fw / 2, -64, fw, 128);
-    ctx.restore();
   }
 }
 
@@ -900,11 +930,7 @@ class GameV2 {
     this.animator.draw(ctx, this.me.x, this.me.y, this.me.state, 1 / 60, this.me.faceDir);
 
     // 绘制枪
-    const gun = this.guns[this.me.gun];
-    ctx.fillStyle = '#6a6a6a';
-    const gx = this.me.x + this.me.faceDir * 20;
-    const gy = this.me.y + 5;
-    ctx.fillRect(gx - 10, gy - 3, 20, 6);
+    this.animator.drawGun(ctx, this.me.x, this.me.y, this.me.faceDir);
 
     ctx.restore();
 
@@ -959,13 +985,13 @@ class GameV2 {
     requestAnimationFrame(() => this.loop());
   }
 
-  start() {
+  async start() {
     this.lastTime = performance.now();
-    this.animator.load().then(() => {
-      this.loop();
-    }).catch(() => {
-      this.loop();
-    });
+    // 加载地图图片
+    await this.map.loadImages();
+    // 加载角色动画
+    await this.animator.load();
+    this.loop();
   }
 }
 
